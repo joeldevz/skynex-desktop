@@ -205,25 +205,11 @@ export const Header: React.FC = () => {
   // returns the moment the panel is switched off or squeezed out.
   const workStatusPanelVisible = useUIStore((state) => state.workStatusPanelVisible);
   const workStatusPanelEnabled = useUIStore((state) => state.workStatusPanelEnabled);
-  const setWorkStatusPanelEnabled = useUIStore((state) => state.setWorkStatusPanelEnabled);
   const workStatusPanelFits = useUIStore((state) => state.workStatusPanelFits);
   const workStatusOverlayOpen = useUIStore((state) => state.workStatusOverlayOpen);
-  const setWorkStatusOverlayOpen = useUIStore((state) => state.setWorkStatusOverlayOpen);
-
-  // Two meanings for one button. With room beside the chat it switches the
-  // panel on and off. Without room it cannot be shown inline at all, so it
-  // reads as off and opens the panel over the chat instead — the stored
-  // preference is left alone, so the panel comes back on its own once the
-  // window is wide enough again.
-  const workStatusPanelShownInline = workStatusPanelEnabled && workStatusPanelFits;
-  const workStatusToggleActive = workStatusPanelShownInline || workStatusOverlayOpen;
-  const handleWorkStatusToggle = React.useCallback(() => {
-    if (workStatusPanelEnabled && !workStatusPanelFits) {
-      setWorkStatusOverlayOpen(!workStatusOverlayOpen);
-      return;
-    }
-    setWorkStatusPanelEnabled(!workStatusPanelEnabled);
-  }, [setWorkStatusOverlayOpen, setWorkStatusPanelEnabled, workStatusOverlayOpen, workStatusPanelEnabled, workStatusPanelFits]);
+  const toggleWorkStatusPanel = useUIStore((state) => state.toggleWorkStatusPanel);
+  const workStatusToggleActive = workStatusPanelEnabled && (workStatusPanelFits || workStatusOverlayOpen);
+  const handleWorkStatusToggle = React.useCallback(() => toggleWorkStatusPanel(), [toggleWorkStatusPanel]);
 
   useQuotaAutoRefresh();
 
@@ -1333,12 +1319,10 @@ export const Header: React.FC = () => {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {workStatusPanelEnabled && !workStatusPanelFits
-                  ? (workStatusOverlayOpen
-                    ? t('header.workStatusPanel.hide')
-                    : t('header.workStatusPanel.showOverlay'))
-                  : workStatusPanelEnabled
-                    ? t('header.workStatusPanel.hide')
+                {workStatusToggleActive
+                  ? t('header.workStatusPanel.hide')
+                  : workStatusPanelEnabled && !workStatusPanelFits
+                    ? t('header.workStatusPanel.showOverlay')
                     : t('header.workStatusPanel.show')}
               </TooltipContent>
             </Tooltip>

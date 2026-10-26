@@ -19,8 +19,23 @@ describe('section registry', () => {
 
   test('preserves chosen positions and appends missing sections once', () => {
     const order = sanitizeWorkStatusSectionOrder(['pinned', 'repository', 'pinned', 'obsolete', 'session']);
-    expect(order).toEqual(['pinned', 'repository', 'session', 'usage', 'telemetry', 'subagents', 'workflows', 'mcp', 'contextSources']);
+    expect(order).toEqual(['pinned', 'repository', 'tasks', 'session', 'usage', 'telemetry', 'subagents', 'workflows', 'mcp', 'contextSources']);
     expect(sanitizeWorkStatusSectionOrder(JSON.parse(JSON.stringify(order)))).toEqual(order);
+  });
+
+  test('places Tasks between Project and Usage for existing saved defaults', () => {
+    const legacy = WORK_STATUS_SECTION_IDS.filter((id) => id !== 'tasks');
+    expect(sanitizeWorkStatusSectionOrder(legacy)).toEqual([...WORK_STATUS_SECTION_IDS]);
+    expect(WORK_STATUS_SECTION_IDS.slice(0, 4)).toEqual(['session', 'repository', 'tasks', 'usage']);
+  });
+
+  test('keeps an intentional saved Tasks placement and hidden preference on roundtrip', () => {
+    const chosen = ['usage', 'repository', 'mcp', 'tasks', 'session'];
+    const order = sanitizeWorkStatusSectionOrder(chosen);
+    expect(order.slice(0, 5)).toEqual(chosen);
+    expect(sanitizeWorkStatusSectionOrder(JSON.parse(JSON.stringify(order)))).toEqual(order);
+    expect(sanitizeWorkStatusHiddenSections(['tasks', 'mcp'])).toEqual(['tasks', 'mcp']);
+    expect(isWorkStatusSectionVisible(['tasks'], 'tasks')).toBe(false);
   });
 
   test('every section has a label, and every label a section', () => {

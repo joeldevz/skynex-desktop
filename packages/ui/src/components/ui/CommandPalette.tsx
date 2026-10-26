@@ -425,6 +425,26 @@ export const CommandPalette: React.FC = () => {
           setArchivePageOpen(true);
         }),
       },
+      {
+        id: 'open-tasks',
+        secondary: true,
+        title: t('commandPalette.item.openTasks'),
+        icon: <Icon name="list-check-2" className="me-2 h-4 w-4" />,
+        searchText: t('commandPalette.item.openTasks'),
+        onSelect: run(() => {
+          useUIStore.getState().openWorkStatusTasks();
+        }),
+      },
+      {
+        id: 'open-memory',
+        secondary: true,
+        title: t('commandPalette.item.openMemory'),
+        icon: <Icon name="brain" className="me-2 h-4 w-4" />,
+        searchText: t('commandPalette.item.openMemory'),
+        onSelect: run(() => {
+          if (currentDirectory) openContextSurface(currentDirectory, 'memory');
+        }),
+      },
     );
     if (!isVSCodeRuntime()) {
       list.push({

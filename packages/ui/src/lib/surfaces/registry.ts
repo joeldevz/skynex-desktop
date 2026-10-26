@@ -15,6 +15,8 @@ type BuiltInContextSurfaceId =
   | 'context'
   | 'browser'
   | 'workflows'
+  | 'memory'
+  | 'tasks'
   | 'chat';
 
 export type ContextSurfaceId = BuiltInContextSurfaceId | `plugin:${string}`;
@@ -111,6 +113,22 @@ export const CONTEXT_SURFACES: readonly ContextSurfaceDescriptor[] = [
     mode: 'workflows',
     icon: 'flow-chart',
     labelKey: 'contextPanel.mode.workflows',
+    availability: 'always',
+  },
+  {
+    id: 'memory',
+    descriptionKey: 'contextRail.surface.memory.description',
+    mode: 'memory',
+    icon: 'brain',
+    labelKey: 'contextRail.surface.memory',
+    availability: 'always',
+  },
+  {
+    id: 'tasks',
+    descriptionKey: 'contextRail.surface.tasks.description',
+    mode: 'tasks',
+    icon: 'checkbox-circle',
+    labelKey: 'contextRail.surface.tasks',
     availability: 'always',
   },
   {

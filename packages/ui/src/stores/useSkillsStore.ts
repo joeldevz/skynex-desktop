@@ -86,6 +86,8 @@ interface SkillSources {
     instructions?: string;
     /** The model only loads the skill when asked for it by name. */
     disableModelInvocation?: boolean;
+    /** Who installed the skill (`metadata.managed-by`), lower-cased; null when unstated. */
+    managedBy?: string | null;
   };
   projectMd?: { exists: boolean; path: string | null };
   claudeMd?: { exists: boolean; path: string | null };
@@ -106,6 +108,8 @@ export interface DiscoveredSkill {
   group?: string;
   /** Authoritative server flag: skill lives under a managed root and can be renamed in place. */
   renamable?: boolean;
+  /** Tool that installed the skill, from its `metadata.managed-by`, e.g. "skynex". */
+  managedBy?: string;
 }
 
 /** Parse the domain group folder from a skill file path.
@@ -135,6 +139,7 @@ interface RawSkillResponse {
   sources?: {
     md?: {
       description?: string;
+      managedBy?: string | null;
     };
   };
 }
@@ -537,6 +542,7 @@ export const useSkillsStore = create<SkillsStore>()(
                   description: s.sources?.md?.description || '',
                   group: parseSkillGroup(s.path),
                   renamable: s.renamable === true,
+                  managedBy: s.sources?.md?.managedBy ?? undefined,
                 }));
 
                 // OpenCode loads a narrower set than this scan finds, and the

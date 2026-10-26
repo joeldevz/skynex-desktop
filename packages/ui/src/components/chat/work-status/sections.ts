@@ -15,6 +15,7 @@ import type { I18nKey } from '@/lib/i18n/messages/en';
 export const WORK_STATUS_SECTION_IDS = [
   'session',
   'repository',
+  'tasks',
   'usage',
   'telemetry',
   'subagents',
@@ -29,6 +30,7 @@ export type WorkStatusSectionId = (typeof WORK_STATUS_SECTION_IDS)[number];
 export const WORK_STATUS_SECTION_LABEL_KEYS = {
   session: 'chat.workStatus.section.session',
   repository: 'chat.workStatus.section.project',
+  tasks: 'skynex.tasks.title',
   usage: 'chat.workStatus.section.usage',
   telemetry: 'chat.workStatus.section.telemetry',
   subagents: 'chat.workStatus.section.subagents',
@@ -66,7 +68,7 @@ const readStoredSectionId = (value: unknown): WorkStatusPanelSectionId | null =>
   return parsed.success ? parsed.data : null;
 };
 
-/** Preserve chosen positions, discard obsolete ids, and append newly added built-in sections. */
+/** Preserve chosen positions; older orders receive Tasks immediately after Project. */
 export const sanitizeWorkStatusSectionOrder = (value: readonly string[] | null | undefined): WorkStatusPanelSectionId[] => {
   const ordered = new Set<WorkStatusPanelSectionId>();
   if (Array.isArray(value)) {
@@ -76,7 +78,12 @@ export const sanitizeWorkStatusSectionOrder = (value: readonly string[] | null |
     }
   }
   for (const id of WORK_STATUS_SECTION_IDS) ordered.add(id);
-  return [...ordered];
+  const result = [...ordered];
+  if (!value?.includes('tasks')) {
+    result.splice(result.indexOf('tasks'), 1);
+    result.splice(result.indexOf('repository') + 1, 0, 'tasks');
+  }
+  return result;
 };
 
 /**

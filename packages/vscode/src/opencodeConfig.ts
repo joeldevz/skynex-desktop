@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import yaml from 'yaml';
+import { z } from 'zod';
 import {
   applyEdits,
   createScanner,
@@ -2929,6 +2930,8 @@ export type SkillConfigSources = {
     description?: string;
     instructions?: string;
     disableModelInvocation: boolean;
+    /** Who installed the skill (`metadata.managed-by`), lower-cased; null when unstated. */
+    managedBy: string | null;
   };
   projectMd?: { exists: boolean; path: string | null };
   claudeMd?: { exists: boolean; path: string | null };
@@ -3225,6 +3228,16 @@ const parseFrontmatterBoolean = (value: SkillFrontmatter[string]): boolean | und
   return FRONTMATTER_BOOLEANS.get(String(value).trim().toLowerCase());
 };
 
+// Same rule as the web server's skills.js: `metadata.managed-by`, a
+// non-empty string, names the tool that installed the skill.
+const MANAGED_BY_METADATA_KEY = 'managed-by';
+
+const readManagedBy = (frontmatter: SkillFrontmatter): string | null => {
+  if (!isPlainObject(frontmatter.metadata)) return null;
+  const value = z.string().safeParse(frontmatter.metadata[MANAGED_BY_METADATA_KEY]);
+  return value.success ? value.data.trim().toLowerCase() || null : null;
+};
+
 const isModelInvocationDisabled = (frontmatter: SkillFrontmatter): boolean => {
   const autoinvoke = isPlainObject(frontmatter.metadata)
     ? parseFrontmatterBoolean(frontmatter.metadata[AUTOINVOKE_METADATA_KEY])
@@ -3321,12 +3334,14 @@ export const getSkillSources = (
   let mdDescription = typeof matchedDiscovered?.description === 'string' ? matchedDiscovered.description : '';
   let mdInstructions = isBuiltInDiscovered && typeof matchedDiscovered?.content === 'string' ? matchedDiscovered.content : '';
   let mdDisableModelInvocation = false;
+  let mdManagedBy: string | null = null;
   
   if (mdExists && mdPath) {
     const { frontmatter, body } = parseMdFile(mdPath);
     mdFields = Object.keys(frontmatter);
     mdDescription = typeof frontmatter.description === 'string' ? frontmatter.description : '';
     mdDisableModelInvocation = isModelInvocationDisabled(frontmatter);
+    mdManagedBy = readManagedBy(frontmatter);
     if (body) mdFields.push('instructions');
     mdInstructions = body || '';
     if (mdDir) {
@@ -3347,6 +3362,7 @@ export const getSkillSources = (
       description: mdDescription,
       instructions: mdInstructions,
       disableModelInvocation: mdDisableModelInvocation,
+      managedBy: mdManagedBy,
     },
     projectMd: { exists: projectExists, path: projectPath },
     claudeMd: { exists: claudeExists, path: claudePath },

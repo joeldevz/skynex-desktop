@@ -83,7 +83,7 @@ describe('settings registry', () => {
     try {
       useUIStore.getState().setWorkStatusSectionOrder(['mcp', 'repository', 'session']);
       const order = useUIStore.getState().workStatusSectionOrder;
-      expect(order.slice(0, 3)).toEqual(['mcp', 'repository', 'session']);
+      expect(order.slice(0, 4)).toEqual(['mcp', 'repository', 'tasks', 'session']);
       expect(AUTO_SAVE_KEYS).toContain('workStatusSectionOrder');
       expect(MIRRORED_KEYS).toContain('workStatusSectionOrder');
       const parsed = parseSettingsDocument(JSON.parse(JSON.stringify({ workStatusSectionOrder: readAutoSaveSnapshot().workStatusSectionOrder })));

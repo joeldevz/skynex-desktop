@@ -22,6 +22,10 @@ import { registerDevServerRoutes } from '../dev-servers/routes.js';
 import { registerMagicPromptRoutes } from '../magic-prompts/routes.js';
 import { registerSessionFoldersRoutes } from '../session-folders/routes.js';
 import { registerSessionDraftRoutes } from '../session-drafts/routes.js';
+import { createTasksService } from '../skynex-tasks/service.js';
+import { registerSkynexTasksRoutes } from '../skynex-tasks/routes.js';
+import { createMemoryService } from '../skynex-memory/service.js';
+import { registerSkynexMemoryRoutes } from '../skynex-memory/routes.js';
 import { registerProjectDirectoryRoutes, registerProjectSetupRoutes } from '../projects/routes.js';
 import { registerSessionKnowledgeRoutes } from '../session-knowledge/routes.js';
 import { registerMessageSearchRoutes } from '../message-search/routes.js';
@@ -761,6 +765,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       resolvePrimaryWorktreeRoot,
       resolveWorktreeTopLevel,
     });
+    registerSkynexTasksRoutes(app, { service: createTasksService(), resolveProjectDirectory });
+    registerSkynexMemoryRoutes(app, { service: createMemoryService(), resolveProjectDirectory });
     registerProjectDirectoryRoutes(app, {
       fsPromises,
       validateDirectoryPath,

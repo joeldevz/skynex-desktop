@@ -3,12 +3,17 @@ import React from 'react';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-/** Where an autocomplete item comes from; `opencode` and `openchamber` are the apps' own items. */
-export type AutocompleteScope = 'user' | 'project' | 'opencode' | 'openchamber';
+/**
+ * Where an autocomplete item comes from; `opencode` and `openchamber` are the
+ * apps' own items, `skynex` a skill the Skynex tooling installed.
+ */
+export type AutocompleteScope = 'user' | 'project' | 'opencode' | 'openchamber' | 'skynex';
 
 const SCOPE_TONE = {
   project: 'bg-[color-mix(in_srgb,var(--status-info)_12%,transparent)] text-[color-mix(in_srgb,var(--status-info)_70%,transparent)] border-[color-mix(in_srgb,var(--status-info)_24%,transparent)]',
   user: 'bg-[color-mix(in_srgb,var(--status-success)_12%,transparent)] text-[color-mix(in_srgb,var(--status-success)_70%,transparent)] border-[color-mix(in_srgb,var(--status-success)_24%,transparent)]',
+  // The theme's primary, full strength: Skynex items should stand out.
+  skynex: 'bg-[color-mix(in_srgb,var(--primary-base)_22%,transparent)] text-[var(--primary-base)] border-[color-mix(in_srgb,var(--primary-base)_45%,transparent)]',
   other: 'bg-[var(--surface-muted)] text-muted-foreground border-[var(--interactive-border)]/60',
 } as const;
 
@@ -17,6 +22,7 @@ const SCOPE_LABEL = {
   project: 'chat.autocomplete.scope.project',
   opencode: 'chat.autocomplete.scope.opencode',
   openchamber: 'chat.autocomplete.scope.openchamber',
+  skynex: 'skynex.skills.badge',
 } as const;
 
 /**
@@ -40,7 +46,7 @@ export function AutocompleteRowDetail({ scope, extension, description }: {
         <span
           className={cn(
             'max-w-32 shrink-0 truncate rounded border px-1.5 py-1 text-[0.625rem] font-bold uppercase leading-none tracking-tight',
-            scope === 'project' ? SCOPE_TONE.project : scope === 'user' ? SCOPE_TONE.user : SCOPE_TONE.other,
+            scope === 'project' || scope === 'user' || scope === 'skynex' ? SCOPE_TONE[scope] : SCOPE_TONE.other,
           )}
         >
           {label}

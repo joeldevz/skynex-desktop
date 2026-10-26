@@ -20,6 +20,32 @@ Sections render nothing when they have no rows, so the panel collapses upward
 instead of reserving empty space. Turn stats keeps its header for a
 selected session even without metrics, so a saved collapsed state can reopen.
 
+## Tasks section
+
+The Session card includes the project's Skynex Tasks notebook immediately
+after Project and before Usage by default. `WorkStatusTasksSection` reports
+presence only with a directory and reuses `SkynexTasksContent` with the shared
+collapsible heading. A missing directory renders nothing and makes no notebook
+request. The notebook has no additional card edge or repeated Tasks title.
+
+Tasks participates in the same section order, visibility dialog and persisted
+expansion state as Usage. Saved orders without Tasks receive it immediately
+after Project; an explicit saved Tasks position is preserved. Collapsing it
+keeps the notebook's loaded state and only hides its body.
+
+The header's Session button toggles the combined panel. The palette's Open
+tasks command opens that panel, unhides Tasks and expands it without changing
+other sections. Store migration removes the obsolete `workStatusPanelView`
+preference without resetting other settings. `workStatusPanelVisible` reports
+the combined panel both inline and overlaid, so the header and Git rail can
+suppress duplicate readouts.
+
+### Why Tasks shares the Session section list
+
+The section keeps session readouts and the notebook visible together in one
+column. Separate cards or mutually exclusive views hide information needed
+alongside the task steps. The independent Tasks rail panel remains available.
+
 ## What it is not
 
 It is **not** a context-panel surface. It is not registered in
@@ -500,7 +526,7 @@ search anchor (they are dynamic entities).
 
 ## Switching it off
 
-A persisted preference (`workStatusPanelEnabled`) drives a header toggle, and a
+A persisted preference (`workStatusPanelEnabled`) drives the header toggles, and a
 dialog behind the equalizer icon switches individual sections off. Hidden
 sections are stored rather than visible ones. Every section, including Turn
 stats, is enabled by default. UI-store v21 migration and server-list hydration

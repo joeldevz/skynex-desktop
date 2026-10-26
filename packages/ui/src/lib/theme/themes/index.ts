@@ -12,8 +12,8 @@ const flexokiDarkTheme = withPrColors(requireTheme(flexokiDarkRaw));
 const openchamberLightTheme = withPrColors(requireTheme(openchamberLightRaw));
 const openchamberDarkTheme = withPrColors(requireTheme(openchamberDarkRaw));
 
-export const DEFAULT_LIGHT_THEME_ID = 'openchamber-light' as const;
-export const DEFAULT_DARK_THEME_ID = 'openchamber-dark' as const;
+export const DEFAULT_LIGHT_THEME_ID = 'skynex-light' as const;
+export const DEFAULT_DARK_THEME_ID = 'skynex-dark' as const;
 
 export const themes: Theme[] = [
   openchamberLightTheme,

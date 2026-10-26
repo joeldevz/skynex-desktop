@@ -97,6 +97,7 @@ import {
     subagentDescription,
     isWriteTool,
     normalizeToolName,
+    openChamberToolCall,
     toolDescription, type ToolDescription,
     toolInputPath,
     toolFileDiffs,
@@ -1748,7 +1749,15 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
         [input, metadata, presentation, stateOutput],
     );
     const description = guestHeader?.subtitle ?? builtInDescription;
-    const displayName = guestHeader?.title ?? getToolMetadata(normalizedPartTool || part.tool).displayName;
+    const appToolCall = openChamberToolCall(normalizedPartTool, input);
+    const awaitingAppAction = appToolCall?.tool === 'openchamber' && !appToolCall.action && !isFinalized;
+    const displayName = guestHeader?.title ?? (
+        appToolCall?.tool === 'openchamber' && appToolCall.action === 'work.name'
+            ? 'Skynex'
+            : awaitingAppAction
+                ? t('chat.toolPart.preparing')
+                : getToolMetadata(normalizedPartTool || part.tool).displayName
+    );
 
     // Opened, the body already carries the whole error and output.
     const failureDetail = isError && !isExpanded ? failureReason : undefined;

@@ -221,6 +221,14 @@ for the shortcut), never in VS Code, and in a build without workflows it is
 absent from the rail and from the rail's surfaces dialog, so the unreleased
 feature is not named anywhere.
 
+The `tasks` and `memory` surfaces (`components/tasks/SkynexTasksPanel.tsx`,
+`components/memory/SkynexMemoryPanel.tsx`) replace the removed Notes surface. Both
+are always shown, and both are keyed to the project directory of the request:
+Tasks reads and writes the project's `.skynex/tasks` notebook through the server,
+and Memory reads and writes Neurox under the project's directory-name namespace.
+Neither is shown in VS Code by a surface rule; they follow the same server routes
+there as in the web runtime, which has not been checked.
+
 ## Panel header
 
 The panel has one header row. A single-instance surface with its own toolbar

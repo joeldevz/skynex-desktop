@@ -1,5 +1,6 @@
 import { fuzzyMatch } from '@/lib/utils';
 import { rankByQuery } from '@/lib/search/fuzzySearch';
+import type { AutocompleteScope } from './composer/ui/AutocompleteRowParts';
 
 interface SkillAutocompleteSearchItem {
   name: string;
@@ -29,4 +30,11 @@ export function rankSkillAutocompleteItems<T extends SkillAutocompleteSearchItem
     ...rankGroup(matches.filter((skill) => skill.scope === 'project')),
     ...rankGroup(matches.filter((skill) => skill.scope !== 'project')),
   ];
+}
+
+// A skill the Skynex tooling installed says so in place of its scope, the way
+// the slash menu names OpenChamber's own commands.
+export function skillAutocompleteScope(skill: { scope: string; managedBy?: string }): AutocompleteScope {
+  if (skill.managedBy === 'skynex') return 'skynex';
+  return skill.scope === 'project' ? 'project' : 'user';
 }

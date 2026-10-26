@@ -137,7 +137,7 @@ describe('useSkillsStore directory resolution', () => {
     }]);
   });
 
-  test('loadSkills maps authoritative renamable from the list response', async () => {
+  test('loadSkills maps authoritative renamable and managedBy from the list response', async () => {
     runtimeFetchImpl = async () => new Response(JSON.stringify({
       skills: [
         {
@@ -146,7 +146,7 @@ describe('useSkillsStore directory resolution', () => {
           scope: 'project',
           source: 'opencode',
           renamable: true,
-          sources: { md: { description: 'Managed' } },
+          sources: { md: { description: 'Managed', managedBy: 'skynex' } },
         },
         {
           name: 'cache-skill',
@@ -172,6 +172,7 @@ describe('useSkillsStore directory resolution', () => {
         description: 'Managed',
         group: undefined,
         renamable: true,
+        managedBy: 'skynex',
       },
       {
         id: 'cache-skill',

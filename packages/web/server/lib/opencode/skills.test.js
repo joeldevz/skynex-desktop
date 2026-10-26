@@ -345,6 +345,32 @@ describe('skills', () => {
     }
   });
 
+  it('reports who manages a skill from metadata.managed-by, and nothing when it is absent or not text', async () => {
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'oc-skills-managed-by-'));
+    const skillDir = path.join(tempRoot, 'owned-skill');
+    const skillPath = path.join(skillDir, 'SKILL.md');
+    const discovered = { name: 'owned-skill', path: skillPath, scope: 'user', source: 'opencode' };
+    const managedBy = async (metadataLines) => {
+      await fsPromises.writeFile(
+        skillPath,
+        ['---', 'name: owned-skill', 'description: Owned', ...metadataLines, '---', '', 'Body.', ''].join('\n'),
+        'utf8',
+      );
+      return (await getSkillSources('owned-skill', tempRoot, discovered)).md.managedBy;
+    };
+
+    try {
+      await fsPromises.mkdir(skillDir, { recursive: true });
+      expect(await managedBy(['metadata:', '  managed-by: Skynex'])).toBe('skynex');
+      expect(await managedBy([])).toBeNull();
+      expect(await managedBy(['metadata:', '  managed-by: "  "'])).toBeNull();
+      expect(await managedBy(['metadata:', '  managed-by:', '    - skynex'])).toBeNull();
+      expect(await managedBy(['managed-by: skynex'])).toBeNull();
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('reads the invocation flag the way OpenCode does: opencode/autoinvoke wins', async () => {
     const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'oc-skills-invocation-read-'));
     const skillDir = path.join(tempRoot, 'read-skill');

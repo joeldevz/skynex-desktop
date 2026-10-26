@@ -49,6 +49,8 @@ const PANEL_TRANSITION_EASING = LAYOUT_ANIMATION_EASING;
  * Work-status panel: a card inside the chat column reporting the state of the
  * session, its branch and its subagents.
  *
+ * The project's Skynex Tasks notebook is a collapsible section of this card.
+ *
  * Sections follow the user's saved order. Each section renders
  * nothing when it has nothing, so the panel collapses toward the top instead of
  * reserving empty space.
@@ -258,7 +260,6 @@ export const WorkStatusPanel: React.FC<Props> = ({ sessionId, directory, visible
       >
         <Icon name="equalizer-2" className="size-4" />
       </button>
-
       {contentMounted ? (
       <WorkStatusPresenceProvider onChange={setRenderedSections}>
       <ScrollShadow

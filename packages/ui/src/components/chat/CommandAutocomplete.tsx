@@ -315,7 +315,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                 >
                   <span className="max-w-[60%] shrink-0 truncate font-medium">/{command.name}</span>
                   <AutocompleteRowDetail
-                    scope={command.isOpenChamber ? 'openchamber' : command.isBuiltIn ? 'opencode' : command.scope === 'project' ? 'project' : command.scope ? 'user' : null}
+                    scope={command.id === 'openchamber:catch-up' ? 'skynex' : command.isOpenChamber ? 'openchamber' : command.isBuiltIn ? 'opencode' : command.scope === 'project' ? 'project' : command.scope ? 'user' : null}
                     extension={command.extensionName}
                     description={command.description}
                   />

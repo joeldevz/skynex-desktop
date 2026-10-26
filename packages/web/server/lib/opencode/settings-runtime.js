@@ -750,8 +750,8 @@ export const createSettingsRuntime = (deps) => {
       return { settings, changed: false };
     }
 
-    const defaultLight = 'openchamber-light';
-    const defaultDark = 'openchamber-dark';
+    const defaultLight = 'skynex-light';
+    const defaultDark = 'skynex-dark';
 
     let nextLightThemeId = hasLight ? settings.lightThemeId : undefined;
     let nextDarkThemeId = hasDark ? settings.darkThemeId : undefined;

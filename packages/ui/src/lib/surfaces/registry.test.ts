@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { isContextPanelMode } from './modes';
 
 import {
   CONTEXT_SURFACES,
@@ -16,6 +17,14 @@ const baseOptions = {
 } as const;
 
 describe('getVisibleContextRailSurfaces', () => {
+  test('keeps the Skynex Tasks notebook reachable from the rail and accepts saved task tabs', () => {
+    const tasks = getVisibleContextRailSurfaces(baseOptions).find((surface) => surface.id === 'tasks');
+    expect(tasks?.mode).toBe('tasks');
+    expect(tasks?.availability).toBe('always');
+    expect(isContextPanelMode('tasks')).toBe(true);
+    expect(getVisibleContextRailSurfaces({ ...baseOptions, hiddenSurfaces: ['tasks'] }).some((surface) => surface.id === 'tasks')).toBe(false);
+  });
+
   test('hides the walkthrough on VS Code and below the min width', () => {
     expect(getVisibleContextRailSurfaces({ ...baseOptions, isVSCode: true }).some((s) => s.id === 'walkthrough')).toBe(false);
     expect(

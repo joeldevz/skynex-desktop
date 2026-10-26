@@ -1180,11 +1180,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Published so the header can drop the readouts the panel already carries.
     // Cleared on unmount: a chat that goes away is not showing anything.
     const setWorkStatusPanelVisible = useUIStore((state) => state.setWorkStatusPanelVisible);
+    const workStatusReadoutsShown = showWorkStatusPanel || showWorkStatusOverlay;
     React.useEffect(() => {
         if (pinned) return;
-        setWorkStatusPanelVisible(showWorkStatusPanel);
+        setWorkStatusPanelVisible(workStatusReadoutsShown);
         return () => setWorkStatusPanelVisible(false);
-    }, [pinned, setWorkStatusPanelVisible, showWorkStatusPanel]);
+    }, [pinned, setWorkStatusPanelVisible, workStatusReadoutsShown]);
     const messageListRef = React.useRef<MessageListHandle | null>(null);
 
     const currentSession = useSession(currentSessionId, effectiveSessionDirectory);

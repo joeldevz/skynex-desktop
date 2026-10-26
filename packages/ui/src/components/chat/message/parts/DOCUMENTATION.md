@@ -22,7 +22,9 @@ Use this doc when you ask an agent to change tool/header/description behavior.
 
 - `ToolPart.tsx`
   - Renders expandable tool rows (shell/edit/write/question/subagent + fallback).
-  - Controls expandable header title/description/diff stats/timer and expanded output body.
+   - Controls expandable header title/description/diff stats/timer and expanded output body.
+   - The `openchamber` tool's `work.name` action is labelled `Skynex` in this fork. Its protocol name stays unchanged, and extension-provided titles still take precedence. Other OpenChamber actions retain their original label.
+   - A running `openchamber` call whose action has not arrived yet shows a translated preparation label until its action is known, so streamed `work.name` calls never flash the generic OpenChamber title.
   - If you want to change expandable tool layout, edit here.
   - A subagent call is an ordinary tool row, rendered through `SubagentToolPartContent`: shine and a live duration while it runs, the final duration (red on failure) once settled, and an open action that shows the child session. Expanded, it shows the prompt and the result. The row never reads the child session's messages; the child's own chat is where its work is shown.
   - While the child runs, foreground or background, the row has a stop action. OpenCode 2.0.23 has no route that cancels a subagent job; interrupting the child ends the job as cancelled, which the agent reads as a failed subagent and tends to restart. `opencodeClient.stopSubagent` therefore first admits a non-resuming synthetic note (`subagentCancellationNote` in `@/lib/opencode/subagent-run`) that explains the cancellation as the user's stop without forbidding the work, and interrupts the child only once the note is in. A foreground call the note names reads `stopped` instead of failed (`toStoppedSubagentPart`). Drop the note once OpenCode reports a user cancel itself.

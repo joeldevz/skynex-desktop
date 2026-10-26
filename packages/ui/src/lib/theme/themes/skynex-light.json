@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "id": "skynex-light",
+    "name": "Skynex",
+    "variant": "light",
+    "description": "Skynex palette: clean off-white canvas with a deep teal primary accent",
+    "version": "1.0.0",
+    "author": "Skynex",
+    "tags": ["light", "brand", "cool", "teal"]
+  },
+  "colors": {
+    "primary": {
+      "base": "#1f7a6e",
+      "hover": "#17675c",
+      "active": "#125850",
+      "muted": "#1f7a6e80"
+    },
+    "surface": {
+      "background": "#fbfcfd",
+      "foreground": "#1d2633",
+      "muted": "#f2f5f8",
+      "mutedForeground": "#5d6a7b",
+      "elevated": "#ffffff",
+      "subtle": "#f6f8fa"
+    },
+    "interactive": {
+      "border": "#d5dce5",
+      "selection": "#1f7a6e22",
+      "borderHover": "#b8c2cf",
+      "focusRing": "#1f7a6e55",
+      "hover": "#0f172a0d",
+      "active": "#0f172a17"
+    },
+    "status": {
+      "error": "#c0392b",
+      "warning": "#b7791f",
+      "success": "#2f855a",
+      "info": "#2b6cb0"
+    },
+    "syntax": {
+      "base": {
+        "background": "#f6f8fa",
+        "comment": "#7a8694",
+        "keyword": "#3b5bdb",
+        "string": "#2f855a",
+        "number": "#b7791f",
+        "function": "#1c7ea3",
+        "variable": "#1d2633",
+        "type": "#1f7a6e",
+        "operator": "#c0392b"
+      },
+      "highlights": {
+        "diffAdded": "#2f855a",
+        "diffRemoved": "#c0392b",
+        "diffModified": "#2b6cb0"
+      }
+    },
+    "pr": {
+      "open": "#2f855a",
+      "blocked": "#b7791f",
+      "merged": "#7c3aed"
+    },
+    "chat": {
+      "background": "#fbfcfd",
+      "userMessageBackground": "#e6f2f0",
+      "divider": "#e1e7ee"
+    },
+    "markdown": {
+      "link": "#1c7ea3",
+      "linkHover": "#135e7d",
+      "inlineCode": "#2f855a",
+      "inlineCodeBackground": "#f2f5f8",
+      "blockquote": "#5d6a7b",
+      "blockquoteBorder": "#d5dce5",
+      "bold": "#111827",
+      "italic": "#1d2633"
+    }
+  }
+}

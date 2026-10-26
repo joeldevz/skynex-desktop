@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { z } from 'zod';
 import {
   SKILL_DIR,
   OPENCODE_CONFIG_DIR,
@@ -295,6 +296,18 @@ function parseFrontmatterBoolean(value) {
   return FRONTMATTER_BOOLEANS.get(String(value).trim().toLowerCase());
 }
 
+// Who installed the skill, from the Agent Skills `metadata` map (string keys
+// and values). A tool that installs skills writes it, `managed-by: skynex`,
+// and the UI labels those skills with it. Anything but a non-empty string is
+// no answer.
+const MANAGED_BY_METADATA_KEY = 'managed-by';
+
+function readManagedBy(frontmatter) {
+  if (!isPlainObject(frontmatter.metadata)) return null;
+  const value = z.string().safeParse(frontmatter.metadata[MANAGED_BY_METADATA_KEY]);
+  return value.success ? value.data.trim().toLowerCase() || null : null;
+}
+
 function isModelInvocationDisabled(frontmatter) {
   const autoinvoke = isPlainObject(frontmatter.metadata)
     ? parseFrontmatterBoolean(frontmatter.metadata[AUTOINVOKE_METADATA_KEY])
@@ -428,7 +441,8 @@ async function getSkillSources(skillName, workingDirectory, discoveredSkill = nu
       name: matchedDiscovered?.name || skillName,
       description: discoveredDescription,
       instructions: isBuiltInDiscovered ? discoveredContent : '',
-      disableModelInvocation: false
+      disableModelInvocation: false,
+      managedBy: null
     },
     projectMd: {
       exists: projectExists,
@@ -463,6 +477,7 @@ async function getSkillSources(skillName, workingDirectory, discoveredSkill = nu
     sources.md.description = frontmatter.description || '';
     sources.md.name = frontmatter.name || skillName;
     sources.md.disableModelInvocation = isModelInvocationDisabled(frontmatter);
+    sources.md.managedBy = readManagedBy(frontmatter);
     if (body) {
       sources.md.fields.push('instructions');
       sources.md.instructions = body;

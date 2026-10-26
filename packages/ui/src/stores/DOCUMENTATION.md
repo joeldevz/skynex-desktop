@@ -113,6 +113,13 @@ verbatim, a reply spoken in full) do not consult it; they silence the 404 on
 
 ### UI state stores
 
+The work-status panel has one combined Session body. Tasks uses the same
+section visibility, order and expansion preferences as its other readouts.
+Store version 27 removes the former `workStatusPanelView` preference while
+preserving the panel switch and unrelated settings. `openWorkStatusTasks`
+opens Session and makes Tasks visible and expanded; the header toggles only
+the panel or its overlay.
+
 Sidebar visibility and its persisted width are independent. Opening or closing
 the sidebar never writes a width; only resizing changes the saved choice.
 The initial width is separate from the component's minimum resize width.

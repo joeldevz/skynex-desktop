@@ -3,6 +3,7 @@ import React from 'react';
 import { WorkStatusGoalRow } from './WorkStatusGoalRow';
 import { WorkStatusPrimaryGroup } from './WorkStatusPrimaryGroup';
 import { WorkStatusUsageSection } from './WorkStatusUsageSection';
+import { WorkStatusTasksSection } from './WorkStatusTasksSection';
 import { WorkStatusTelemetrySection } from './WorkStatusTelemetrySection';
 import { WorkStatusSubagentsSection } from './WorkStatusSubagentsSection';
 import { WorkStatusWorkflowsSection } from './WorkStatusWorkflowsSection';
@@ -29,6 +30,7 @@ export const WorkStatusSectionList: React.FC<{
   // Keep these elements owned here so primary readout updates do not rerender
   // unrelated sections through the composition callback.
   const secondarySections = {
+    tasks: <WorkStatusTasksSection directory={directory} />,
     usage: <WorkStatusUsageSection />,
     telemetry: <WorkStatusTelemetrySection sessionId={sessionId} directory={directory} />,
     subagents: <WorkStatusSubagentsSection sessionId={sessionId} directory={directory} />,

@@ -492,6 +492,7 @@ describe('skill-routes directory soft fallback', () => {
             exists: true, path: projectPath, dir: path.dirname(projectPath), scope: 'project', source: 'opencode',
             fields: ['name', 'description', 'disable-model-invocation', 'instructions'], name,
             description: 'Project copy', instructions: 'Project copy body', disableModelInvocation: true,
+            managedBy: null,
           },
           projectMd: { exists: true, path: projectPath, dir: path.dirname(projectPath) },
           claudeMd: { exists: true, path: claudePath, dir: path.dirname(claudePath) },

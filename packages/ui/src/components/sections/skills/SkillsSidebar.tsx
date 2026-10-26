@@ -506,6 +506,11 @@ const SkillListItem: React.FC<SkillListItemProps> = ({
             <span className={cn('typography-ui-label font-normal truncate', off ? 'text-muted-foreground' : 'text-foreground')}>
               {skill.name}
             </span>
+            {skill.managedBy === 'skynex' ? (
+              <span className="typography-micro shrink-0 rounded border border-[color-mix(in_srgb,var(--primary-base)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary-base)_22%,transparent)] px-1 font-bold uppercase leading-tight text-[var(--primary-base)]">
+                {t('skynex.skills.badge')}
+              </span>
+            ) : null}
             {off === 'switch' ? (
               <span className="typography-micro shrink-0 text-muted-foreground" title={t('settings.skills.sidebar.switchedOffHint')}>
                 {t('settings.skills.sidebar.switchedOff')}

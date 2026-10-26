@@ -8,13 +8,14 @@ import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { useMobileAutocompleteMaxHeight } from './useMobileAutocompleteMaxHeight';
 import { AutocompleteRowDetail } from './composer/ui/AutocompleteRowParts';
 import { useAutocompleteSelectionScroll } from './composer/ui/useAutocompleteSelectionScroll';
-import { rankSkillAutocompleteItems } from './skillAutocompleteItems';
+import { rankSkillAutocompleteItems, skillAutocompleteScope } from './skillAutocompleteItems';
 
 interface SkillInfo {
   name: string;
   scope: string;
   source?: string;
   description?: string;
+  managedBy?: string;
 }
 
 export interface SkillAutocompleteHandle {
@@ -130,7 +131,7 @@ export const SkillAutocomplete = React.forwardRef<SkillAutocompleteHandle, Skill
         }}
       >
         <span className="max-w-[60%] shrink-0 truncate font-semibold">{skill.name}</span>
-        <AutocompleteRowDetail scope={skill.scope === 'project' ? 'project' : 'user'} description={skill.description} />
+        <AutocompleteRowDetail scope={skillAutocompleteScope(skill)} description={skill.description} />
       </div>
     );
   };

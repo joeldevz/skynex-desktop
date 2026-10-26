@@ -1239,6 +1239,8 @@ interface UIStore {
   setWorkStatusPanelVisible: (visible: boolean) => void;
   setWorkStatusPanelFits: (fits: boolean) => void;
   setWorkStatusOverlayOpen: (open: boolean) => void;
+  toggleWorkStatusPanel: () => void;
+  openWorkStatusTasks: () => void;
   setWorkStatusSectionVisible: (sectionId: string, visible: boolean) => void;
   setWorkStatusHiddenSections: (sectionIds: string[]) => void;
   setWorkStatusSectionOrder: (sectionIds: readonly string[]) => void;
@@ -2300,6 +2302,31 @@ export const useUIStore = create<UIStore>()(
 
         setWorkStatusOverlayOpen: (open) => {
           set((state) => (state.workStatusOverlayOpen === open ? state : { workStatusOverlayOpen: open }));
+        },
+
+        toggleWorkStatusPanel: () => {
+          set((state) => {
+            if (state.workStatusPanelEnabled && !state.workStatusPanelFits) {
+              return { workStatusOverlayOpen: !state.workStatusOverlayOpen };
+            }
+            // Switched on without room beside the chat, the card opens over it
+            // straight away; otherwise the press would visibly do nothing.
+            const enabled = !state.workStatusPanelEnabled;
+            return {
+              workStatusPanelEnabled: enabled,
+              workStatusOverlayOpen: enabled && !state.workStatusPanelFits,
+            };
+          });
+        },
+
+        openWorkStatusTasks: () => {
+          set((state) => ({
+            workStatusPanelEnabled: true,
+            workStatusOverlayOpen: !state.workStatusPanelFits,
+            workStatusHiddenSections: state.workStatusHiddenSections.filter((id) => id !== 'tasks'),
+            workStatusHiddenSectionsExplicit: true,
+            workStatusExpandedSections: { ...state.workStatusExpandedSections, tasks: true },
+          }));
         },
 
         setWorkStatusSectionVisible: (sectionId, visible) => {
@@ -3380,12 +3407,13 @@ export const useUIStore = create<UIStore>()(
       {
         name: 'ui-store',
         storage: createDeferredSafeJSONStorage(),
-        version: 26,
+        version: 27,
         migrate: (persistedState, version) => {
           if (!persistedState || typeof persistedState !== 'object') {
             return persistedState;
           }
           const state = persistedState as Record<string, unknown>;
+          delete state.workStatusPanelView;
 
           // v22 -> v23: table cell wrap is on by default. The local copy only
           // ever held the old default; a choice the user made is restored from

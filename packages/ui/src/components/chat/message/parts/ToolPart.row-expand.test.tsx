@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { createRoot } from 'react-dom/client';
 import { Window } from 'happy-dom';
 import { OpenCode } from '@opencode/client';
-import type { ToolPart as ToolPartData } from '@/lib/opencode/model';
+import type { ToolInput, ToolPart as ToolPartData } from '@/lib/opencode/model';
 import { SyncProvider } from '@/sync/sync-context';
 import { I18nProvider } from '@/lib/i18n';
 import { onRowExpand } from '@/components/chat/lib/scroll/timelineScrollIntent';
@@ -35,11 +35,11 @@ const part: ToolPartData = {
   },
 };
 
-const Row = ({ onToggled }: { onToggled: () => void }) => {
+const Row = ({ onToggled, toolPart }: { onToggled: () => void; toolPart: ToolPartData }) => {
   const [expanded, setExpanded] = React.useState(false);
   return (
     <ToolPart
-      part={part}
+      part={toolPart}
       isExpanded={expanded}
       isMobile={false}
       onToggle={() => {
@@ -50,7 +50,14 @@ const Row = ({ onToggled }: { onToggled: () => void }) => {
   );
 };
 
-test('opening a tool row tells the timeline before the row grows; closing it does not', async () => {
+const rows = [
+  { tool: 'bash', input: part.state.input, label: 'Bash' },
+  { tool: 'openchamber', input: { action: 'work.name', parameters: { title: 'Tasks inside Session' } }, label: 'Skynex' },
+  { tool: 'openchamber', input: { action: 'projects.list' }, label: 'OpenChamber' },
+] satisfies { tool: string; input: ToolInput; label: string }[];
+
+for (const { tool, input, label } of rows) {
+test(`${tool}/${label} keeps its display label and reports timeline expansion before opening`, async () => {
   const happyWindow = new Window({ url: 'http://localhost' });
   const globals = {
     window: happyWindow,
@@ -91,17 +98,38 @@ test('opening a tool row tells the timeline before the row grows; closing it doe
   const stop = onRowExpand(container, () => { events.push('expand'); });
 
   try {
+    if (tool === 'openchamber' && input.action === 'work.name') {
+      await act(async () => {
+        root.render(
+          <SyncProvider sdk={sdk} directory="">
+            <I18nProvider>
+              <Row
+                toolPart={{ ...part, tool, state: { status: 'running', input: {}, time: { start: 1 } } }}
+                onToggled={() => { events.push('toggle'); }}
+              />
+            </I18nProvider>
+          </SyncProvider>,
+        );
+      });
+      const pendingHeader = container.querySelector<HTMLElement>('[role="button"]');
+      expect(pendingHeader?.textContent).toContain('Preparing tool');
+      expect(pendingHeader?.textContent).not.toContain('OpenChamber');
+    }
     await act(async () => {
       root.render(
         <SyncProvider sdk={sdk} directory="">
           <I18nProvider>
-            <Row onToggled={() => { events.push('toggle'); }} />
+            <Row
+              toolPart={{ ...part, tool, state: { ...part.state, input } }}
+              onToggled={() => { events.push('toggle'); }}
+            />
           </I18nProvider>
         </SyncProvider>,
       );
     });
     const header = container.querySelector<HTMLElement>('[role="button"]');
     expect(header).not.toBeNull();
+    expect(header?.textContent).toContain(label);
 
     await act(async () => { header?.click(); });
     expect(events).toEqual(['expand', 'toggle']);
@@ -118,3 +146,4 @@ test('opening a tool row tells the timeline before the row grows; closing it doe
     }
   }
 });
+}
