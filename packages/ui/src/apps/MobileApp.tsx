@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
 import { AppStartupOverlay } from '@/components/ui/AppStartupOverlay';
 import { ChatView } from '@/components/views/ChatView';
-import { PlanView } from '@/components/views/PlanView';
 import { SettingsView } from '@/components/views/SettingsView';
 import { AppLinkConfirmDialog } from '@/components/chat/AppLinkConfirmDialog';
 import { SharedTrustConfirmDialog } from '@/components/projects/SharedTrustConfirmDialog';
@@ -33,11 +32,8 @@ import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { useEnterprisePolicySync } from '@/hooks/useEnterprisePolicySync';
 import { useRoutingSync } from '@/hooks/useRoutingSync';
 import { useSourceControlProviderSync } from '@/hooks/useSourceControlProviderSync';
-import { useAgentMemorySync } from '@/hooks/useAgentMemorySync';
-import { resolvePlanRequestOwner } from '@/hooks/useProjectContextOwner';
 import { opencodeClient } from '@/lib/opencode/client';
 import type { RuntimeAPIs } from '@/lib/api/types';
-import type { ProjectRef } from '@/lib/projectContextApi';
 import { readTabletLayout, useOrientation, useTabletLayout } from '@/lib/device';
 import { useHardwareKeyboard } from '@/lib/hardwareKeyboard';
 import { useI18n } from '@/lib/i18n';
@@ -165,7 +161,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   }, []);
   // A plan opened from the workspace drawer's Notes tab, shown as a fullscreen
   // layer on top of it (back returns to the notes).
-  const [openPlan, setOpenPlan] = React.useState<{ id: string; title: string; projectRef: ProjectRef } | null>(null);
   const [settingsInitialMobileStage, setSettingsInitialMobileStage] = React.useState<'nav' | 'page-content'>('nav');
   // When set, the Changes surface opens directly into the per-file diff for this path.
   const [pendingChangesDiff, setPendingChangesDiff] = React.useState<{ path: string; staged: boolean } | null>(null);
@@ -180,7 +175,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   // remount the pane (losing its navigation) on every close.
   const closeSurface = React.useCallback(() => {
     setActiveSurface(null);
-    setOpenPlan(null);
   }, []);
 
   const openSurface = React.useCallback((surface: MobileSurface) => {
@@ -233,15 +227,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
     useUIStore.getState().openContextFile(directory, event.path);
     openFilesSurface();
   }), [openFilesSurface]);
-
-  // The agent asked for a saved plan to be shown: the plan opens the way a tap
-  // on it in the Project knowledge drawer opens it.
-  React.useEffect(() => subscribeOpenchamberEvents((event) => {
-    if (event.type !== 'plan-open-request') return;
-    const projectRef = resolvePlanRequestOwner(event.directory ?? useDirectoryStore.getState().currentDirectory, event.projectId);
-    if (!projectRef) return;
-    setOpenPlan({ id: event.planId, title: event.title, projectRef });
-  }), []);
 
   const openChangesSurface = React.useCallback((diff: { path: string; staged: boolean } | null = null) => {
     setPendingChangesDiff(diff);
@@ -380,10 +365,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
     if (closeTopmostBackLayer()) {
       return true;
     }
-    if (openPlan) {
-      setOpenPlan(null);
-      return true;
-    }
     if (activeSurface === 'settings' && settingsBackRef.current?.()) {
       return true;
     }
@@ -400,7 +381,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       return true;
     }
     return false;
-  }, [activeSurface, closeSurface, closeWorkspace, openPlan, sessionsSheetOpen, workspaceOpen]);
+  }, [activeSurface, closeSurface, closeWorkspace, sessionsSheetOpen, workspaceOpen]);
 
   useNativeAndroidBackButton(handleNativeBack);
 
@@ -598,7 +579,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
                 tab={workspaceTab}
                 onTabChange={setWorkspaceTab}
                 pendingChangesDiff={pendingChangesDiff}
-                onOpenPlan={setOpenPlan}
                 variant={workspaceAsPanel ? 'panel' : 'drawer'}
               />
             </ErrorBoundary>
@@ -612,27 +592,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
             />
           ) : null}
         </aside>
-
-        {/* Layered above the workspace drawer's Notes tab, which opened it. */}
-        {openPlan ? (
-          <MobileFullscreenSurface
-            open
-            variant={surfaceVariant}
-            onClose={() => setOpenPlan(null)}
-            ariaLabel={openPlan.title}
-            title={openPlan.title}
-          >
-            <ErrorBoundary>
-              <PlanView
-                savedProjectPlan={{ projectRef: openPlan.projectRef, planId: openPlan.id }}
-                onNavigatedToChat={() => {
-                  closeSurface();
-                  closeWorkspace();
-                }}
-              />
-            </ErrorBoundary>
-          </MobileFullscreenSurface>
-        ) : null}
 
         {activeSurface === 'instances' && showCapacitorOnlyFeatures ? (
           <MobileFullscreenSurface
@@ -1240,7 +1199,6 @@ function MobileAppContent({ apis }: MobileAppProps) {
   useSourceControlProviderSync(apis.sourceControl);
   // Same as App.tsx: the session's memory index and the Memory tab both read
   // this snapshot, and without it the phone showed no memory at all.
-  useAgentMemorySync(currentDirectory || null);
   useRouter();
   // APNs is the only notification channel on the native app (background-capable,
   // focus-suppressed server-side via the visibility beacon). Local notifications are

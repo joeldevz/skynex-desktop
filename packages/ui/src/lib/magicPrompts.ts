@@ -23,12 +23,6 @@ export type MagicPromptId =
   | 'git.conflict.resolve.instructions'
   | 'git.integrate.cherrypick.resolve.visible'
   | 'git.integrate.cherrypick.resolve.instructions'
-  | 'plan.todo.visible'
-  | 'plan.todo.instructions'
-  | 'plan.improve.visible'
-  | 'plan.improve.instructions'
-  | 'plan.implement.visible'
-  | 'plan.implement.instructions'
   | 'session.summary.visible'
   | 'session.summary.instructions'
   | 'session.review.visible'
@@ -39,8 +33,6 @@ export type MagicPromptId =
   | 'session.reviewSessionWithoutHandoff.visible'
   | 'session.reviewFeedbackToImplementer.visible'
   | 'session.implementationResponseToReviewer.visible'
-  | 'session.plan.visible'
-  | 'session.plan.instructions'
   | 'session.craftGoal.visible'
   | 'session.craftGoal.instructions'
   | 'session.scheduleTask.visible'
@@ -55,15 +47,13 @@ export type MagicPromptId =
   | 'session.explore.instructions'
   | 'session.fusion.visible'
   | 'session.fusion.instructions'
-  | 'session.fusion.codeInstructions'
-  | 'memory.tidy.visible'
-  | 'memory.tidy.instructions';
+  | 'session.fusion.codeInstructions';
 
 interface MagicPromptDefinition {
   id: MagicPromptId;
   title: string;
   description: string;
-  group: 'Git' | 'GitHub' | 'Linear' | 'Planning' | 'Session' | 'Memory';
+  group: 'Git' | 'GitHub' | 'Linear' | 'Session';
   template: string;
   placeholders?: Array<{ key: string; description: string }>;
 }
@@ -255,113 +245,6 @@ Important:
 - After completing all steps, confirm the cherry-pick was successful`,
   },
   {
-    id: 'plan.todo.visible',
-    title: 'Todo Planning Visible Prompt',
-    group: 'Planning',
-    description: 'Visible user message when sending a todo into a new planning session.',
-    placeholders: [
-      { key: 'todo_text', description: 'Todo text selected by the user.' },
-    ],
-    template: '{{todo_text}}',
-  },
-  {
-    id: 'plan.todo.instructions',
-    title: 'Todo Planning Instructions',
-    group: 'Planning',
-    description: 'Hidden instructions for sending a project todo into a new planning session.',
-    placeholders: [
-      { key: 'todo_text', description: 'Todo text selected by the user.' },
-    ],
-    template: `You are starting from a project todo item.
-Todo: {{todo_text}}
-Your job right now is to produce a thorough implementation plan for this todo, not to implement it yet. Optimize for a well-considered plan, not a fast one.
-
-Work back and forth with me. Do not dump a wall of questions. Do not jump to the full plan.
-
-Discovery — questions in batches of 3:
-1. First, inspect the repo — relevant files, module docs, existing patterns, nearby code, constraints, dependencies — enough to form informed questions, not enough to guess the plan.
-2. Ask me at most 3 questions per turn. Each batch should be focused on one topic at a time (e.g., scope, architecture, data model, UX, edge cases). Pick the topic that most blocks the plan right now.
-3. Wait for my answers. Use them to refine your understanding, re-read code if needed, and prepare the next batch.
-4. Questions that became irrelevant after my earlier answers — drop them, don't ask.
-5. Repeat until you have no more substantive questions.
-
-Alignment:
-6. Share a short outline: affected areas, proposed approach, main risks. Wait for my confirmation or corrections. Iterate on the outline until I confirm.
-
-Final plan:
-7. Once aligned, deliver the concrete implementation plan grounded in the repo context. Make remaining assumptions and missing context explicit.`,
-  },
-  {
-    id: 'plan.improve.visible',
-    title: 'Improve Plan Visible Prompt',
-    group: 'Planning',
-    description: 'Visible user message when sending a saved plan into an improve flow.',
-    placeholders: [
-      { key: 'plan_title', description: 'Current plan title.' },
-    ],
-    template: 'Improve this plan: {{plan_title}}',
-  },
-  {
-    id: 'plan.improve.instructions',
-    title: 'Improve Plan Instructions',
-    group: 'Planning',
-    description: 'Hidden instructions for improving a saved plan from project context.',
-    placeholders: [
-      { key: 'plan_title', description: 'Current plan title.' },
-      { key: 'plan_path', description: 'Absolute path to the saved plan file.' },
-    ],
-    template: `You are starting from an existing implementation plan.
-Plan title: {{plan_title}}
-This plan is stored in the file: {{plan_path}}
-Read that file first and treat its current contents as the source of truth for the plan.
-Your job right now is to improve this plan so it is better grounded in the actual repo state. Do not implement yet. Optimize for a well-considered improved plan, not a fast one.
-
-Work back and forth with me. Do not dump a wall of questions. Do not jump to the full improved plan.
-
-Discovery — questions in batches of 3:
-1. First, inspect the repo and map it against the plan — relevant files, module docs, existing patterns, nearby code, constraints, dependencies. Identify gaps, plan assumptions that don't match the repo, missing context, and risks.
-2. Ask me at most 3 questions per turn. Each batch should be focused on one topic at a time (e.g., scope deltas, architecture assumptions, data model, UX, edge cases, tradeoffs between approaches). Pick the topic that most blocks a confident improvement right now.
-3. Wait for my answers. Use them to refine your understanding, re-read code if needed, and prepare the next batch.
-4. Questions that became irrelevant after my earlier answers — drop them, don't ask.
-5. Repeat until you have no more substantive questions.
-
-Alignment:
-6. Share a short summary of proposed changes — what sections of the plan change and why, open questions, recommendations. Do not rewrite the whole plan inline and do not return the full plan as a code block. Quote only small targeted snippets or describe the exact sections to change. Wait for my confirmation or corrections. Iterate until I confirm.
-
-Final step:
-7. Once aligned, explicitly offer to edit this same file ({{plan_path}}) with the agreed changes. Make remaining assumptions and missing context explicit.`,
-  },
-  {
-    id: 'plan.implement.visible',
-    title: 'Implement Plan Visible Prompt',
-    group: 'Planning',
-    description: 'Visible user message when sending a saved plan into an implement flow.',
-    placeholders: [
-      { key: 'plan_title', description: 'Current plan title.' },
-    ],
-    template: 'Implement this plan: {{plan_title}}',
-  },
-  {
-    id: 'plan.implement.instructions',
-    title: 'Implement Plan Instructions',
-    group: 'Planning',
-    description: 'Hidden instructions for implementing a saved plan from project context.',
-    placeholders: [
-      { key: 'plan_title', description: 'Current plan title.' },
-      { key: 'plan_path', description: 'Absolute path to the saved plan file.' },
-    ],
-    template: `You are starting from an existing implementation plan.
-Plan title: {{plan_title}}
-This plan is stored in the file: {{plan_path}}
-Read that file first and treat its current contents as the source of truth for the plan. The plan is already agreed; implement it end-to-end without deviating from it.
-
-Before and during implementation, build a deep understanding of the project — relevant files, module docs, existing patterns, nearby code, conventions — so your choices fit the repo's style.
-
-Do the implementation work continuously. When a plan step is ambiguous, do not stop to ask — make the best judgment call consistent with the plan's intent and the repo's conventions, and briefly note the decision inline so it is visible on review. Prefer forward progress over interrupting me.
-
-Do not expand scope beyond the plan. If during implementation you find the plan itself is wrong or genuinely blocks completion (not merely ambiguous), stop, state exactly what is broken and why, and propose a plan adjustment to save back into this same file ({{plan_path}}) before continuing.`,
-  },
-  {
     id: 'session.summary.visible',
     title: 'Session Summary Visible Prompt',
     group: 'Session',
@@ -550,40 +433,6 @@ Fix the findings you agree with. When you think a finding is wrong, leave the co
 Review the current diff again. For each earlier finding, say whether it is fixed, declined for a reason you accept, or still open; when you disagree with a decline, explain why. Report new findings only for problems the latest changes introduced.
 
 {{implementation_response}}`,
-  },
-  {
-    id: 'session.plan.visible',
-    title: 'Feature Planning Visible Prompt',
-    group: 'Session',
-    description: 'Visible user message sent by the /plan-feature command.',
-    template: 'I want to start planning a feature.',
-  },
-  {
-    id: 'session.plan.instructions',
-    title: 'Feature Planning Instructions',
-    group: 'Session',
-    description: 'Hidden instructions attached to the /plan-feature command. Runs a guided, batched-question dialogue that researches the code before producing an implementation plan.',
-    template: `The user wants to plan a feature through a guided, back-and-forth conversation. They will describe an idea — often briefly and informally. Your job is to turn that idea into a concrete, validated implementation plan, without guessing.
-
-Run this as a dialogue, not a one-shot answer.
-
-Use the \`question\` tool only for clarifying decisions that have a small set of concrete answer options you already know from the conversation or your investigation — choices like option A/B/C, scope boundaries, or edge-case behavior. Ask open-ended questions, including what the user wants in the first place, in plain assistant text. Never invent speculative options just to fit the question tool.
-
-1. Understand before asking. Once the user describes the idea, first investigate the codebase yourself — read the relevant files, existing patterns, data flow, and constraints. Ground every question in what the code actually shows, not in assumptions.
-
-2. Ask in small batches. Ask at most 3 clarifying questions at a time — a number a person can comfortably answer in one reply. Prefer concrete, decision-oriented questions (option A/B/C, edge cases, scope boundaries) over vague open-ended ones. Number them.
-
-3. Keep going until it is resolved. After each batch of answers, integrate them, do any further code investigation the answers require, then ask the next batch. Continue until there are no unresolved decisions or implementation details left. Do not stop early or start summarizing prematurely.
-
-4. Surface what the user has not considered. Proactively raise edge cases, pitfalls, affected modules, migration/backward-compatibility concerns, and trade-offs the user likely did not think about. Fold these into your questions so the user decides — never silently decide for them.
-
-5. Do not write code or begin implementing during this phase. Planning is for understanding and deciding only.
-
-6. When everything is settled, produce the final implementation plan: a clear, ordered breakdown of the work, the files and areas affected, the decisions that were made (and why), known risks, and any remaining assumptions flagged explicitly. The plan must reflect the user's actual answers — never fill gaps with guesses. If the \`openchamber_knowledge\` tool is available, save the plan there and show it to the user, so they can read it, comment on it and send it to a session from the plan itself.
-
-7. After presenting the plan, if the \`openchamber\` tool is available, offer to start a separate session yourself to implement it; do so only after the user explicitly confirms, and include the full plan in that session's prompt because the new session cannot see this conversation.
-
-Respond in the same language the user uses.`,
   },
   {
     id: 'session.craftGoal.visible',
@@ -863,53 +712,6 @@ How to work:
 Read diffs selectively, file by file; do not print every attempt in full.
 
 --- FUSION INPUTS START ---`,
-  },
-  {
-    id: 'memory.tidy.visible',
-    title: 'Memory Tidy-up Visible Prompt',
-    group: 'Memory',
-    description: 'Visible user message sent by the Tidy up button in the Memory panel.',
-    template: 'Tidy up my memory: drop what is outdated, merge duplicates, and fix what has changed.',
-  },
-  {
-    id: 'memory.tidy.instructions',
-    title: 'Memory Tidy-up Instructions',
-    group: 'Memory',
-    description: 'Hidden instructions for the memory tidy-up session, followed by every stored entry with its full text.',
-    placeholders: [
-      { key: 'memory_entries', description: 'Every stored memory entry in both scopes: id, scope, type, dates, title and body.' },
-    ],
-    template: `You are tidying up the memory you keep through the openchamber_memory tool. Agents save entries as they work and rarely revisit them, while the code and the decisions behind them keep moving. Your job is to bring the store back in line with what is true now. Every stored entry is listed in full below, so you do not need memory.read or memory.list.
-
-During this session, save no new memories: you only restructure what is already stored, whatever the usual memory rules say.
-
-1. Go through every entry. For project entries, check the files, flags, commands, routes and decisions they name against the project: the code, git history, docs, instructions and skills, plans and notes, and whatever else you can reach, such as issues and linked trackers. A reference to something that is gone is a sign the entry is stale, not proof: a decision can outlive renamed code.
-
-2. Decide what changes. The first test for every entry: would an agent that reads the relevant code, docs and skills learn everything this entry says, including why it is so and whether it may be changed? If yes, the entry only duplicates the project and drifts from it over time: delete it. Where the entry and a doc or skill disagree, the doc or skill is current. Code shows what was done, not why, nor that it was deliberate: an entry that holds a decision, its reason, a rejected alternative or a "leave this as it is" that the project does not state stays, trimmed to that part if the rest is readable elsewhere. Do not move anything into docs or skills; this session changes memory only.
-- Obsolete: what it describes is gone. Delete it.
-- Reversed: a decision the project or a later entry replaced. Rewrite it by memoryId to the decision that holds now, with one line on what it replaced and why when the reason is known: the abandoned choice and the reason for leaving it are what the code will never show.
-- Contradicting entries: the dates settle most of them. When the newer one records a decision or a correction, it holds: merge the two into one entry as under Reversed. When the newer one only discusses or proposes a change, the older one still holds; that pair is a question for the user.
-- Duplicates and overlapping entries: merge them into one entry, rewritten with memory.save and the surviving entry's memoryId, then delete the rest.
-- Partly outdated: rewrite it by memoryId with what is true now.
-- Wrong scope: something about this project filed under the user (global), or the other way round. Save it in the right scope, then delete the original.
-- One-off task state and anything the save rules exclude: delete.
-- A date in a title that only records when a decision was made: keep the decision; drop the date if the title needs the room.
-- Entries marked flagged: leave them alone; the user decides on those.
-An entry nothing contradicts still holds. Leave it as it is.
-
-3. Ask the user only about a real discrepancy you cannot settle from the project or the dates: two entries that contradict each other where the newer one only proposes a change or the dates do not tell which came later, or an entry the project contradicts while it may record a decision the project has not caught up with yet. Put all such questions in one question form, a handful at most. Never ask the user to re-confirm a standing preference or fact that nothing contradicts; assume it still holds. Entries about the user can rarely be checked against anything, so this applies to them most of all.
-
-4. Apply every change.
-
-5. Reply with a short report in the language the user works in, as their instructions or memory say:
-- removed: each title with one line on why;
-- merged: which entries went into which;
-- rewritten: each title and what changed;
-- how many entries stayed as they were.
-Nothing waits for approval. Keep the original text of what you changed in mind: if the user disagrees with something, you restore it from there.
-
---- STORED MEMORY ---
-{{memory_entries}}`,
   },
 ] as const;
 

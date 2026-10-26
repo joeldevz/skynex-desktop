@@ -171,12 +171,6 @@
     "agentToolsCodeMode": {
       "scope": "instance"
     },
-    "agentMemoryToolEnabled": {
-      "scope": "instance"
-    },
-    "agentKnowledgeToolEnabled": {
-      "scope": "instance"
-    },
     "agentWorkflowToolEnabled": {
       "scope": "instance"
     },
@@ -188,10 +182,6 @@
     },
     "isolatedSpacesSshHost": {
       "scope": "instance"
-    },
-    "agentMemoryFeatureAvailable": {
-      "scope": "instance",
-      "computed": true
     },
     "agentWorkflowFeatureAvailable": {
       "scope": "instance",
@@ -837,6 +827,10 @@
       "scope": "device",
       "local": true
     },
+    "contextZoneSizes": {
+      "scope": "device",
+      "local": true
+    },
     "contextEditorTreeVisible": {
       "scope": "device",
       "local": true
@@ -918,10 +912,6 @@
       "local": true
     },
     "alwaysShowScrollbars": {
-      "scope": "device",
-      "local": true
-    },
-    "agentMemoryViewedAt": {
       "scope": "device",
       "local": true
     },

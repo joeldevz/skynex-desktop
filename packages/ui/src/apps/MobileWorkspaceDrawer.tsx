@@ -4,13 +4,11 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { isIMECompositionEvent } from '@/lib/ime';
 
 import { Icon } from '@/components/icon/Icon';
-import { ProjectContextPanel } from '@/components/layout/RightSidebarTabs';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { SortableTabsStrip, type SortableTabsStripItem } from '@/components/ui/sortable-tabs-strip';
 import { TerminalView } from '@/components/views/TerminalView';
 import { useI18n } from '@/lib/i18n';
 import { orderMobileWorkspaceTabs, stripMobileWorkspaceTabs, type MobileWorkspaceTab } from '@/lib/mobileWorkspaceTabs';
-import type { ProjectRef } from '@/lib/projectContextApi';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -47,10 +45,8 @@ export const MobileWorkspaceDrawer: React.FC<{
   onTabChange: (tab: MobileWorkspaceTab) => void;
   /** When set, the Changes tab opens directly into the per-file diff. */
   pendingChangesDiff: { path: string; staged: boolean } | null;
-  /** Notes tab: opens a plan fullscreen (layered above the drawer). */
-  onOpenPlan: (plan: { id: string; title: string; projectRef: ProjectRef }) => void;
   variant?: 'drawer' | 'panel';
-}> = ({ open, onClose, tab, onTabChange, pendingChangesDiff, onOpenPlan, variant = 'drawer' }) => {
+}> = ({ open, onClose, tab, onTabChange, pendingChangesDiff, variant = 'drawer' }) => {
   const { t, direction } = useI18n();
   const rootRef = React.useRef<HTMLElement | null>(null);
   const drawerRef = React.useRef<HTMLElement>(null);
@@ -144,7 +140,6 @@ export const MobileWorkspaceDrawer: React.FC<{
     changes: { id: 'changes', label: t('mobile.menu.git'), icon: <Icon name="git-branch" className="h-3.5 w-3.5" /> },
     files: { id: 'files', label: t('mobile.menu.files'), icon: <Icon name="file-text" className="h-3.5 w-3.5" /> },
     terminal: { id: 'terminal', label: t('mobile.menu.terminal'), icon: <Icon name="terminal" className="h-3.5 w-3.5" /> },
-    notes: { id: 'notes', label: t('contextRail.surface.notes'), icon: <Icon name="sticky-note" className="h-3.5 w-3.5" /> },
   } satisfies Record<MobileWorkspaceTab, SortableTabsStripItem>;
   // The user's tabs in their order (Settings > General), plus a hidden one
   // while something opened it.
@@ -256,13 +251,6 @@ export const MobileWorkspaceDrawer: React.FC<{
           <div className={cn('h-full', tab !== 'terminal' && 'hidden')}>
             <ErrorBoundary>
               <TerminalView visible={open && tab === 'terminal'} />
-            </ErrorBoundary>
-          </div>
-        ) : null}
-        {visitedTabs.has('notes') ? (
-          <div className={cn('h-full', tab !== 'notes' && 'hidden')}>
-            <ErrorBoundary>
-              <ProjectContextPanel visible={open && tab === 'notes'} onActionComplete={onClose} onOpenPlan={onOpenPlan} />
             </ErrorBoundary>
           </div>
         ) : null}

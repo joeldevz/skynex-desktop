@@ -1,6 +1,5 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui';
 import { ModelSelector } from '@/components/sections/agents/ModelSelector';
 import { AgentSelector } from '@/components/sections/commands/AgentSelector';
@@ -15,7 +14,7 @@ import {
 import { selectProvidersForDirectory, useConfigStore } from '@/stores/useConfigStore';
 import { modelVariantNames } from '@/lib/modelVariants';
 import { isPrimaryMode } from '@/components/chat/mobileControlsUtils';
-import { updateSharedProjectSetup, type ProjectRef } from '@/lib/openchamberConfig';
+import type { ProjectRef } from '@/lib/openchamberConfig';
 import { ensureSharedSetupTrusted, resetSharedSetupTrust } from '@/lib/sharedTrustConfirmation';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -99,34 +98,14 @@ const ChatDefaultsSection: React.FC<{ form: ProjectIdentityFormState }> = ({ for
 
 /**
  * The team's file in the repo: whether it is there and readable, whether
- * its commands may run on this machine, and the plans folder it names.
+ * its commands may run on this machine.
  * Actions and setup commands are shared from their own tabs.
  */
 const TeamFileSection: React.FC<{ projectRef: ProjectRef; setupState: ProjectSetupState }> = ({ projectRef, setupState }) => {
   const { t } = useI18n();
   const { load, reload } = setupState;
   const setup = load.state === 'ready' ? load.setup : null;
-  const [plansDirDraft, setPlansDirDraft] = React.useState('');
   const [busy, setBusy] = React.useState(false);
-  const storedPlansDir = setup?.shared.plansDir ?? '';
-
-  React.useEffect(() => setPlansDirDraft(storedPlansDir), [storedPlansDir]);
-
-  const savePlansDir = async () => {
-    const next = plansDirDraft.trim();
-    if (next === storedPlansDir) return;
-    setBusy(true);
-    try {
-      if (!(await updateSharedProjectSetup(projectRef, { plansDir: next || null }))) {
-        toast.error(t('settings.projects.shared.toast.shareFailed'));
-        setPlansDirDraft(storedPlansDir);
-        return;
-      }
-      await reload();
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const reviewTrust = async () => {
     if (!setup) return;
@@ -198,24 +177,6 @@ const TeamFileSection: React.FC<{ projectRef: ProjectRef; setupState: ProjectSet
             </div>
           ) : null}
 
-          <SettingsFieldRow
-            label={t('settings.projects.shared.plansDir')}
-            info={t('settings.projects.shared.plansDirInfo')}
-            settingsItem="projects.shared.plansDir"
-          >
-            <Input
-              value={plansDirDraft}
-              onChange={(event) => setPlansDirDraft(event.target.value)}
-              onBlur={() => void savePlansDir()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-              placeholder={t('settings.projects.shared.plansDirPlaceholder')}
-              aria-label={t('settings.projects.shared.plansDirAria')}
-              disabled={busy || setup.shared.status === 'invalid'}
-              className="h-8 rounded-md px-3 font-mono text-xs"
-            />
-          </SettingsFieldRow>
         </>
       )}
     </SettingsSection>

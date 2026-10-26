@@ -46,6 +46,10 @@ describe('parseSlashCommand', () => {
 });
 
 describe('findMagicPromptCommand', () => {
+    test('does not register the retired project-plan command', () => {
+        expect(findMagicPromptCommand('plan-feature')).toBeNull();
+        expect(planLocalSlashCommand('/plan-feature', 'normal', true, true)).toBeNull();
+    });
     test('finds a registered command', () => {
         expect(findMagicPromptCommand('explore')?.name).toBe('explore');
     });

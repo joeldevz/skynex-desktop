@@ -735,7 +735,7 @@ Electron dev uses `local`; hosted pages use their HTTP origin. Without this,
 the quota loader treats a working proxy as a transient disconnected runtime
 and skips the initial load.
 
-Quotas, MCP status, skills, agent memory and the tracker and source-control logins are all
+Quotas, MCP status, skills and the tracker and source-control logins are all
 served by whichever OpenChamber instance is connected, and each was cached
 globally or by directory alone — which two instances can share. A switch left
 the previous instance's answers on screen, and its tracker login usable against

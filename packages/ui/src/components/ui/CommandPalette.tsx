@@ -145,7 +145,6 @@ export const CommandPalette: React.FC = () => {
   const openContextFile = useUIStore((s) => s.openContextFile);
   const shortcutOverrides = useUIStore((s) => s.shortcutOverrides);
   const setArchivePageOpen = useUIStore((s) => s.setArchivePageOpen);
-  const setProjectContextTab = useUIStore((s) => s.setProjectContextTab);
 
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft);
   const setCurrentSession = useSessionUIStore((s) => s.setCurrentSession);
@@ -426,32 +425,6 @@ export const CommandPalette: React.FC = () => {
           setArchivePageOpen(true);
         }),
       },
-      {
-        id: 'open-notes',
-        secondary: true,
-        title: t('commandPalette.item.openNotes'),
-        icon: <Icon name="sticky-note" className="me-2 h-4 w-4" />,
-        searchText: t('commandPalette.item.openNotes'),
-        onSelect: run(() => {
-          if (currentDirectory) {
-            setProjectContextTab('notes');
-            openContextSurface(currentDirectory, 'notes');
-          }
-        }),
-      },
-      {
-        id: 'open-todos',
-        secondary: true,
-        title: t('commandPalette.item.openTodos'),
-        icon: <Icon name="checkbox-circle" className="me-2 h-4 w-4" />,
-        searchText: t('commandPalette.item.openTodos'),
-        onSelect: run(() => {
-          if (currentDirectory) {
-            setProjectContextTab('todos');
-            openContextSurface(currentDirectory, 'notes');
-          }
-        }),
-      },
     );
     if (!isVSCodeRuntime()) {
       list.push({
@@ -543,7 +516,6 @@ export const CommandPalette: React.FC = () => {
     activeProject?.path,
     currentSessionId,
     setArchivePageOpen,
-    setProjectContextTab,
     projectActions,
     overviewAvailable,
   ]);

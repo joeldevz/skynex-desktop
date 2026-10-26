@@ -224,15 +224,15 @@ feature is not named anywhere.
 ## Panel header
 
 The panel has one header row. A single-instance surface with its own toolbar
-(terminal, diff, walkthrough, git's branch and sync controls, the notes
-search, the context surface's session title) renders that toolbar through
+(terminal, diff, walkthrough, git's branch and sync controls, the context
+surface's session title) renders that toolbar through
 `ContextPanelHeaderToolbar` (`components/layout/contextPanelHeaderSlot.tsx`)
 instead of stacking a second row under the header: the toolbar replaces the
 mode label and sits beside the fullscreen and close buttons. ContextPanel
 provides the header element only to the surface on screen, so inactive tabs
 and hosts outside the panel (the mobile workspace drawer) get no slot and
 render the toolbar inline as before. A surface nested inside another one that
-owns the header (the plan opened from the notes panel) is given a null slot. The label comes
+owns the header is given a null slot. The label comes
 back whenever no toolbar is mounted, so empty and loading states stay named.
 Git moves only its first row: identity, pull request and upstream state stay
 in the body below.
@@ -253,7 +253,7 @@ chat/palette go through the `openContext*` actions in `useUIStore`.
   positions). Chat tab records stay open, but only the active chat tab's
   pinned chat column is mounted while the panel is open. A selected chat
   restores its state from the session stores. A closed panel mounts no chat.
-  Surfaces rendered by the zone (git, the Tracker, notes, context) remount on
+  Surfaces rendered by the zone (git, the Tracker, context) remount on
   every switch, the Tracker on every switch between its tabs too. These
   surfaces must restore their state from stores or snapshots.
 - Portalled menus and dialogs handle their own Escape key. The panel's capture

@@ -76,13 +76,6 @@ export const MAGIC_PROMPT_COMMANDS: readonly MagicPromptCommand[] = [
         requires: 'session-or-draft',
     },
     {
-        name: 'plan-feature',
-        visiblePrompt: 'session.plan.visible',
-        instructionsPrompt: 'session.plan.instructions',
-        errorToastKey: 'chat.chatInput.toast.planFeatureFailed',
-        requires: 'session-or-draft',
-    },
-    {
         name: 'craft-goal',
         visiblePrompt: 'session.craftGoal.visible',
         instructionsPrompt: 'session.craftGoal.instructions',

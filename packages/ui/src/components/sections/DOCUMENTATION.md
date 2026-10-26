@@ -437,8 +437,7 @@ Projects (`frame="page"`) and by the sidebar's project edit dialog
 (`frame="dialog"`). The header holds the icon, colour and name: the icon opens a
 popover with the colour (`shared/SettingsColorField.tsx`, the same field the
 Agents page uses) and the symbol or image, and the name is edited in place. Below
-it a tab strip splits the rest: General (new-chat defaults, the team file, trust,
-plans folder), Actions (a card grid with an editor dialog), Worktrees (setup
+it a tab strip splits the rest: General (new-chat defaults, the team file, trust), Actions (a card grid with an editor dialog), Worktrees (setup
 commands and a link to the worktrees page) and Environment (not in VS Code).
 Identity fields autosave through `useProjectIdentityAutoSave`, as before.
 

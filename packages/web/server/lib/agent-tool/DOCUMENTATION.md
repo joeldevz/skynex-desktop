@@ -3,8 +3,7 @@
 ## Purpose
 
 This module exposes OpenChamber to agents as typed OpenCode custom tools. There
-are two, because controlling sessions and driving a page are separate intents
-the user can want independently:
+are separate tools for capabilities the user can enable independently:
 
 - `openchamber` — projects, sessions, worktrees, and showing a file to the
   user (`file.open`). Enabled while the persisted `agentControlToolEnabled`
@@ -23,16 +22,6 @@ the user can want independently:
   `POST /api/notifications/emit`). Off by default: enabled only while
   `agentNotifyToolEnabled` is `true`, and the control service refuses the
   action when the setting is off, so a stale plugin cannot keep paging.
-- `openchamber_knowledge` — the project's Notes, Todos and Plans, the items of
-  the Project knowledge panel (`knowledge.list`, `save`, `delete`, `show`,
-  with `kind` naming note, todo or plan; plans are files, so list and save
-  give their path and the agent reads and edits them with its own file tools;
-  dispatched by
-  `../openchamber-control/project-knowledge.js` into
-  `../project-context/runtime.js`). On by default: enabled while
-  `agentKnowledgeToolEnabled` is not `false`, and the control service refuses
-  these actions when it is, so a stale plugin cannot keep writing. Writes are
-  attributed to the session OpenCode reported, never to a payload field.
 - `openchamber_render` — `render.page`, a self-contained HTML page (`html`,
   `title`) the chat draws inline above the agent's answer, such as a chart or
   table. The page travels in the call's input, which OpenCode stores and
@@ -209,10 +198,7 @@ default and when to set it. Field names and JSON types carry the rest.
 - `parameters.link` for `session.link` can arrive as a JSON string even though
   the schema declares an object (#4591). The generated entry parses it once
   before the merge and keeps the result only when it is a plain object;
-  anything else reaches `linkInputSchema` unchanged. The knowledge tool's
-  `dependsOn` gets the same treatment, kept only when the parse is an array: a
-  model sent it as a JSON string beside the action, where the schema gives it
-  no type. No other field is revived, so prompts and titles that happen to look
+  anything else reaches `linkInputSchema` unchanged. No other field is revived, so prompts and titles that happen to look
   like JSON stay text.
 - The description draws the line against OpenCode's own `subagent` tool:
   `subagent` when the agent delegates part of its own task and wants the
@@ -276,7 +262,7 @@ directory that already exists. OpenCode's system line that points agents at
 
 ### Why a rule about when to act lives only in the session context
 
-When to link an issue, save a memory or draw a page is stated once, in every
+When to link an issue or draw a page is stated once, in every
 session's context (`../session-knowledge/`), and no tool description repeats
 it. A trigger has to reach an agent that has not thought of the tool yet: told
 only in the `session.link` action, an agent investigating an issue never linked
@@ -343,14 +329,10 @@ error state.
 
 ## The calling tool is part of the request
 
-Each generated tool sends its own name with every callback. Models routinely
-drop the namespace their tool's name appears to supply — `openchamber_memory`
-asked for `memory.read` gets called as `read` — and resolving the bare name
-inside the calling tool's action set makes that unambiguous even where it is not
-globally (`delete` belongs to both schedule and memory).
+Each generated tool sends its own name with every callback. A bare action
+resolves inside that tool's action set. Unknown tool names are refused, so a
+retired plugin cannot dispatch an action from a different capability.
 
-Resolution never reaches outside the tool that asked: `open` from the memory
-tool fails rather than driving the browser. An unresolvable action answers with
-the actions that tool actually has, because an error that only says
-"unsupported" leaves the model to guess a second wrong name — which is exactly
-what happened before this existed.
+An unresolvable action lists the calling tool's supported actions. The native
+knowledge and memory tools have no registration, schemas or dispatch actions.
+Their historical files remain untouched.

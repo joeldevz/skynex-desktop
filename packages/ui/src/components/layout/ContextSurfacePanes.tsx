@@ -10,9 +10,7 @@ import { useDraftSpaceTarget } from '@/lib/spaces/useDraftSpaceTarget';
 import { panelContentDirectory } from '@/lib/spaces/space-creation-requests';
 import { spaceIdOfDirectory } from '@/lib/spaces/space-route';
 import { SpacePreparing } from '@/components/session/spaces/SpacePreparing';
-import { resolvePlanRequestOwner } from '@/hooks/useProjectContextOwner';
 import { isRightToLeft, useI18n } from '@/lib/i18n';
-import { resolveProjectContextId } from '@/lib/projectContextApi';
 import { cn } from '@/lib/utils';
 import { registerBrowserCloser, registerBrowserOpener, registerSleepingBrowserTab, setShownBrowserTab } from '@/lib/browser/controlClient';
 import { pickLiveBrowserTabs, touchRecentBrowserTab } from '@/lib/browser/liveTabs';
@@ -399,16 +397,6 @@ export const ContextSurfacePanes: React.FC = () => {
     if (!directory) return;
     openContextFile(directory, event.path);
   }), [effectiveDirectory, openContextFile]);
-  // The agent asked for a saved plan to be shown: it opens in place in the
-  // Project knowledge panel, as a click in its Plans list does, in the strip
-  // of the asking session's project.
-  React.useEffect(() => subscribeOpenchamberEvents((event) => {
-    if (event.type !== 'plan-open-request') return;
-    const directory = event.directory ?? effectiveDirectory;
-    const projectRef = resolvePlanRequestOwner(directory, event.projectId);
-    if (!directory || !projectRef) return;
-    useUIStore.getState().openProjectKnowledgePlan(directory, resolveProjectContextId(projectRef), event.planId);
-  }), [effectiveDirectory]);
 
   // Tells agent browser control which project is on screen and which browser
   // tab the user last had in front of them there; a session without a tab of

@@ -189,7 +189,7 @@ export async function routeMessage(params: {
   delivery?: 'steer'
   skills?: SkillMentions
   /**
-   * The session's project knowledge being written into it. A prompt's message
+   * Checkout context and tool guidance being refreshed. A prompt's message
    * appears without waiting for it; only the request does. Never rejects.
    */
   knowledgeSync?: Promise<void>
@@ -421,7 +421,6 @@ export type NewSessionDraftState = {
   initialPrompt?: string
   syntheticParts?: SyntheticContextPart[]
   targetFolderId?: string
-  projectContextPins?: { notes: string[]; plans: string[] }
   target: NewSessionDraftTarget
   preparedChatDirectory?: string | null
   /**
@@ -466,7 +465,6 @@ export type SessionUIState = {
   setNewSessionDraftTarget: (target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null }, options?: { force?: boolean }) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   setDraftPermissionMode: (mode: PermissionMode) => void
-  setDraftProjectContextPin: (kind: "note" | "plan", id: string, pinned: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   clearAbortPrompt: () => void
   /** Arms "press Esc again to stop" for `sessionId`, the selected session by default. */
@@ -1089,16 +1087,13 @@ export async function materializeOpenDraftSession(selection: {
   await waitForWorktreeBootstrapIfConfigured(draftDirectoryOverride, draftProjectId)
   draftDirectoryOverride = await resolveDraftStartDirectory(draftDirectoryOverride, draftProjectId)
 
-  const draftPins = draft.projectContextPins ?? { notes: [], plans: [] }
   // The draft already knows what the first turn runs on, so the session is
   // created on that model and agent instead of being switched by the first
   // send — a switch v2 would record in the transcript.
   const created = await createSessionWithDraftLifecycle(
     draft.title,
     draftDirectoryOverride,
-    draftPins.notes.length > 0 || draftPins.plans.length > 0
-      ? { openchamber: { project_context_pins: draftPins } }
-      : undefined,
+    undefined,
     "submitted-draft",
     {
       model: { providerID: selection.providerID, id: selection.modelID, variant: selection.variant },
@@ -1539,7 +1534,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       initialPrompt: options?.initialPrompt,
       syntheticParts: options?.syntheticParts,
       targetFolderId: options?.targetFolderId,
-      projectContextPins: options?.projectContextPins,
     }
 
     set({
@@ -1691,22 +1685,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     set((s) => {
       if (!s.newSessionDraft?.open) return s
       return { newSessionDraft: { ...s.newSessionDraft, permissionMode: mode } }
-    }),
-
-  setDraftProjectContextPin: (kind, id, pinned) =>
-    set((s) => {
-      if (!s.newSessionDraft?.open) return s
-      const pins = s.newSessionDraft.projectContextPins ?? { notes: [], plans: [] }
-      const key = kind === "note" ? "notes" : "plans"
-      const next = new Set(pins[key])
-      if (pinned) next.add(id)
-      else next.delete(id)
-      return {
-        newSessionDraft: {
-          ...s.newSessionDraft,
-          projectContextPins: { ...pins, [key]: [...next] },
-        },
-      }
     }),
 
   acknowledgeSessionAbort: (sessionId) =>
@@ -1906,7 +1884,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         const draftParts: Array<{ text: string; attachments?: AttachedFile[]; synthetic?: boolean; metadata?: ContextPartMetadata }> | undefined = createdDraftSession.syntheticParts?.length
           ? [...(additionalParts || []), ...createdDraftSession.syntheticParts]
           : additionalParts
-        // The server writes the project knowledge into the new session while
+        // The server refreshes checkout context and tool guidance while
         // the message is already on screen: only the prompt request waits.
         const draftKnowledgeSync = inputMode === "shell"
           ? undefined
@@ -2027,7 +2005,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         filename: a.filename,
       }))
 
-      // Standing project context (pinned notes and plans, the memory index),
+      // Checkout context and tool guidance,
       // written into the session alongside the goal write and while the
       // optimistic message is already on screen: only the prompt request
       // waits for it.

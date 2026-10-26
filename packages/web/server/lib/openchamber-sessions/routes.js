@@ -906,8 +906,8 @@ export const createOpenChamberSessionService = (dependencies) => {
 
   /**
    * Merge-patch a session's OpenChamber metadata on its OpenCode record: the
-   * per-session state of goal mode, session assist, obligatory context and
-   * pinned notes. The broadcast carries the full merged object, because a
+   * per-session state of goal mode, session assist and obligatory context.
+   * The broadcast carries the full merged object, because a
    * client that missed an earlier patch must not have to reconstruct it.
    */
   const writeMetadata = async (sessionID, patch, directory = '') => {

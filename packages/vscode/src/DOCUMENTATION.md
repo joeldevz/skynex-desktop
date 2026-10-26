@@ -259,12 +259,11 @@ every surface reached only through those is unreachable.
 | Git | PARTIAL | Read-only status/branches/log via `useGitStore` in `SessionSidebar`, `ChatInput`, `WorkStatusPrimaryGroup`. Stage/commit/push/history/merge/rebase live in `GitView` + `views/git/*`, cut off with `ContextPanel` |
 | Voice / dictation | PARTIAL | `ComposerDictation` renders in `ChatInput`; the `voice` settings page is VS Code-gated |
 | Command palette | PARTIAL | `useKeyboardShortcuts` runs from `SyncAppEffects` and `open_command_palette` toggles `isCommandPaletteOpen`, but `CommandPalette` renders only in `MainLayout` — the shortcut opens nothing |
-| ContextPanel / project context (notes, todos, plans tabs) | NOT MOUNTED | `ContextPanel`, `ContextPanelRail`, `RightSidebarTabs` imported only by `MainLayout` and `MobileWorkspaceDrawer` |
+| ContextPanel | NOT MOUNTED | `ContextPanel` and `ContextPanelRail` are outside the VS Code layout |
 | Terminal | NOT MOUNTED | `TerminalView` imported only by `ContextPanel` and `MobileWorkspaceDrawer`. `webview/api/index.ts` ships `createStubTerminalAPI()` whose every method throws unsupported |
 | Files view | NOT MOUNTED | lazy `FilesView` in `ContextPanel`; `SidebarFilesTree` is `MainLayout`-only |
 | Diff view | NOT MOUNTED | lazy `DiffView` in `ContextPanel` |
 | Git view | NOT MOUNTED | lazy `GitView` in `ContextPanel` |
-| Plan view | NOT MOUNTED | lazy `PlanView` in `ContextPanel`, `ProjectNotesTodoPanel`, `MobileApp` |
 | Pull request view | NOT MOUNTED | `PullRequestView` imported only by `ContextPanel` |
 | Browser panel | NOT MOUNTED | `BrowserPane` imported only by `ContextPanel`; `RuntimeAPIs` has no browser member in `webview/api/index.ts` |
 | Walkthrough | NOT MOUNTED | `WalkthroughView` imported only by `ContextPanel` |
@@ -288,7 +287,7 @@ Handlers with no reachable caller in the VS Code webview.
 | `api:git/commit-message` | Wired from `webview/api/git.ts`. GitView is still unmounted, so no VS Code webview UI calls it. The SCM title-bar command uses the same generator on the extension host. |
 | `api:git/pr-description` | `views/git/PullRequestSection.tsx` only |
 | `api:git/identity` | `git` settings page is VS Code-gated |
-| `api:fs:write`, `api:fs:rename`, `api:fs:delete`, `api:fs:reveal`, `api:fs:mkdir` | `FilesView`, `SidebarFilesTree`, `PlanView` only |
+| `api:fs:write`, `api:fs:rename`, `api:fs:delete`, `api:fs:reveal`, `api:fs:mkdir` | `FilesView`, `SidebarFilesTree` only |
 | `api:fs:exec` | Terminal API is a throwing stub; no other caller |
 
 Reachable filesystem routes: `api:fs:read` (attachments), `api:fs:search`

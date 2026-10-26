@@ -444,8 +444,8 @@ const MAX_TEXT_LENGTH = 120
 const OPENCHAMBER_RENDER_TOOL = "openchamber_render"
 const OPENCHAMBER_WORKFLOW_TOOL = "openchamber_workflow"
 
-/** The control, schedule, browser, memory, knowledge, notify, render and workflow tools OpenChamber gives a session. */
-const OPENCHAMBER_TOOLS = new Set(["openchamber", "openchamber_schedule", "openchamber_web", "openchamber_memory", "openchamber_knowledge", "openchamber_notify", OPENCHAMBER_RENDER_TOOL, OPENCHAMBER_WORKFLOW_TOOL])
+/** The managed OpenChamber tools a session can call. */
+const OPENCHAMBER_TOOLS = new Set(["openchamber", "openchamber_schedule", "openchamber_web", "openchamber_notify", OPENCHAMBER_RENDER_TOOL, OPENCHAMBER_WORKFLOW_TOOL])
 
 // The result envelope the agent tool returns as text (`agent-tool/runtime.js`).
 const proposedWorkflowResultSchema = z.object({

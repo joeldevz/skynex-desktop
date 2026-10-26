@@ -2,38 +2,30 @@ import { describe, expect, test } from 'bun:test';
 
 import { resolveAgentToolAction } from './actions.js';
 
-/**
- * Both cases here are from one real conversation: the model called `read` and
- * then `get` on `openchamber_memory`, having dropped the namespace its own tool
- * name appeared to supply, and gave up after the second bare "unsupported".
- */
 describe('a namespace the tool name already implies', () => {
   test('resolves a bare action inside the calling tool', () => {
-    expect(resolveAgentToolAction('read', 'openchamber_memory')).toEqual({ action: 'memory.read' });
-    expect(resolveAgentToolAction('save', 'openchamber_memory')).toEqual({ action: 'memory.save' });
+    expect(resolveAgentToolAction('snapshot', 'openchamber_web')).toEqual({ action: 'browser.snapshot' });
+    expect(resolveAgentToolAction('create', 'openchamber_schedule')).toEqual({ action: 'schedule.create' });
   });
 
   test('resolves a bare name that is ambiguous only across tools', () => {
-    // `delete` belongs to schedule and to memory; inside one tool it is plain.
-    expect(resolveAgentToolAction('delete', 'openchamber_memory')).toEqual({ action: 'memory.delete' });
     expect(resolveAgentToolAction('delete', 'openchamber_schedule')).toEqual({ action: 'schedule.delete' });
   });
 
-  test('resolves the knowledge verbs inside their own tool only', () => {
-    expect(resolveAgentToolAction('save', 'openchamber_knowledge')).toEqual({ action: 'knowledge.save' });
-    expect(resolveAgentToolAction('show', 'openchamber_knowledge')).toEqual({ action: 'knowledge.show' });
-    // `delete` is also a memory and schedule verb; inside this tool it is plain.
-    expect(resolveAgentToolAction('delete', 'openchamber_knowledge')).toEqual({ action: 'knowledge.delete' });
-    expect(resolveAgentToolAction('knowledge.list', 'openchamber').error).toBeDefined();
+  test('rejects retired knowledge and memory actions for every caller', () => {
+    for (const tool of ['openchamber', 'openchamber_knowledge', 'openchamber_memory', null]) {
+      for (const action of ['knowledge.list', 'knowledge.save', 'knowledge.delete', 'knowledge.show', 'memory.list', 'memory.read', 'memory.save', 'memory.delete']) {
+        expect(resolveAgentToolAction(action, tool).action).toBeUndefined();
+      }
+    }
   });
 
   test('keeps a fully qualified action as it is', () => {
-    expect(resolveAgentToolAction('memory.read', 'openchamber_memory')).toEqual({ action: 'memory.read' });
+    expect(resolveAgentToolAction('browser.snapshot', 'openchamber_web')).toEqual({ action: 'browser.snapshot' });
   });
 
   test('does not reach outside the tool that asked', () => {
-    // The memory tool asking for `open` must fail, not drive the browser.
-    expect(resolveAgentToolAction('open', 'openchamber_memory').action).toBeUndefined();
+    expect(resolveAgentToolAction('open', 'openchamber_schedule').action).toBeUndefined();
   });
 });
 
@@ -49,25 +41,24 @@ describe('an unidentified caller', () => {
 
 describe('what an unresolvable action reports', () => {
   test('names the actions the calling tool actually has', () => {
-    const { error } = resolveAgentToolAction('get', 'openchamber_memory');
+    const { error } = resolveAgentToolAction('get', 'openchamber_schedule');
 
-    expect(error).toContain('memory.read');
-    expect(error).toContain('memory.save');
+    expect(error).toContain('schedule.list');
+    expect(error).toContain('schedule.create');
     // Listing every action of every tool would bury the four that apply.
     expect(error).not.toContain('browser.open');
   });
 
   test('reports a missing action rather than resolving to something', () => {
-    const { error, action } = resolveAgentToolAction('', 'openchamber_memory');
+    const { error, action } = resolveAgentToolAction('', 'openchamber_schedule');
 
     expect(action).toBeUndefined();
     expect(error).toContain('missing');
   });
 
-  test('an unknown tool falls back to the full action list', () => {
+  test('an unknown tool cannot dispatch another capability', () => {
     const { error } = resolveAgentToolAction('nonsense', 'openchamber_future');
 
-    expect(error).toContain('memory.read');
-    expect(error).toContain('browser.open');
+    expect(error).toBe('Unsupported OpenChamber tool: openchamber_future');
   });
 });

@@ -2,9 +2,8 @@ import { asNonEmptyString, isBoolean } from '../shared/guards.js';
 import path from 'node:path';
 import { OpenCode } from '@opencode/client';
 import { OpenChamberControlError, asControlError } from './error.js';
-import { OPENCHAMBER_ALL_ACTIONS, OPENCHAMBER_KNOWLEDGE_ACTIONS } from './actions.js';
+import { OPENCHAMBER_ALL_ACTIONS } from './actions.js';
 import { writeScreenshot } from './screenshots.js';
-import { createProjectKnowledgeActions } from './project-knowledge.js';
 import { createPageAnswers, createRenderPageAction } from './render-page.js';
 import { createWorkNamer } from '../openchamber-sessions/work-naming.js';
 
@@ -221,19 +220,13 @@ export const createOpenChamberControlService = (dependencies) => {
     browserControl = null,
     fileOpen = null,
     notifyUser = null,
-    agentMemoryActions = null,
     sessionLinks = null,
     // Git and metadata access for `work.name`; absent means the server cannot name tasks.
     workNaming = null,
-    projectContextRuntime = null,
-    resolveProjectContextId = null,
-    isKnowledgeToolEnabled = async () => true,
     isRenderToolEnabled = async () => true,
     // Hears when a page an agent shows starts and stops waiting for the
     // user's answer (render.page with awaitAnswer).
     onPageWaitChange = () => {},
-    // Puts a plan in front of the user; answers how many windows it reached.
-    showPlan = null,
     // Delivers a dispatched session's result back to the session that asked
     // (`returnResult`); absent means the server cannot offer it.
     dispatchResults = null,
@@ -341,14 +334,6 @@ export const createOpenChamberControlService = (dependencies) => {
     if (!projectID) return asNonEmptyString(input.directory) || asNonEmptyString(contextDirectory);
     return sessionService.resolveDirectory({ projectId: projectID });
   };
-
-  const knowledgeActions = createProjectKnowledgeActions({
-    projectContextRuntime,
-    resolveProjectContextId,
-    isEnabled: isKnowledgeToolEnabled,
-    showPlan,
-    resolveDirectory: (input) => sessionService.resolveDirectory(input),
-  });
 
   const pageAnswers = createPageAnswers({ onWaitChange: onPageWaitChange });
   const renderPage = createRenderPageAction({ isEnabled: isRenderToolEnabled, pageAnswers });
@@ -840,15 +825,6 @@ export const createOpenChamberControlService = (dependencies) => {
     try {
       if (!CONTROL_ACTIONS.has(action)) {
         throw new OpenChamberControlError(`Unsupported OpenChamber action: ${action || 'missing'}`, 400);
-      }
-      if (OPENCHAMBER_KNOWLEDGE_ACTIONS.includes(action)) {
-        return await knowledgeActions.execute(action, input, contextDirectory, options.contextSessionId);
-      }
-      if (action.startsWith('memory.')) {
-        if (!agentMemoryActions) {
-          throw new OpenChamberControlError('Agent memory is not available on this server', 503);
-        }
-        return agentMemoryActions.execute(action, input, contextDirectory);
       }
       if (action.startsWith('browser.')) {
         if (!browserControl) {

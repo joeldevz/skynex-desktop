@@ -204,15 +204,13 @@ export const projectSetupPatchToStored = (patch) => {
 // ── Shared file ──
 
 export const SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
-/** Where repository plans live unless the shared file's `plansDir` says otherwise. */
-export const DEFAULT_PLANS_DIR = '.openchamber/plans';
 const SHARED_CONFIG_VERSION = 1;
 /**
  * The keys of the shared file the setup writer owns. Every other key
  * (`magicPrompts`, keys from newer builds) belongs to another writer and goes
  * back out exactly as it was read.
  */
-export const SHARED_SETUP_KEYS = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'projectActions', 'draftStarters', 'plansDir']);
+export const SHARED_SETUP_KEYS = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'projectActions', 'draftStarters']);
 const SHARED_SETUP_KEY_SET = new Set(SHARED_SETUP_KEYS);
 
 /** The keys of a shared document the setup writer does not own, in file order. */
@@ -228,33 +226,17 @@ export const defineOwnEntry = (target, key, value) => {
   Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
 };
 
-/**
- * A `plansDir` is a relative path inside the repo: no absolute paths, no
- * drive letters, no `..` segments, forward slashes. Returns the normalized
- * value or `null` when the value is not acceptable.
- */
-export const normalizePlansDir = (value) => {
-  const raw = trimmedString(value).replace(/\\/g, '/');
-  if (!raw) return null;
-  if (raw.startsWith('/') || /^[A-Za-z]:/.test(raw)) return null;
-  const segments = raw.split('/').filter((segment) => segment.length > 0 && segment !== '.');
-  if (segments.length === 0 || segments.some((segment) => segment === '..')) return null;
-  return segments.join('/');
-};
-
 const EMPTY_SHARED = Object.freeze({
   setupWorktree: [],
   setupWorktreeWait: null,
   projectActions: [],
   draftStarters: [],
-  plansDir: null,
 });
 
 /**
  * Parse the text of a shared file. Anything that is not a version-1 object
  * is `invalid` with a reason (never an empty config: a teammate must see that
- * the file is broken, not that the project has no shared setup). A `plansDir`
- * that points outside the repo is invalid for the same reason.
+ * the file is broken, not that the project has no shared setup).
  */
 export const parseSharedProjectConfig = (raw) => {
   let parsed;
@@ -273,11 +255,6 @@ export const parseSharedProjectConfig = (raw) => {
   if ('setupWorktreeWait' in parsed && typeof parsed.setupWorktreeWait !== 'boolean') return invalid('setupWorktreeWait must be a boolean');
   if ('projectActions' in parsed && !Array.isArray(parsed.projectActions)) return invalid('projectActions must be an array');
   if ('draftStarters' in parsed && !Array.isArray(parsed.draftStarters)) return invalid('draftStarters must be an array');
-  let plansDir = null;
-  if ('plansDir' in parsed && parsed.plansDir !== null) {
-    plansDir = normalizePlansDir(parsed.plansDir);
-    if (!plansDir) return invalid('plansDir must be a relative path inside the repository');
-  }
   return {
     status: 'ok',
     document: parsed,
@@ -286,7 +263,6 @@ export const parseSharedProjectConfig = (raw) => {
       setupWorktreeWait: typeof parsed.setupWorktreeWait === 'boolean' ? parsed.setupWorktreeWait : null,
       projectActions: sanitizeProjectActions(parsed.projectActions),
       draftStarters: sanitizeDraftStarters(parsed.draftStarters),
-      plansDir,
     },
   };
 };
@@ -373,7 +349,6 @@ export const isSharedProjectConfigEmpty = (config, document = {}) => (
   && config.setupWorktreeWait === null
   && config.projectActions.length === 0
   && config.draftStarters.length === 0
-  && config.plansDir === null
   && foreignSharedEntriesOf(document).length === 0
 );
 
@@ -390,7 +365,6 @@ export const serializeSharedProjectConfig = (config, document = {}) => {
   if (config.setupWorktreeWait !== null) output.setupWorktreeWait = config.setupWorktreeWait;
   if (config.projectActions.length > 0) output.projectActions = sanitizeProjectActions(config.projectActions).map(withoutEmptyIcon);
   if (config.draftStarters.length > 0) output.draftStarters = config.draftStarters;
-  if (config.plansDir !== null) output.plansDir = config.plansDir;
   for (const [key, value] of foreignSharedEntriesOf(document)) defineOwnEntry(output, key, value);
   return `${JSON.stringify(output, null, 2)}\n`;
 };
@@ -398,7 +372,7 @@ export const serializeSharedProjectConfig = (config, document = {}) => {
 /**
  * The next shared config after a client patch over the current one. Every
  * named key replaces the current value; a wrongly shaped key is a validation
- * error, and a `plansDir` outside the repo is refused rather than stored.
+ * error. Keys this writer does not own remain in the source document.
  */
 export const applySharedProjectSetupPatch = (current, patch) => {
   if (!isObjectRecord(patch)) throw new Error('patch must be an object');
@@ -418,15 +392,6 @@ export const applySharedProjectSetupPatch = (current, patch) => {
   if ('draftStarters' in patch) {
     if (!Array.isArray(patch.draftStarters)) throw new Error('draftStarters must be an array');
     next.draftStarters = sanitizeDraftStarters(patch.draftStarters);
-  }
-  if ('plansDir' in patch) {
-    if (patch.plansDir === null || (typeof patch.plansDir === 'string' && !patch.plansDir.trim())) {
-      next.plansDir = null;
-    } else {
-      const plansDir = normalizePlansDir(patch.plansDir);
-      if (!plansDir) throw new Error('plansDir must be a relative path inside the repository');
-      next.plansDir = plansDir;
-    }
   }
   return next;
 };

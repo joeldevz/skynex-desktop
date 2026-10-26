@@ -1125,8 +1125,6 @@ interface UIStore {
   messageSearchReasoningEnabled: boolean;
   /** Who answers the agent's browser actions: `builtin` (the in-app view) or an extension id. */
   browserProvider: string;
-  agentMemoryToolEnabled: boolean;
-  agentKnowledgeToolEnabled: boolean;
   agentNotifyToolEnabled: boolean;
   agentRenderToolEnabled: boolean;
   agentWorkflowToolEnabled: boolean;
@@ -1137,34 +1135,17 @@ interface UIStore {
   /** The permission mode the server writes onto each new top-level session. */
   permissionDefaultMode: PermissionMode;
   /**
-   * Whether this build has agent memory at all. Server-owned and not
-   * persisted: an unreleased feature must not come back from a stale cache.
-   */
-  agentMemoryFeatureAvailable: boolean;
-  /**
    * Whether this build has agent workflows (`OPENCHAMBER_WORKFLOWS_ENABLE`).
-   * Server-owned and not persisted, for the same reason as the memory flag.
+   * Server-owned and not persisted.
    */
   agentWorkflowFeatureAvailable: boolean;
   /**
    * Whether this build has Jev model routing. Server-owned and not persisted,
-   * for the same reason as the memory flag.
+   * so stale cache cannot enable it.
    */
   routingFeatureAvailable: boolean;
   /** Whether the overview page exists at all; the server says, from `OPENCHAMBER_OVERVIEW_ENABLED`. */
   overviewFeatureAvailable: boolean;
-  /**
-   * When the user last looked at each memory scope, keyed by scope. Drives the
-   * new/changed badges; there is no stored review state.
-   */
-  agentMemoryViewedAt: Record<string, number>;
-  /** Active tab of the project context panel (notes/todos/plans). */
-  projectContextTab: string;
-  /**
-   * A saved plan an agent asked to show, waiting for the Project knowledge
-   * panel of its project to open it in place. Not persisted.
-   */
-  projectKnowledgePlanRequest: { projectContextId: string; planId: string } | null;
   inputSpellcheckEnabled: boolean;
   largeTextPasteBehavior: LargeTextPasteBehavior;
   enterToSend: boolean;
@@ -1419,22 +1400,15 @@ interface UIStore {
   setMessageSearchEnabled: (value: boolean) => void;
   setMessageSearchReasoningEnabled: (value: boolean) => void;
   setBrowserProvider: (value: string) => void;
-  setAgentMemoryToolEnabled: (value: boolean) => void;
-  setAgentKnowledgeToolEnabled: (value: boolean) => void;
   setAgentNotifyToolEnabled: (value: boolean) => void;
   setAgentRenderToolEnabled: (value: boolean) => void;
   setAgentWorkflowToolEnabled: (value: boolean) => void;
   setAgentToolsCodeMode: (value: boolean) => void;
   setIsolatedSpacesEnabled: (value: boolean) => void;
   setPermissionDefaultMode: (value: PermissionMode) => void;
-  setAgentMemoryFeatureAvailable: (value: boolean) => void;
   setAgentWorkflowFeatureAvailable: (value: boolean) => void;
   setRoutingFeatureAvailable: (value: boolean) => void;
   setOverviewFeatureAvailable: (value: boolean) => void;
-  markAgentMemoryViewed: (key: string, viewedAt: number) => void;
-  setProjectContextTab: (value: string) => void;
-  openProjectKnowledgePlan: (directory: string, projectContextId: string, planId: string) => void;
-  clearProjectKnowledgePlanRequest: () => void;
   setInputSpellcheckEnabled: (value: boolean) => void;
   setLargeTextPasteBehavior: (value: LargeTextPasteBehavior) => void;
   setEnterToSend: (value: boolean) => void;
@@ -1658,21 +1632,15 @@ export const useUIStore = create<UIStore>()(
         messageSearchEnabled: false,
         messageSearchReasoningEnabled: false,
         browserProvider: 'builtin',
-        agentMemoryToolEnabled: false,
-        agentKnowledgeToolEnabled: true,
         agentNotifyToolEnabled: false,
         agentRenderToolEnabled: true,
         agentWorkflowToolEnabled: true,
         agentToolsCodeMode: false,
         isolatedSpacesEnabled: false,
         permissionDefaultMode: 'ask',
-        agentMemoryFeatureAvailable: false,
         agentWorkflowFeatureAvailable: false,
         routingFeatureAvailable: false,
         overviewFeatureAvailable: false,
-        agentMemoryViewedAt: {},
-        projectContextTab: 'notes',
-        projectKnowledgePlanRequest: null,
         inputSpellcheckEnabled: false,
         largeTextPasteBehavior: DEFAULT_LARGE_TEXT_PASTE_BEHAVIOR,
         enterToSend: false,
@@ -3263,12 +3231,6 @@ export const useUIStore = create<UIStore>()(
         setBrowserProvider: (value) => {
           set({ browserProvider: value });
         },
-        setAgentMemoryToolEnabled: (value) => {
-          set({ agentMemoryToolEnabled: value });
-        },
-        setAgentKnowledgeToolEnabled: (value) => {
-          set({ agentKnowledgeToolEnabled: value });
-        },
         setIsolatedSpacesEnabled: (value) => {
           set({ isolatedSpacesEnabled: value });
         },
@@ -3287,9 +3249,6 @@ export const useUIStore = create<UIStore>()(
         setAgentToolsCodeMode: (value) => {
           set({ agentToolsCodeMode: value });
         },
-        setAgentMemoryFeatureAvailable: (value) => {
-          set({ agentMemoryFeatureAvailable: value });
-        },
         setAgentWorkflowFeatureAvailable: (value) => {
           set({ agentWorkflowFeatureAvailable: value });
         },
@@ -3299,25 +3258,6 @@ export const useUIStore = create<UIStore>()(
         // Losing the feature closes the page, so nothing of it stays on screen.
         setOverviewFeatureAvailable: (value) => {
           set(value ? { overviewFeatureAvailable: true } : { overviewFeatureAvailable: false, isOverviewOpen: false });
-        },
-        markAgentMemoryViewed: (key, viewedAt) => {
-          set((state) => ({
-            // Never moves backwards: a stale unmount landing after a newer look
-            // would otherwise resurrect badges the user has already cleared.
-            agentMemoryViewedAt: viewedAt > (state.agentMemoryViewedAt[key] ?? 0)
-              ? { ...state.agentMemoryViewedAt, [key]: viewedAt }
-              : state.agentMemoryViewedAt,
-          }));
-        },
-        setProjectContextTab: (value) => {
-          set({ projectContextTab: value });
-        },
-        openProjectKnowledgePlan: (directory, projectContextId, planId) => {
-          set({ projectContextTab: 'plans', projectKnowledgePlanRequest: { projectContextId, planId } });
-          get().openContextPanelTab(directory, { mode: 'notes' });
-        },
-        clearProjectKnowledgePlanRequest: () => {
-          set({ projectKnowledgePlanRequest: null });
         },
         setInputSpellcheckEnabled: (value) => {
           set({ inputSpellcheckEnabled: value });
@@ -3822,15 +3762,12 @@ export const useUIStore = create<UIStore>()(
           messageSearchEnabled: state.messageSearchEnabled,
           messageSearchReasoningEnabled: state.messageSearchReasoningEnabled,
           browserProvider: state.browserProvider,
-          agentMemoryToolEnabled: state.agentMemoryToolEnabled,
-          agentKnowledgeToolEnabled: state.agentKnowledgeToolEnabled,
           agentNotifyToolEnabled: state.agentNotifyToolEnabled,
           agentRenderToolEnabled: state.agentRenderToolEnabled,
           agentWorkflowToolEnabled: state.agentWorkflowToolEnabled,
           agentToolsCodeMode: state.agentToolsCodeMode,
           isolatedSpacesEnabled: state.isolatedSpacesEnabled,
           permissionDefaultMode: state.permissionDefaultMode,
-          agentMemoryViewedAt: state.agentMemoryViewedAt,
           inputSpellcheckEnabled: state.inputSpellcheckEnabled,
           largeTextPasteBehavior: state.largeTextPasteBehavior,
           enterToSend: state.enterToSend,

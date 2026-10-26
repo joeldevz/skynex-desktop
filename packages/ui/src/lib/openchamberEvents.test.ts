@@ -345,19 +345,19 @@ describe('openchamber events', () => {
     unsubscribe();
   });
 
-  test('dispatches a project-context invalidation only with a valid owner id', async () => {
+  test('ignores retired project knowledge and native memory events', async () => {
     const { subscribeOpenchamberEvents } = await import('./openchamberEvents');
-    const owners: string[] = [];
+    const events: string[] = [];
     const unsubscribe = subscribeOpenchamberEvents((event) => {
-      if (event.type === 'project-context-changed') owners.push(event.projectId);
+      events.push(event.type);
     });
     try {
-      for (const properties of [{ projectId: 'path_chats' }, {}, { projectId: '' }, { projectId: 42 }]) {
+      for (const type of ['openchamber:project-context-changed', 'openchamber:agent-memory-changed', 'openchamber:plan-open-request']) {
         MockEventSource.instances[0].onmessage?.({
-          data: JSON.stringify({ type: 'openchamber:project-context-changed', properties }),
+          data: JSON.stringify({ type, properties: { projectId: 'path_chats', scope: 'global', planId: 'p1', title: 'Plan', directory: null, sessionId: null } }),
         });
       }
-      expect(owners).toEqual(['path_chats']);
+      expect(events).toEqual([]);
     } finally {
       unsubscribe();
     }
@@ -406,28 +406,4 @@ describe('openchamber events', () => {
     unsubscribe();
   });
 
-  test('dispatches an agent plan-open request and drops one without a plan id', async () => {
-    const { subscribeOpenchamberEvents } = await import('./openchamberEvents');
-    const events: unknown[] = [];
-    const unsubscribe = subscribeOpenchamberEvents((event) => events.push(event));
-    const source = MockEventSource.instances[0];
-
-    source.onmessage?.({
-      data: JSON.stringify({
-        type: 'openchamber:plan-open-request',
-        properties: { projectId: 'path_repo', planId: 'p1', title: 'Plan', directory: '/repo', sessionId: 'ses_1' },
-      }),
-    });
-    source.onmessage?.({
-      data: JSON.stringify({
-        type: 'openchamber:plan-open-request',
-        properties: { projectId: 'path_repo', title: 'Plan', directory: '/repo', sessionId: null },
-      }),
-    });
-
-    expect(events).toEqual([
-      { type: 'plan-open-request', projectId: 'path_repo', planId: 'p1', title: 'Plan', directory: '/repo', sessionId: 'ses_1' },
-    ]);
-    unsubscribe();
-  });
 });

@@ -53,7 +53,6 @@ export type SharedProjectConfig = {
   setupWorktreeWait: boolean | null;
   projectActions: ProjectAction[];
   draftStarters: DraftStarter[];
-  plansDir: string | null;
 };
 
 /** A value of a JSON document as `JSON.parse` returns it. */
@@ -98,7 +97,7 @@ const SHARED_CONFIG_VERSION = 1;
  * (`magicPrompts`, keys from newer builds) belongs to another writer and goes
  * back out exactly as it was read.
  */
-export const SHARED_SETUP_KEYS: readonly string[] = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'projectActions', 'draftStarters', 'plansDir']);
+export const SHARED_SETUP_KEYS: readonly string[] = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'projectActions', 'draftStarters']);
 const SHARED_SETUP_KEY_SET: ReadonlySet<string> = new Set(SHARED_SETUP_KEYS);
 
 /**
@@ -252,25 +251,11 @@ export const sharedTrustHashOf = (shared: SharedProjectConfig): string | null =>
   return `sha256:${digest}`;
 };
 
-/**
- * A `plansDir` is a relative path inside the repo: no absolute paths, no
- * drive letters, no `..` segments, forward slashes.
- */
-export const normalizePlansDir = (value: unknown): string | null => {
-  const raw = trimmedString(value).replace(/\\/g, '/');
-  if (!raw) return null;
-  if (raw.startsWith('/') || /^[A-Za-z]:/.test(raw)) return null;
-  const segments = raw.split('/').filter((segment) => segment.length > 0 && segment !== '.');
-  if (segments.length === 0 || segments.some((segment) => segment === '..')) return null;
-  return segments.join('/');
-};
-
 const EMPTY_SHARED: SharedProjectConfig = {
   setupWorktree: [],
   setupWorktreeWait: null,
   projectActions: [],
   draftStarters: [],
-  plansDir: null,
 };
 
 /**
@@ -295,11 +280,6 @@ export const parseSharedProjectConfig = (raw: string): SharedProjectConfigRead =
   if ('setupWorktreeWait' in parsed && typeof parsed.setupWorktreeWait !== 'boolean') return invalid('setupWorktreeWait must be a boolean');
   if ('projectActions' in parsed && !Array.isArray(parsed.projectActions)) return invalid('projectActions must be an array');
   if ('draftStarters' in parsed && !Array.isArray(parsed.draftStarters)) return invalid('draftStarters must be an array');
-  let plansDir: string | null = null;
-  if ('plansDir' in parsed && parsed.plansDir !== null) {
-    plansDir = normalizePlansDir(parsed.plansDir);
-    if (!plansDir) return invalid('plansDir must be a relative path inside the repository');
-  }
   const wait = parsed.setupWorktreeWait;
   return {
     status: 'ok',
@@ -309,7 +289,6 @@ export const parseSharedProjectConfig = (raw: string): SharedProjectConfigRead =
       setupWorktreeWait: typeof wait === 'boolean' ? wait : null,
       projectActions: sanitizeProjectActions(parsed.projectActions),
       draftStarters: sanitizeDraftStarters(parsed.draftStarters),
-      plansDir,
     },
   };
 };
@@ -373,7 +352,6 @@ export const isSharedProjectConfigEmpty = (config: SharedProjectConfig, document
   && config.setupWorktreeWait === null
   && config.projectActions.length === 0
   && config.draftStarters.length === 0
-  && config.plansDir === null
   && foreignSharedEntriesOf(document).length === 0
 );
 
@@ -389,7 +367,6 @@ export const serializeSharedProjectConfig = (config: SharedProjectConfig, docume
   if (config.setupWorktreeWait !== null) output.setupWorktreeWait = config.setupWorktreeWait;
   if (config.projectActions.length > 0) output.projectActions = sanitizeProjectActions(config.projectActions).map(withoutEmptyIcon);
   if (config.draftStarters.length > 0) output.draftStarters = config.draftStarters;
-  if (config.plansDir !== null) output.plansDir = config.plansDir;
   // defineProperty keeps a `__proto__` key an own property; assignment would set the prototype.
   for (const [key, value] of foreignSharedEntriesOf(document)) {
     Object.defineProperty(output, key, { value, enumerable: true, writable: true, configurable: true });
@@ -419,16 +396,6 @@ export const applySharedProjectSetupPatch = (current: SharedProjectConfig, patch
   if ('draftStarters' in patch) {
     if (!Array.isArray(patch.draftStarters)) throw new ProjectSetupValidationError('draftStarters must be an array');
     next.draftStarters = sanitizeDraftStarters(patch.draftStarters);
-  }
-  if ('plansDir' in patch) {
-    const raw = patch.plansDir;
-    if (raw === null || (typeof raw === 'string' && !raw.trim())) {
-      next.plansDir = null;
-    } else {
-      const plansDir = normalizePlansDir(raw);
-      if (!plansDir) throw new ProjectSetupValidationError('plansDir must be a relative path inside the repository');
-      next.plansDir = plansDir;
-    }
   }
   return next;
 };

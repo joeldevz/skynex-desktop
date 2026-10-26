@@ -144,8 +144,6 @@ describe('managed OpenCode config file', () => {
       includeControl: false,
       includeSchedule: false,
       includeWeb: true,
-      includeMemory: false,
-      includeKnowledge: false,
       includeNotify: false,
       includeRender: false,
       includeWorkflow: false,
@@ -153,15 +151,16 @@ describe('managed OpenCode config file', () => {
     });
   });
 
-  it('injects the knowledge tool by default and leaves it out once switched off', async () => {
+  it('does not pass retired knowledge or memory options to the plugin', async () => {
     const { runtime, current, agentToolRuntime } = await createHarness({ settings: {} });
 
     await runtime.buildManagedChildEnv();
-    expect(agentToolRuntime.materializePlugin).toHaveBeenLastCalledWith(expect.objectContaining({ includeKnowledge: true }));
+    expect(agentToolRuntime.materializePlugin.mock.lastCall[0]).not.toHaveProperty('includeKnowledge');
+    expect(agentToolRuntime.materializePlugin.mock.lastCall[0]).not.toHaveProperty('includeMemory');
 
     current.settings = { agentKnowledgeToolEnabled: false };
     await runtime.refreshManagedConfigFile();
-    expect(agentToolRuntime.materializePlugin).toHaveBeenLastCalledWith(expect.objectContaining({ includeKnowledge: false }));
+    expect(agentToolRuntime.materializePlugin.mock.lastCall[0]).not.toHaveProperty('includeKnowledge');
   });
 
   it('injects the schedule tool by default and leaves it out once switched off', async () => {
@@ -197,8 +196,6 @@ describe('managed OpenCode config file', () => {
       includeControl: false,
       includeSchedule: false,
       includeWeb: false,
-      includeMemory: false,
-      includeKnowledge: false,
       includeNotify: true,
       includeRender: false,
       includeWorkflow: false,
@@ -217,8 +214,6 @@ describe('managed OpenCode config file', () => {
       includeControl: true,
       includeSchedule: true,
       includeWeb: true,
-      includeMemory: false,
-      includeKnowledge: true,
       includeNotify: false,
       includeRender: true,
       includeWorkflow: false,

@@ -167,7 +167,7 @@ mock.module('@/lib/openchamberConfig', () => ({
     projectActions: mockedActionsState.actions.map((action) => ({ ...action, source: action.source ?? 'personal' })),
     projectActionsPrimaryId: null,
     draftStarters: [],
-    shared: { status: 'missing', path: '.openchamber/project.json', setupWorktree: [], setupWorktreeWait: null, projectActions: mockedActionsState.actions.filter((action) => action.source === 'shared'), draftStarters: [], plansDir: null },
+    shared: { status: 'missing', path: '.openchamber/project.json', setupWorktree: [], setupWorktreeWait: null, projectActions: mockedActionsState.actions.filter((action) => action.source === 'shared'), draftStarters: [] },
     personal: { setupWorktree: [], setupWorktreeWait: null, setupWorktreeMode: 'append', projectActions: mockedActionsState.actions.filter((action) => action.source !== 'shared'), projectActionsPrimaryId: null, draftStarters: [], hiddenSharedActionIds: [], sharedTrust: null },
     };
   },

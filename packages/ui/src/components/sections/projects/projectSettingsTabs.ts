@@ -21,7 +21,6 @@ const SEARCH_TARGET_TABS = new Map<string, ProjectSettingsTab>([
   ['projects.default-model', 'general'],
   ['projects.default-thinking', 'general'],
   ['projects.shared', 'general'],
-  ['projects.shared.plansDir', 'general'],
   ['projects.actions', 'actions'],
   ['projects.worktree', 'worktrees'],
   ['projects.worktree.setup.wait', 'worktrees'],

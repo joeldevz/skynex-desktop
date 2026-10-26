@@ -83,7 +83,6 @@ const sharedSchema = z.object({
   setupWorktreeWait: z.boolean().nullable(),
   projectActions: z.array(projectActionSchema),
   draftStarters: starterRefsSchema,
-  plansDir: z.string().nullable(),
 });
 
 const personalSchema = z.object({
@@ -138,7 +137,6 @@ const EMPTY_PROJECT_SETUP: ProjectSetup = {
     setupWorktreeWait: null,
     projectActions: [],
     draftStarters: [],
-    plansDir: null,
   },
   personal: {
     setupWorktree: [],
@@ -227,7 +225,6 @@ export type SharedProjectSetupPatch = Partial<{
   setupWorktreeWait: boolean | null;
   projectActions: OpenChamberProjectAction[];
   draftStarters: DraftStarterRef[];
-  plansDir: string | null;
 }>;
 
 /**

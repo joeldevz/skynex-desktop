@@ -6,8 +6,9 @@ import path from 'node:path';
 
 import {
   ProjectSetupValidationError,
+  applySharedProjectSetupPatch,
+  isSharedProjectConfigEmpty,
   mergeProjectSetup,
-  normalizePlansDir,
   parseSharedProjectConfig,
   personalProjectSetupOf,
   projectSetupPatchToStored,
@@ -15,6 +16,7 @@ import {
   sanitizeProjectActions,
   sanitizeSetupCommands,
   sharedTrustHashOf,
+  serializeSharedProjectConfig,
   type PersonalProjectSetup,
 } from './project-setup';
 import { createProjectSetupStore, handleProjectSetupBridgeMessage, projectConfigFileStemOf, projectPathFromId } from './bridge-project-setup-runtime';
@@ -83,13 +85,18 @@ describe('project setup sanitizers', () => {
     const ok = parseSharedProjectConfig(JSON.stringify({ version: 1, setupWorktree: ['bun install'], plansDir: 'docs/plans' }));
     assert.equal(ok.status, 'ok');
     if (ok.status === 'ok') {
-      assert.deepEqual(ok.config, { setupWorktree: ['bun install'], setupWorktreeWait: null, projectActions: [], draftStarters: [], plansDir: 'docs/plans' });
+      assert.deepEqual(ok.config, { setupWorktree: ['bun install'], setupWorktreeWait: null, projectActions: [], draftStarters: [] });
     }
     assert.equal(parseSharedProjectConfig('{ nope').status, 'invalid');
     assert.equal(parseSharedProjectConfig('{"version":2}').status, 'invalid');
-    assert.equal(parseSharedProjectConfig('{"version":1,"plansDir":"../x"}').status, 'invalid');
-    assert.equal(normalizePlansDir('./docs/plans/'), 'docs/plans');
-    assert.equal(normalizePlansDir('/abs'), null);
+    const retired = parseSharedProjectConfig('{"version":1,"plansDir":"../x","future":{"enabled":true}}');
+    assert.equal(retired.status, 'ok');
+    if (retired.status === 'ok') {
+      const next = applySharedProjectSetupPatch(retired.config, { plansDir: 'replacement' });
+      assert.equal('plansDir' in next, false);
+      assert.equal(isSharedProjectConfigEmpty(next, retired.document), false);
+      assert.deepEqual(JSON.parse(serializeSharedProjectConfig(next, retired.document)), { version: 1, plansDir: '../x', future: { enabled: true } });
+    }
   });
 
   test('merges shared and personal by the agreed rules', () => {
@@ -111,7 +118,6 @@ describe('project setup sanitizers', () => {
           { id: 'lint', name: 'Lint', command: 'l', icon: null },
         ],
         draftStarters: [{ type: 'command', name: 'both' }],
-        plansDir: null,
       },
     });
     assert.deepEqual(merged.setupWorktree, ['bun install', 'mine']);
@@ -123,7 +129,7 @@ describe('project setup sanitizers', () => {
   });
 
   test('trusts only the recorded hash and nothing when nothing executes', () => {
-    const shared = { setupWorktree: ['bun install'], setupWorktreeWait: null, projectActions: [], draftStarters: [], plansDir: null };
+    const shared = { setupWorktree: ['bun install'], setupWorktreeWait: null, projectActions: [], draftStarters: [] };
     const hash = sharedTrustHashOf(shared);
     assert.equal(mergeProjectSetup({ ...emptyPersonal, sharedTrust: { hash: hash ?? '', trustedAt: 1 } }, { status: 'ok', config: shared, document: {} }).trust.trusted, true);
     assert.equal(mergeProjectSetup({ ...emptyPersonal, sharedTrust: { hash: 'sha256:old', trustedAt: 1 } }, { status: 'ok', config: shared, document: {} }).trust.trusted, false);
@@ -258,18 +264,17 @@ describe('project setup bridge', () => {
       await fs.promises.mkdir(repo, { recursive: true });
       const projectId = projectIdFor(repo);
       const shared = await handleProjectSetupBridgeMessage(
-        { id: '1', type: 'api:project-setup:update-shared', payload: { projectId, patch: { setupWorktree: ['bun install'], plansDir: 'docs/plans' } } },
+        { id: '1', type: 'api:project-setup:update-shared', payload: { projectId, patch: { setupWorktree: ['bun install'] } } },
         store,
       );
       assert.equal(shared?.success, true);
-      const view = shared?.data as { trust: { trusted: boolean }; shared: { status: string; plansDir: string | null } };
+      const view = shared?.data as { trust: { trusted: boolean }; shared: { status: string } };
       assert.equal(view.shared.status, 'ok');
-      assert.equal(view.shared.plansDir, 'docs/plans');
       assert.equal(view.trust.trusted, true);
       const raw = JSON.parse(await fs.promises.readFile(path.join(repo, '.openchamber', 'project.json'), 'utf8'));
-      assert.deepEqual(raw, { version: 1, setupWorktree: ['bun install'], plansDir: 'docs/plans' });
+      assert.deepEqual(raw, { version: 1, setupWorktree: ['bun install'] });
 
-      const emptied = await store.updateShared(projectId, { setupWorktree: [], plansDir: null });
+      const emptied = await store.updateShared(projectId, { setupWorktree: [] });
       assert.equal(emptied.shared.status, 'missing');
       assert.equal(fs.existsSync(path.join(repo, '.openchamber')), false);
 

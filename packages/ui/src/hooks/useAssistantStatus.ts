@@ -198,21 +198,6 @@ const OPENCHAMBER_PHRASES = new Map(Object.entries<ToolActionPhrases>({
             'browser.close': 'closing a tab',
         },
     },
-    openchamber_memory: {
-        fallback: 'checking memory',
-        actions: {
-            'memory.save': 'saving to memory',
-            'memory.delete': 'removing a memory',
-        },
-    },
-    openchamber_knowledge: {
-        fallback: 'checking project knowledge',
-        actions: {
-            'knowledge.save': 'updating project knowledge',
-            'knowledge.delete': 'updating project knowledge',
-            'knowledge.show': 'showing a plan',
-        },
-    },
     openchamber_notify: { fallback: 'sending a notification' },
     openchamber_render: { fallback: 'drawing a page' },
 }));

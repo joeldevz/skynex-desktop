@@ -36,7 +36,7 @@ export interface CommandInfo {
 // these names is dropped before it reaches the list.
 const LOCAL_COMMAND_NAMES = [
   'init', 'review', 'undo', 'redo', 'timeline', 'compact', 'fork', 'btw', 'summary', 'workspace-review', 'handoff-review',
-  'plan-feature', 'craft-goal', 'schedule-task', 'catch-up', 'debug', 'weigh', 'explore',
+  'craft-goal', 'schedule-task', 'catch-up', 'debug', 'weigh', 'explore',
 ];
 
 export interface CommandAutocompleteHandle {
@@ -157,10 +157,6 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       ),
       ...(canUseReviewHandoffFlow
         ? [{ id: 'openchamber:handoff-review', name: 'handoff-review', source: 'openchamber' as const, description: t('chat.commandAutocomplete.command.handoffReviewDescription'), isOpenChamber: true }]
-        : []
-      ),
-      ...(canStartSessionCommand
-        ? [{ id: 'openchamber:plan-feature', name: 'plan-feature', source: 'openchamber' as const, description: t('chat.commandAutocomplete.command.featurePlanDescription'), isOpenChamber: true }]
         : []
       ),
       ...(canStartSessionCommand

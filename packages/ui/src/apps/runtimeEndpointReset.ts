@@ -9,7 +9,6 @@ import { subscribeRuntimeEndpointChanged, type RuntimeEndpointChangedDetail } fr
 import { disposeTerminalInputTransport } from '@/lib/terminalApi';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { useProjectContextStore } from '@/stores/useProjectContextStore';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useAutoReviewStore } from '@/stores/useAutoReviewStore';
 import { usePermissionStore } from '@/stores/permissionStore';
@@ -31,7 +30,6 @@ import { useMcpStore } from '@/stores/useMcpStore';
 import { useSkillsStore } from '@/stores/useSkillsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
 import { useAgentsStore } from '@/stores/useAgentsStore';
-import { useAgentMemoryStore } from '@/stores/useAgentMemoryStore';
 import { useWorkflowRunsStore } from '@/lib/workflows/store';
 import { useUIStore } from '@/stores/useUIStore';
 import { useFilesViewTabsStore } from '@/stores/useFilesViewTabsStore';
@@ -82,7 +80,6 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useProjectsStore.getState().resetForRuntimeSwitch();
   // Notes, todos, plans and the pinned-context bookkeeping are keyed by a
   // path-derived project id, which two runtimes can collide on.
-  useProjectContextStore.getState().reset();
   // Cross-project session list (mobile sessions sheet & co) belongs to the
   // previous instance — drop it so stale sessions can't linger after a switch.
   useGlobalSessionsStore.getState().resetForRuntimeSwitch();
@@ -137,7 +134,6 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useQuotaStore.getState().resetForRuntimeSwitch();
   useMcpStore.getState().resetForRuntimeSwitch();
   useSkillsStore.getState().resetForRuntimeSwitch();
-  useAgentMemoryStore.getState().reset();
   useWorkflowRunsStore.getState().reset();
   useSessionUIStore.getState().restoreForRuntimeSwitch(detail.runtimeKey, detail.previousRuntimeKey);
   useSessionUIStore.setState({ worktreeDiscoveryByProject: new Map() });

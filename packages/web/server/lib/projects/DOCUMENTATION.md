@@ -20,12 +20,12 @@ that writes it:
 | `version`, `scheduledTasks` | `project-config.js` (scheduled-task runtime) | `/api/projects/:projectId/scheduled-tasks/*` |
 | `setup-worktree`, `setup-worktree-wait`, `projectActions`, `projectActionsPrimaryId`, `draftStarters`, `projectPath` | `project-setup.js` via `readProjectSetup` / `updateProjectSetup` on the same runtime | `GET/PUT /api/projects/:projectId/config` (`routes.js`) |
 
-Notes, todos, and plans moved out of this file to `packages/web/server/lib/project-context`.
+Historical knowledge fields are opaque data. Current writers preserve them and expose no native notes, todos, plans or agent-memory API.
 A project's environment variables and environment command are not in this file either: values can be secrets, so they live in `environment.json` (mode 0600, `packages/web/server/lib/environment`).
 
 A second, optional source is the team's shared file, `<repo>/.openchamber/project.json`
 (`version: 1`; `setupWorktree`, `setupWorktreeWait`, `projectActions`, `draftStarters`,
-`plansDir`, and `magicPrompts`, which `../magic-prompts` owns). The server reads it from the checkout the project id names
+and `magicPrompts`, which `../magic-prompts` owns). The server reads it from the checkout the project id names
 (`projectPathFromId`). `GET /api/projects/:projectId/config`
 returns one merged view: what runs at the top level, plus `shared` and `personal`
 blocks so a page can edit the personal file without copying a teammate's entry into it.
@@ -37,10 +37,8 @@ blocks so a page can edit the personal file without copying a teammate's entry i
 | `projectActions` | union by `id`; a personal action replaces the shared one with the same id; ids in personal `hiddenSharedActionIds` are dropped; every entry carries `source` |
 | `projectActionsPrimaryId` | personal only |
 | `draftStarters` | union by `type:name`, shared first, every entry carries `source` |
-| `plansDir` | shared only |
 
-A shared file that exists but cannot be parsed (or names a `plansDir` outside the
-repo) is `shared.status: "invalid"` with a `reason`; the personal setup is still
+A shared file that exists but cannot be parsed is `shared.status: "invalid"` with a `reason`; the personal setup is still
 served. It is never treated as "no shared setup".
 
 ### Writing the shared file
@@ -62,8 +60,7 @@ Every other key follows unchanged, also through a repair; only unparsable JSON,
 a non-object or another version is replaced whole. A result with nothing in it
 and no other key removes the file and the `.openchamber` folder
 when that leaves it empty, so unsharing the last item leaves no trace. The
-write refuses a checkout that does not exist and a `plansDir` outside the
-repo. The writer has seen what it shared, so its personal trust record is set
+write refuses a checkout that does not exist. The writer has seen what it shared, so its personal trust record is set
 to the new hash; teammates still get the prompt. The shared UI moves an
 entry between the files as a write to the destination followed by a removal
 from the source (`packages/ui/src/components/sections/projects/projectSetupModel.ts`),
@@ -91,13 +88,15 @@ UI (`packages/ui/src/lib/sharedTrustConfirmation.ts`).
 
 - `project-id.js` — `createProjectIdFromPath` / `projectPathFromId`: the path-derived id (`path_<base64url>`) that names the file, and the checkout path back from it. The shared UI derives the same id (`packages/ui/src/lib/projectId.ts`); both sides must agree. `projectConfigFileStemOf`: the stem that names the file and the sibling folder for an id, see the file name invariant below.
 - `project-config.js` — `createProjectConfigRuntime`: raw read, atomic write, the cross-process file lock (Electron and a CLI `serve` can share one projects dir), scheduled-task normalization, and the project-setup read/update.
-- `project-setup.js` — sanitizers, the shared-file parser (`parseSharedProjectConfig`, `normalizePlansDir`), the merge (`mergeProjectSetup`), and the personal view for the setup keys. Mirrored in the VS Code extension host (`packages/vscode/src/project-setup.ts`), which owns the same file when the webview has no OpenChamber server; keep the two in sync.
+- `project-setup.js` — sanitizers, the shared-file parser (`parseSharedProjectConfig`), the merge (`mergeProjectSetup`), and the personal view for the setup keys. Mirrored in the VS Code extension host (`packages/vscode/src/project-setup.ts`), which owns the same file when the webview has no OpenChamber server; keep the two in sync.
 - `routes.js` — directory activation and setup routes. `/api/openchamber/directory` and `/api/projects` are on the JSON-body allowlist in `opencode/core-routes.js`. Both register before the generic OpenCode proxy. Web, Electron, hosted mobile, and Capacitor use the server route. VS Code handles the directory route locally through `api:openchamber/directory` and keeps its existing manager-owned directory selection.
 
 ## Invariants
 
 - **Every write is a locked read-modify-write of the whole document.** Keys the writer does not own, and keys from newer builds, come back out unchanged. A setup update and a scheduled-task update never clobber each other.
 - **A wrongly shaped key is a 400, not a silent drop.** `projectSetupPatchToStored` throws; the file is untouched. Values inside a well-shaped key are sanitized (trimmed, capped, deduplicated) rather than rejected.
-- **The file name is bounded, and so is the folder beside it.** The file is `<projectId>.json` and the per-project folder is `<projectId>/` while the id is at most 200 characters. A `path_<base64url>` id grows with the checkout path, so a deeply nested project (a path of roughly 150 characters or more) would otherwise get a name beyond the 255-byte limit and every write, lock, and temp file would fail with ENAMETOOLONG. Such an id is stored as `path_sha256_<hex digest of the id>.json` instead, with the folder `path_sha256_<digest>/` beside it (`projectConfigFileStemOf`; every composer of either path goes through it: `project-config.js`, `project-context/runtime.js`, `agent-memory/runtime.js`, and the id migration and orphan recovery in `opencode/settings-runtime.js`). The digest keeps the `path_` prefix so orphan recovery skips it. A file an older build managed to write under the long name is still read when the bounded file is missing and is moved to the bounded name by the next write; a malformed one is a read failure, not an empty project. A folder an older build created under the raw id (possible only for ids of 201 to 255 characters; longer names never got one) is moved into the bounded folder once at startup, by the project id migration in `opencode/settings-runtime.js`, with `context.json` merged by entry identity when both exist. The VS Code extension host mirrors both the naming rule and the legacy read-then-move for the file (`bridge-project-setup-runtime.ts`), because a VS Code-only user has no server to do it; it never touches the folder.
+- **The config file name is bounded.** `projectConfigFileStemOf` maps ids over 200 characters to `path_sha256_<digest>`, preventing ENAMETOOLONG for deeply nested checkouts. The web runtime and VS Code share this naming rule. An older long-name config remains readable when the bounded file is missing; malformed data is a read failure.
+- **Historical storage folders stay in place.** Settings startup never reads, combines, remaps or moves retired context, plan or memory files. Project-id migration and orphan recovery still copy active configuration into the canonical config, preserving unknown fields. Their original config document is renamed to `<original>.json.<uuid>.retired`, retaining its bytes without rediscovering it as an active orphan. Existing historical paths remain unchanged.
+- **Retired shared fields stay opaque.** A saved `plansDir` is preserved as an unknown document key through setup and prompt writes. It is absent from parsed setup, cannot be changed through setup patches, and does not authorize filesystem access.
 - **The client never composes the path.** `packages/ui/src/lib/openchamberConfig.ts` speaks only HTTP; the same code serves web, desktop, VS Code, and the phone, including a phone on a remote instance.
 - **`OPENCHAMBER_DATA_DIR` moves this directory too.** Every OpenChamber folder hangs off the one root; a custom root gets `projects/`, `themes/`, and `speech-models/` copied in from `~/.config/openchamber` once at startup (copied, not moved: a second instance beside the default one must not strip it) (`lib/data-dir-migration.js`). A scratch server started with its own data dir therefore never touches the real project configs.

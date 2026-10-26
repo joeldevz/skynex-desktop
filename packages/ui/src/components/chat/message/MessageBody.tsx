@@ -21,7 +21,6 @@ import { openSessionLink } from '@/lib/router/openSessionFromRoute';
 import { useSessionSelector } from '@/sync/sync-context';
 import { Button } from '@/components/ui/button';
 import { ErrorResponseDetails } from '@/components/chat/ErrorResponseDetails';
-import { SaveProjectPlanDialog } from '@/components/session/SaveProjectPlanDialog';
 import { ForkSessionDialog, type ForkSessionExecution } from '@/components/session/ForkSessionDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ArrowsMerge } from '@/components/icons/ArrowsMerge';
@@ -36,7 +35,7 @@ import type { Session } from '@/lib/opencode/model';
 import { getMultiRunIdentity } from '@/lib/multirun/identity';
 import { openParallelComposer } from '@/lib/multirun/openParallelComposer';
 import { AskOtherModelsDialog } from '@/components/multirun/AskOtherModelsDialog';
-import { assistantTextSegments, flattenAssistantTextParts, suggestPlanTitleFromText } from '@/lib/messages/messageText';
+import { assistantTextSegments, flattenAssistantTextParts } from '@/lib/messages/messageText';
 import { MULTIRUN_EXECUTION_FORK_PROMPT_META_TEXT } from '@/lib/messages/executionMeta';
 import { useMessageTTS } from '@/hooks/useMessageTTS';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
@@ -59,7 +58,6 @@ import { isShownInPlace } from '@/lib/opencode/tools';
 import { LiveActivityCollapse } from '../components/LiveActivityCollapse';
 import { ActivityRowSkipContext, isActivityRowPart, isToolRowShown } from '../lib/turns/activityRows';
 import { LiveFinalActivityContext, LiveTurnHoistedPagesContext } from '../components/liveActivityContext';
-import { useProjectContextStore } from '@/stores/useProjectContextStore';
 import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useI18n } from '@/lib/i18n';
@@ -1313,7 +1311,6 @@ const AssistantMessageBody = React.memo(({
 
     const isVSCode = isVSCodeRuntime();
     const isMiniChatSurface = chatSurfaceMode === 'mini-chat';
-    const canUseProjectPlanActions = !isVSCode && !isMiniChatSurface && !isMobile;
     const canShowMultiRunAction = !isVSCode && !isMiniChatSurface && !isMobile;
 
     const createSessionFromAssistantMessage = useSessionUIStore((state) => state.createSessionFromAssistantMessage);
@@ -1351,15 +1348,6 @@ const AssistantMessageBody = React.memo(({
             },
         };
     }, [assistantPlanText, effectiveDirectory, effectiveReviewTransferDirection, sessionId, t]);
-    const [isPlanDialogOpen, setIsPlanDialogOpen] = React.useState(false);
-    // The plan dialog mounts on its first open and stays mounted so closing
-    // still animates; until then a streaming message renders none of it.
-    const [isPlanDialogMounted, setIsPlanDialogMounted] = React.useState(false);
-    const suggestedPlanTitle = React.useMemo(
-        () => (isPlanDialogMounted ? suggestPlanTitleFromText(assistantPlanText) : ''),
-        [assistantPlanText, isPlanDialogMounted],
-    );
-    const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [isForkDialogOpen, setIsForkDialogOpen] = React.useState(false);
     const [isForkSubmitting, setIsForkSubmitting] = React.useState(false);
     const collapsibleThinkingBlocks = useUIStore((state) => state.collapsibleThinkingBlocks);
@@ -1381,7 +1369,6 @@ const AssistantMessageBody = React.memo(({
         const resolved = resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory);
         return resolved ? { id: resolved.id, path: resolved.path } : null;
     }, [availableWorktreesByProject, currentSessionId, effectiveDirectory, getDirectoryForSession, projects]);
-    const currentProjectRef = canUseProjectPlanActions ? sessionProjectRef : null;
 
     const hasCopyableText = Boolean(hasTextContent) && !awaitingMessageCompletion;
 
@@ -1418,13 +1405,13 @@ const AssistantMessageBody = React.memo(({
             } catch (error) {
                 console.error('Failed to start a session from an assistant message:', error);
                 if (error instanceof WorktreeRequiresGitRepositoryError) {
-                    toast.error(t('rightSidebar.contextNotesTodo.toast.worktreeRequiresGitRepo'));
+                    toast.error(t('session.execution.worktreeRequiresGitRepo'));
                     return;
                 }
 
                 const description = error instanceof Error ? error.message : undefined;
                 toast.error(
-                    t('rightSidebar.contextNotesTodo.toast.createSessionFailed'),
+                    t('session.execution.createSessionFailed'),
                     description ? { description } : undefined
                 );
             } finally {
@@ -1464,49 +1451,6 @@ const AssistantMessageBody = React.memo(({
         }
         setAskOtherModelsSession(session);
     }, [sessionId]);
-
-    const handleSaveAsPlanClick = React.useCallback(
-        // Optional event: the footer's action sheet calls this without one.
-        (event?: React.MouseEvent<HTMLButtonElement>) => {
-            event?.stopPropagation();
-            event?.preventDefault();
-            if (!assistantPlanText.trim()) {
-                return;
-            }
-            setIsPlanDialogMounted(true);
-            setIsPlanDialogOpen(true);
-        },
-        [assistantPlanText]
-    );
-
-    const handleConfirmSaveAsPlan = React.useCallback(
-        async (title: string) => {
-            if (!assistantPlanText.trim()) {
-                return;
-            }
-            if (!currentProjectRef) {
-                toast.error(t('chat.messageBody.toast.noProject'));
-                return;
-            }
-
-            setIsSavingPlan(true);
-            try {
-                const created = await useProjectContextStore.getState().createPlan(currentProjectRef, {
-                    title,
-                    body: assistantPlanText,
-                });
-                if (!created) {
-                    toast.error(t('chat.messageBody.toast.savePlanFailed'));
-                    return;
-                }
-                setIsPlanDialogOpen(false);
-                toast.success(t('chat.messageBody.toast.planSaved'));
-            } finally {
-                setIsSavingPlan(false);
-            }
-        },
-        [assistantPlanText, currentProjectRef, t]
-    );
 
     const shareMessageAsImage = React.useCallback(
         async (requestedSourceElement?: HTMLElement | null) => {
@@ -2013,15 +1957,6 @@ const AssistantMessageBody = React.memo(({
                 },
             });
         }
-        if (canUseProjectPlanActions && !isReviewSessionView) {
-            actions.push({
-                id: 'save-as-plan',
-                label: t('chat.messageBody.actions.saveAsPlan'),
-                icon: <Icon name="booklet" className="h-3.5 w-3.5" />,
-                disabled: !hasCopyableText || !currentProjectRef,
-                onSelect: () => { handleSaveAsPlanClick(); },
-            });
-        }
         if (onToggleContextPin && hasCopyableText) {
             actions.push({
                 id: 'pin-context',
@@ -2054,7 +1989,7 @@ const AssistantMessageBody = React.memo(({
             }
         }
         return actions;
-    }, [assistantPlanText, canUseProjectPlanActions, contextPinPending, contextPinned, currentProjectRef, extraActions, handleForkClick, handleForkFromHere, handleSaveAsPlanClick, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyFooter, onCopyLink, onToggleContextPin, playFooterTTS, reviewTransferAction, shareTurnAsImage, showMessageTTSButtons, stopFooterTTS, t]);
+    }, [assistantPlanText, contextPinPending, contextPinned, extraActions, handleForkClick, handleForkFromHere, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyFooter, onCopyLink, onToggleContextPin, playFooterTTS, reviewTransferAction, shareTurnAsImage, showMessageTTSButtons, stopFooterTTS, t]);
 
     const footerMenuActions = footerSheetActions.filter((action) => !action.onPointerRow);
 
@@ -2210,16 +2145,6 @@ const AssistantMessageBody = React.memo(({
                   readingKey={messageId}
                   canReadAloud={!isMiniChatSurface && showMessageTTSButtons}
               />
-             {canUseProjectPlanActions && isPlanDialogMounted ? (
-                 <SaveProjectPlanDialog
-                     open={isPlanDialogOpen}
-                     onOpenChange={setIsPlanDialogOpen}
-                     initialTitle={suggestedPlanTitle}
-                     sourceText={assistantPlanText}
-                     saving={isSavingPlan}
-                     onSave={handleConfirmSaveAsPlan}
-                 />
-             ) : null}
              {isForkDialogOpen ? (
                  <ForkSessionDialog
                      open={isForkDialogOpen}

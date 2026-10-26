@@ -29,12 +29,12 @@ costs Chrome a 200 to 300 ms frame whenever an accessibility client is on,
 on every panel close and every switch away from the file surface; both must
 happen in one commit, so the editor is never hidden while attached.
 `CodeMirrorEditor` reconfigures only the compartments whose input changed,
-so `FilesView` and `PlanView` keep their line-number config's identity across
+so `FilesView` keeps its line-number config's identity across
 renders.
 
 ## Selecting lines for a comment
 
-In `FilesView` and `PlanView` a press on a line number starts a line range for
+In `FilesView` a press on a line number starts a line range for
 a comment, Shift+press extends it, and a press on the only selected line
 clears it. `comments/useLineNumberDragSelection.ts` owns this for both, with
 the gutter config they pass to the editor. After the press the drag is
@@ -221,10 +221,6 @@ snapshot and draft, and restores the detected line ending on save. Preview
 limits must never truncate a writable draft or its dirty-comparison baseline.
 Large code previews render the current draft and hash its full content only
 while previewing, so same-length edits in the middle invalidate cached output.
-
-Markdown plan previews use the file preview's local-asset handling. Relative
-images resolve from the plan file's directory, including personal plans stored
-under the OpenChamber data directory and repository plans in a custom folder.
 
 ## JSON tree previews
 

@@ -3,7 +3,6 @@ import { CronExpressionParser } from 'cron-parser';
 
 import { projectConfigFileStemOf, projectPathFromId } from './project-id.js';
 import {
-  DEFAULT_PLANS_DIR,
   EMPTY_SHARED_PROJECT_CONFIG,
   SHARED_CONFIG_RELATIVE_PATH,
   SHARED_SETUP_KEYS,
@@ -1131,7 +1130,7 @@ export const createProjectConfigRuntime = (deps) => {
    * serialize. `mutate(current)` receives the stored value (`undefined` when
    * absent) and returns the next one; `undefined` removes the key and the
    * same value skips the write. The rest of the document goes back out
-   * exactly as read, so setup, `plansDir` and unknown keys keep their values
+   * exactly as read, so setup and unknown keys keep their values
    * and no trust record changes. A file that is unreadable, unparsable, of
    * another version or has a wrongly shaped setup key is refused with
    * `code: 'shared_config_invalid'` and left byte for byte; this writer
@@ -1161,29 +1160,12 @@ export const createProjectConfigRuntime = (deps) => {
     });
   };
 
-  /**
-   * The absolute repository plans folder of a project: `plansDir` from the
-   * shared file when set, else the default `.openchamber/plans`. Setting
-   * `plansDir` replaces the default outright (nothing is read from it any
-   * more); moving files between the two is the user's job. Null only when the
-   * checkout cannot be located.
-   */
-  const resolveSharedPlansDir = async (projectID) => {
-    const personalRaw = await readRawProjectConfigFromDisk(projectID);
-    const projectPath = projectPathOf(projectID, personalRaw);
-    if (!projectPath) return null;
-    const shared = await readSharedProjectConfig(projectID, personalRaw);
-    const relative = shared.status === 'ok' && shared.config.plansDir ? shared.config.plansDir : DEFAULT_PLANS_DIR;
-    return path.join(projectPath, ...relative.split('/'));
-  };
-
   return {
     readProjectSetup,
     updateProjectSetup,
     updateSharedProjectSetup,
     readSharedProjectFile,
     updateSharedProjectEntry,
-    resolveSharedPlansDir,
     listScheduledTasks,
     upsertScheduledTask,
     deleteScheduledTask,

@@ -5,10 +5,6 @@ import { asNonEmptyString, isBoolean } from '../shared/guards.js';
 import {
   OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
   OPENCHAMBER_AGENT_TOOL_ACTIONS,
-  OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
-  OPENCHAMBER_KNOWLEDGE_ACTIONS,
-  OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
-  OPENCHAMBER_MEMORY_ACTIONS,
   OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS,
   OPENCHAMBER_NOTIFY_ACTIONS,
   OPENCHAMBER_RENDER_ACTION_DEFINITIONS,
@@ -41,8 +37,6 @@ const ACTIONS = new Set([
   ...OPENCHAMBER_AGENT_TOOL_ACTIONS,
   ...OPENCHAMBER_SCHEDULE_ACTIONS,
   ...OPENCHAMBER_WEB_ACTIONS,
-  ...OPENCHAMBER_MEMORY_ACTIONS,
-  ...OPENCHAMBER_KNOWLEDGE_ACTIONS,
   ...OPENCHAMBER_NOTIFY_ACTIONS,
   ...OPENCHAMBER_RENDER_ACTIONS,
   ...OPENCHAMBER_WORKFLOW_ACTIONS,
@@ -53,8 +47,6 @@ const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
     ...OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
     ...OPENCHAMBER_SCHEDULE_ACTION_DEFINITIONS,
     ...OPENCHAMBER_WEB_ACTION_DEFINITIONS,
-    ...OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
-    ...OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
     ...OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS,
     ...OPENCHAMBER_RENDER_ACTION_DEFINITIONS,
     ...OPENCHAMBER_WORKFLOW_ACTION_DEFINITIONS,
@@ -70,10 +62,6 @@ const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
  * on every call.
  */
 const WEB_PARAMETER_NAMES = ['url', 'selector', 'text', 'value', 'submit', 'direction', 'viewport', 'label', 'tabId'];
-// `title` is shared with the control tool, so it is not listed here — only the
-// names memory alone introduces are kept out of the other schemas.
-const MEMORY_ONLY_PARAMETER_NAMES = ['body', 'scope', 'memoryId', 'type'];
-const MEMORY_PARAMETER_NAMES = [...MEMORY_ONLY_PARAMETER_NAMES, 'title'];
 // The task inputs; the schedule tool shares the scope and the run settings
 // (prompt, model, agent, goal) with the control tool.
 const SCHEDULE_ONLY_PARAMETER_NAMES = ['taskId', 'name', 'targetSessionId', 'daily', 'weekly', 'once', 'time', 'cron', 'timezone', 'disabled'];
@@ -86,17 +74,6 @@ const SCHEDULE_PARAMETER_NAMES = [...SCHEDULE_ONLY_PARAMETER_NAMES, 'projectId',
 const SCHEDULE_PARAMETER_OVERRIDES = {
   model: { type: 'string', description: 'provider/model; required unless targetSessionId is set, which keeps that session\'s model' },
   agent: { type: 'string', description: 'Only when the user asks. Default: build' },
-};
-
-/**
- * `title` is shared with the control tool, where it means a session title, so
- * it carries no description in the shared map. Left undescribed for memory the
- * model has nothing to go on and invents a name for it — `name` was sent
- * repeatedly in practice — so memory states what its own `title` is.
- */
-const MEMORY_PARAMETER_OVERRIDES = {
-  title: { type: 'string', description: 'As the session index spells it; prefer it over memoryId for an entry you can see' },
-  scope: { type: 'string', enum: ['global', 'project', 'both'], description: 'global: about the user, every project. project: this codebase. Required for save and delete; read and list search both when omitted' },
 };
 
 const ALL_PARAMETER_PROPERTIES = {
@@ -159,9 +136,6 @@ const ALL_PARAMETER_PROPERTIES = {
   viewport: { type: 'string', enum: ['mobile', 'tablet', 'desktop', 'fill'] },
   label: { type: 'string', description: 'Option label for browser.select; otherwise the image name, such as before-fix' },
   tabId: { type: 'string', description: "From the tabs browser.snapshot lists. Default: the tab you last used; else the user's open tab, if they opened it in this project" },
-  body: { type: 'string', description: 'At most 2000 characters; longer is rejected. Written to make sense without this conversation' },
-  memoryId: { type: 'string', description: 'From memory.list or memory.read; on save it rewrites that entry' },
-  type: { type: 'string', enum: ['fact', 'preference', 'reference'], description: 'fact: something true. preference: how the user wants work done. reference: a resource hard to find again' },
 };
 
 const pickParameters = (names) => Object.fromEntries(
@@ -171,7 +145,6 @@ const pickParameters = (names) => Object.fromEntries(
 const CONTROL_PARAMETER_PROPERTIES = pickParameters(
   Object.keys(ALL_PARAMETER_PROPERTIES).filter((name) => (
     !WEB_PARAMETER_NAMES.includes(name)
-    && !MEMORY_ONLY_PARAMETER_NAMES.includes(name)
     && !SCHEDULE_ONLY_PARAMETER_NAMES.includes(name)
   )),
 );
@@ -180,28 +153,7 @@ const SCHEDULE_PARAMETER_PROPERTIES = {
   ...SCHEDULE_PARAMETER_OVERRIDES,
 };
 const WEB_PARAMETER_PROPERTIES = pickParameters(WEB_PARAMETER_NAMES);
-const MEMORY_PARAMETER_PROPERTIES = {
-  ...pickParameters(MEMORY_PARAMETER_NAMES),
-  ...MEMORY_PARAMETER_OVERRIDES,
-};
-
-// Its own names, not the shared map: `title`, `body` and `text` mean something
-// else in the other tools.
-const KNOWLEDGE_PARAMETER_PROPERTIES = {
-  ...pickParameters(['projectId', 'directory']),
-  kind: { type: 'string', enum: ['note', 'todo', 'plan'] },
-  id: { type: 'string', description: 'From list or save; omit on save to create' },
-  body: { type: 'string', description: 'Note at most 3000 characters, todo 1000, plan (whole markdown) 200000' },
-  completed: { type: 'boolean', description: 'Todo state; false reopens it' },
-  planId: { type: ['string', 'null'], description: 'The plan a note or todo belongs to; null unlinks, omission keeps it. On list: only that plan and its notes and todos' },
-  dependsOn: { type: 'array', items: { type: 'string' }, description: 'Todo ids of the same plan to complete first; [] clears, omission keeps them. Deleting a todo drops it from the todos that depended on it' },
-  ready: { type: 'boolean', description: 'On list: only unfinished todos whose dependencies are all completed' },
-  sessionId: { type: ['string', 'null'], description: 'Existing plan, saved without body: the session linked to it; null clears. Links only, starts nothing' },
-  expected: { type: 'string', description: "The text as you last read it; the save fails if it changed since. Then refresh (knowledge.list for a note's body, your file tools for a plan) and retry with the same id and the fresh text" },
-};
-
-// Its own names, not the shared map: `title` and `body` mean something else in
-// the control and memory tools.
+// Its own names: `title` and `body` describe the notification.
 const NOTIFY_PARAMETER_PROPERTIES = {
   title: { type: 'string', description: 'Up to 120 characters' },
   body: { type: 'string', description: 'Up to 500 characters' },
@@ -278,7 +230,7 @@ export const managedPermissionRules = ({ includeWorkflow = false } = {}) => (
   includeWorkflow ? [{ action: WORKFLOW_ANSWER_TOOL, resource: '*', effect: 'deny' }] : []
 );
 
-// When to act (link an issue, save a memory, draw a page) is stated once, in
+// When to act (link an issue, draw a page) is stated once, in
 // every session's context (../session-knowledge/runtime.js): a rule the agent
 // must apply before it thinks of a tool cannot live in the tool. The
 // descriptions say what the tool is and how to use it.
@@ -295,14 +247,6 @@ const SCHEDULE_TOOL_DESCRIPTION = "Scheduled tasks: prompts OpenChamber runs on 
 
 const WEB_TOOL_DESCRIPTION = "OpenChamber's browser panel, to check your work by looking at it. One action per call: open, snapshot for text, selectors and errors, then click, type, select or scroll by those selectors. Close tabs you opened for your own work with browser.close; leave open the ones you opened to show the user something. The page runs with the user's real logins; treat it as their live session.";
 
-const MEMORY_TOOL_DESCRIPTION = "Memory that persists across sessions. One fact per entry. Save what code and docs do not show: a decision and its reason, a rejected alternative, a deliberate \"leave this as it is\", the user's corrections and preferences, a hard-won pointer. Never one-off task state, secrets or credentials, or what the user asked you not to keep; what the user explicitly asks you to remember, save. Put project conventions in project scope.";
-
-const KNOWLEDGE_TOOL_DESCRIPTION = "The project's Notes, Todos and Plans, shown in OpenChamber's Project knowledge panel and shared by its sessions. One action per call; list returns everything unless planId or ready narrows it. "
-  + "Notes: short facts the user wants at hand; your own learnings go to memory. Todos: the user's backlog; add one when asked or when you stop with work left, never for the steps of your current task. "
-  + "A note or todo may belong to a plan (planId), and a todo may depend on other todos of that plan (dependsOn); list with ready for the todos that can start. "
-  + "Plans: markdown files. list gives their paths; read and edit them with your file tools, save creates or replaces one whole. A plan starts with a # title, then a ## Steps heading with one - [ ] item per coarse step, then the detail. A plan written for the user: save, show, wait for their comments; they send it to a session. Implementing one: tick each step (- [x]) as you finish it and change nothing else unless asked; never drop a constraint. "
-  + "Replacing a note or plan: pass expected. If the save fails on it, refresh and retry the save with the same id.";
-
 const NOTIFY_TOOL_DESCRIPTION = "Notify the user outside the chat: when long work finishes and they have likely stepped away, when you are blocked on them, or when they asked to be told. Routine progress and what your reply already says stay in the chat.";
 
 const RENDER_TOOL_DESCRIPTION = "Draw a finished HTML page inline in the chat, above your reply, or ask the user to choose on one (awaitAnswer). "
@@ -318,8 +262,6 @@ const WORKFLOW_TOOL_DESCRIPTION = 'Workflows: a script that fans a large task ou
 const BOOLEAN_PARAMETER_NAMES = [...new Set([
   ALL_PARAMETER_PROPERTIES,
   SCHEDULE_PARAMETER_PROPERTIES,
-  MEMORY_PARAMETER_PROPERTIES,
-  KNOWLEDGE_PARAMETER_PROPERTIES,
   NOTIFY_PARAMETER_PROPERTIES,
   RENDER_PARAMETER_PROPERTIES,
   WORKFLOW_PARAMETER_PROPERTIES,
@@ -439,24 +381,6 @@ const booleanNormalizationBlock = (parameters) => {
 `;
 };
 
-/**
- * `dependsOn` can arrive as a JSON string although the knowledge schema
- * declares an array: a model that put it beside the action, where the schema
- * gives it no type, sent `"[\"id\"]"`. It is parsed once and kept only as an
- * array; any other value reaches the server's strict check unchanged. Only the
- * tool that declares the field gets the block.
- */
-const dependsOnRevivalBlock = (parameters) => {
-  if (!Object.hasOwn(parameters, 'dependsOn')) return '';
-  return String.raw`        if (typeof args.dependsOn === "string") {
-          try {
-            const revived = JSON.parse(args.dependsOn)
-            if (Array.isArray(revived)) args.dependsOn = revived
-          } catch {}
-        }
-`;
-};
-
 const multiActionSchema = (definitions) => ({
   property: { type: 'string', oneOf: definitions.map((entry) => ({ const: entry.action, description: entry.description })), description: 'OpenChamber action to perform' },
   required: ['action'],
@@ -511,7 +435,6 @@ const singleActionSchema = (definition) => ({
  */
 const createToolEntry = ({ name, description, definitions, parameters, codeMode, answers = false }) => {
   const normalizeBooleans = booleanNormalizationBlock(parameters);
-  const reviveDependsOn = dependsOnRevivalBlock(parameters);
   const actionSchema = definitions.length === 1 ? singleActionSchema(definitions[0]) : multiActionSchema(definitions);
   return String.raw`    tools.add({
       name: ${JSON.stringify(name)},
@@ -550,7 +473,7 @@ const createToolEntry = ({ name, description, definitions, parameters, codeMode,
             if (revived !== null && typeof revived === 'object' && !Array.isArray(revived)) args.link = revived
           } catch {}
         }
-${reviveDependsOn}${actionSchema.normalize}${normalizeBooleans}        const actionTitles = ${JSON.stringify(AGENT_TOOL_ACTION_TITLES)}
+${actionSchema.normalize}${normalizeBooleans}        const actionTitles = ${JSON.stringify(AGENT_TOOL_ACTION_TITLES)}
         const title = Object.hasOwn(actionTitles, args.action) ? actionTitles[args.action] : args.action
         const progress = (extra) => context.progress({
           ${name}: {
@@ -615,7 +538,7 @@ ${answers ? ANSWER_WAIT_SETUP : ''}
  */
 const OPENCODE_TOOLS_REPLACED_BY_CONTROL = ['opencode_worktree_create', 'opencode_models'];
 
-const createPluginSource = ({ includeControl, includeSchedule, includeWeb, includeMemory, includeKnowledge, includeNotify, includeRender, includeWorkflow, codeMode }) => {
+const createPluginSource = ({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }) => {
   const entries = [];
   if (includeControl) {
     entries.push(`    for (const id of ${JSON.stringify(OPENCODE_TOOLS_REPLACED_BY_CONTROL)}) tools.remove(id)
@@ -645,24 +568,6 @@ const createPluginSource = ({ includeControl, includeSchedule, includeWeb, inclu
       description: WEB_TOOL_DESCRIPTION,
       definitions: OPENCHAMBER_WEB_ACTION_DEFINITIONS,
       parameters: WEB_PARAMETER_PROPERTIES,
-      codeMode,
-    }));
-  }
-  if (includeMemory) {
-    entries.push(createToolEntry({
-      name: 'openchamber_memory',
-      description: MEMORY_TOOL_DESCRIPTION,
-      definitions: OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
-      parameters: MEMORY_PARAMETER_PROPERTIES,
-      codeMode,
-    }));
-  }
-  if (includeKnowledge) {
-    entries.push(createToolEntry({
-      name: 'openchamber_knowledge',
-      description: KNOWLEDGE_TOOL_DESCRIPTION,
-      definitions: OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
-      parameters: KNOWLEDGE_PARAMETER_PROPERTIES,
       codeMode,
     }));
   }
@@ -780,13 +685,13 @@ export const createAgentToolRuntime = (dependencies) => {
    * change while it runs, so the source on disk always matches the settings —
    * the running OpenCode reloads the directory it already has configured.
    */
-  const materializePlugin = async ({ includeControl = true, includeSchedule = false, includeWeb = true, includeMemory = true, includeKnowledge = false, includeNotify = false, includeRender = false, includeWorkflow = false, codeMode = false } = {}) => {
-    if (!includeControl && !includeSchedule && !includeWeb && !includeMemory && !includeKnowledge && !includeNotify && !includeRender && !includeWorkflow) {
+  const materializePlugin = async ({ includeControl = true, includeSchedule = false, includeWeb = true, includeNotify = false, includeRender = false, includeWorkflow = false, codeMode = false } = {}) => {
+    if (!includeControl && !includeSchedule && !includeWeb && !includeNotify && !includeRender && !includeWorkflow) {
       throw new Error('At least one OpenChamber managed tool must be enabled to inject the plugin');
     }
     await fsPromises.mkdir(pluginDirectory, { recursive: true });
     await fsPromises.writeFile(pluginManifestPath, PLUGIN_PACKAGE_JSON, { mode: 0o600 });
-    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeSchedule, includeWeb, includeMemory, includeKnowledge, includeNotify, includeRender, includeWorkflow, codeMode }), { mode: 0o600 });
+    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }), { mode: 0o600 });
     return pluginDirectory;
   };
 
@@ -841,10 +746,7 @@ export const createAgentToolRuntime = (dependencies) => {
     // OpenCode 2 tools no longer receive a directory, so the plugin sends the
     // session id and the directory is resolved here. An unresolvable session
     // falls through with no directory, exactly like the old "no directory" path.
-    // Knowledge writes are attributed to the calling session, so no payload
-    // field may stand in for the session OpenCode reported.
-    const knowledgeAction = OPENCHAMBER_KNOWLEDGE_ACTIONS.includes(action);
-    let contextDirectory = knowledgeAction ? undefined : asNonEmptyString(payload.contextDirectory) ?? undefined;
+    let contextDirectory = asNonEmptyString(payload.contextDirectory) ?? undefined;
     const sessionID = asNonEmptyString(payload.sessionID);
     if (!contextDirectory && sessionID && typeof resolveSessionDirectory === 'function') {
       contextDirectory = await Promise.resolve(resolveSessionDirectory(sessionID))
@@ -853,7 +755,7 @@ export const createAgentToolRuntime = (dependencies) => {
     }
     try {
       // The calling session scopes browser actions to that session's page.
-      const contextSessionId = knowledgeAction ? sessionID : asNonEmptyString(payload.contextSessionId) ?? sessionID;
+      const contextSessionId = asNonEmptyString(payload.contextSessionId) ?? sessionID;
       // The call id lets a page that waits for an answer be found again
       // when the user answers it.
       const contextCallId = asNonEmptyString(payload.callID);

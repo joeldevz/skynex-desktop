@@ -37,7 +37,6 @@ const setupWith = (options: {
     setupWorktreeWait: null,
     projectActions: options.shared ?? [],
     draftStarters: [],
-    plansDir: null,
   },
   personal: {
     setupWorktree: options.personalCommands ?? [],

@@ -383,7 +383,7 @@ const sendPlainMessage = async (
     selection.saveAgentModelVariantForSession(sessionID, resolved.agent, resolved.providerID, resolved.modelID, resolved.variant);
   }
   // Review sessions are real work sessions, so they carry the project's
-  // standing context (pinned notes, memory) exactly as a composer send would.
+  // checkout context and tool guidance exactly as a composer send would.
   await syncSessionKnowledge(directory, sessionID);
   assertAutoReviewRuntimeStillCurrent(expectedRuntimeKey);
   markPendingUserSendAnimation(sessionID);

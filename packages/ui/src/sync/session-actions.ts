@@ -184,28 +184,6 @@ function dirStoreForSession(sessionId: string): { store: DirectoryStoreApi; dire
   return { store: dirStore(), directory: dir() }
 }
 
-/**
- * Provider/model of the session's last assistant message — the authoritative
- * "session provider" for utility calls (notes distillation etc.), independent
- * of what the composer picker currently points at.
- */
-export function getSessionLastAssistantModel(sessionId: string): { providerID: string; modelID: string } | null {
-  try {
-    const { store } = dirStoreForSession(sessionId)
-    const messages = store.getState().message[sessionId]
-    if (!messages) return null
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const info = messages[i]
-      if (info?.role === "assistant" && info.providerID && info.modelID) {
-        return { providerID: info.providerID, modelID: info.modelID }
-      }
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
 function updateLiveSession(session: Session, directory?: string): boolean {
   const stores = _childStores
   if (!stores) return false
@@ -2005,8 +1983,8 @@ export async function optimisticSend(input: {
   /** Context admitted ahead of the prompt; shown in the optimistic message until the server echoes it. */
   context?: SyntheticContextInput[]
   /**
-   * Work the request waits for (the session's project knowledge being written
-   * into it). The user message is inserted without waiting for it. Must not
+   * Work the request waits for, including session context refresh.
+   * The user message is inserted without waiting for it. Must not
    * reject.
    */
   ready?: Promise<void>

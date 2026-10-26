@@ -219,20 +219,6 @@ const TOOL_METADATA: Record<string, ToolMetadata> = {
       inputFields: []
     },
 
-    openchamber_memory: {
-      displayName: 'OpenChamber Memory',
-      category: 'system',
-      outputLanguage: 'json',
-      inputFields: []
-    },
-
-    openchamber_knowledge: {
-      displayName: 'OpenChamber Knowledge',
-      category: 'system',
-      outputLanguage: 'json',
-      inputFields: []
-    },
-
     openchamber_notify: {
       displayName: 'OpenChamber Notify',
       category: 'system',

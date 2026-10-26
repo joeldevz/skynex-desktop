@@ -24,7 +24,6 @@ const setup: ProjectSetup = {
     setupWorktreeWait: null,
     projectActions: [],
     draftStarters: [],
-    plansDir: null,
   },
   personal: {
     setupWorktree: ['cp .env.example .env'],

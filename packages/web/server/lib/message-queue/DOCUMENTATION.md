@@ -14,7 +14,7 @@ UI-side queue and foreground auto-send hook.
 - `runtime.js` — `createMessageQueueRuntime(...)` (state, persistence,
   dispatch loop, event handling) and `registerMessageQueueRoutes(app, runtime)`.
 - `runtime.test.js` — delivery, idleness gates, retries, holds, persistence,
-  concurrency with in-flight sends, slash commands, and project knowledge.
+  concurrency with in-flight sends, slash commands, and session context.
 
 Wiring: created in `server/index.js` after the global event hub and the
 session-knowledge runtime; routes registered in
@@ -155,7 +155,7 @@ persisted "sending" flag would strand a message forever.
    agent are switched onto the session first (`POST /session/:id/model`,
    `/agent`), because v2 holds both on the session rather than in the body; a
    captured `openchamber/auto` is resolved into a real pair by the routing
-   runtime beforehand. The session's project knowledge is written into its
+   runtime beforehand. Checkout context and tool guidance are written into its
    instruction entries (`sessionKnowledgeRuntime.sync`, which never fails the
    send). Then the captured context goes ahead as synthetic messages
    (`POST /session/:id/synthetic` with `resume: false`, an attached item's

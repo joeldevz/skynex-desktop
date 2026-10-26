@@ -1,5 +1,5 @@
 /**
- * What a session must be told about the project's knowledge.
+ * Checkout context and managed-tool guidance for every session sender.
  *
  * The text lives in OpenCode as the session's instruction entries
  * (`/api/experimental/session/:id/instructions/entries/:key`). OpenCode keeps
@@ -13,13 +13,8 @@
  * task, a session the agent dispatched): sessions started without a UI must
  * carry the same context as the ones a tab sends to.
  */
-import { isRecord } from '../shared/guards.js';
-
-const PINS_METADATA_KEY = 'project_context_pins';
-
 /**
- * One entry per source, so a memory saved mid-session re-sends the memory
- * index and nothing else. OpenCode orders entries by key.
+ * OpenCode orders entries by key. Retired keys stay only to clear old injections.
  */
 export const KNOWLEDGE_ENTRY_KEYS = {
   checkout: 'openchamber.checkout',
@@ -27,15 +22,6 @@ export const KNOWLEDGE_ENTRY_KEYS = {
   memory: 'openchamber.memory',
   guidance: 'openchamber.guidance',
 };
-
-/** Budget for each entry; anything past it is cut, loudly. */
-const KNOWLEDGE_MAX_LENGTH = 8000;
-
-const truncate = (value) => (
-  value.length <= KNOWLEDGE_MAX_LENGTH
-    ? value
-    : `${value.slice(0, KNOWLEDGE_MAX_LENGTH - 1)}…\n\n(truncated)`
-);
 
 /**
  * Where the session works, as the agent cannot see it for itself between two
@@ -63,26 +49,6 @@ const placeholderBranchGuidance = (branch) => `Its name \`${branch}\` is a place
   + " Follow the naming the repository's other branches use (`git branch -a`); with none, `<type>/<short-kebab-case>`"
   + ' with the conventional commit types, such as `fix/login-timeout`. No tool or app prefix.'
   + ' A placeholder made for an issue (`issue-180-merry-salamander`) keeps its `issue-180-`: work.name puts it in front of your name.';
-
-const renderMemorySection = (entries) => entries
-  .slice()
-  .sort((a, b) => a.createdAt - b.createdAt)
-  .map((entry) => `- [${entry.type}] ${entry.title}`)
-  .join('\n');
-
-/**
- * When to save, stated in every session where memory is on, and only here. The
- * tool description alone is read only when the agent already means to call it,
- * so agents told nothing here saved only when the user said "remember".
- */
-const MEMORY_SAVE_GUIDANCE = 'The openchamber_memory tool keeps memory across sessions. Save to it in the'
-  + ' moment, without asking, when the user corrects how you work or states a'
-  + ' preference, confirms a non-obvious approach worked, or you learn a project fact'
-  + ' that took real effort to find. A project fact an agent would learn from the code,'
-  + ' docs and skills, including why and whether it may change, needs no entry; the'
-  + ' user\'s corrections and preferences always do. Save before your final reply and'
-  + ' mention the save there briefly: the app shows only the text after a turn\'s last'
-  + ' tool call as the reply.';
 
 /**
  * When to link, stated in every session that has the `openchamber` tool, and
@@ -136,59 +102,6 @@ export const RENDER_PAGE_GUIDANCE = "The openchamber_render tool draws a chart, 
   + " For a choice a page shows better than text, such as layouts or designs, ask on a page with awaitAnswer and continue from the answer.";
 
 /**
- * Titles only for memory, never bodies: an index carrying full text grows
- * without bound until it crowds out the conversation it was meant to inform.
- */
-const buildMemoryBlock = ({ global, project, enabled = false, complete = false }) => {
-  const sections = [];
-  if (global.length > 0) sections.push(`### About the user\n\n${renderMemorySection(global)}`);
-  if (project.length > 0) sections.push(`### About this project\n\n${renderMemorySection(project)}`);
-  if (sections.length === 0) {
-    if (!enabled) return '';
-    // "Empty" only when both scopes loaded: a failed read is not an empty store.
-    return complete
-      ? `${MEMORY_SAVE_GUIDANCE}\n\nNothing is stored yet.`
-      : MEMORY_SAVE_GUIDANCE;
-  }
-
-  return [
-    ...(enabled ? [MEMORY_SAVE_GUIDANCE] : []),
-    'Stored memory from earlier sessions, titles only. A title leaves out the'
-      + ' conditions and reasons that decide how a memory applies, a self-explanatory'
-      + ' one most of all: read each entry that bears on the task with openchamber_memory'
-      + ' before acting on it, once per conversation, again only after your context was'
-      + ' summarized. Memory was true when written; verify the files, flags and'
-      + ' commands it names.',
-    ...sections,
-  ].join('\n\n');
-};
-
-const buildPinnedBlock = ({ notes, plans }) => {
-  const sections = [];
-  if (notes.length > 0) {
-    const rendered = notes
-      .slice()
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((note) => `- ${note.body.trim()}`)
-      .join('\n');
-    sections.push(`## Pinned notes\n\n${rendered}`);
-  }
-  for (const plan of plans) {
-    // A plan whose markdown cannot be read is marked rather than dropped:
-    // losing one attachment must not silently shrink the context.
-    sections.push(plan.body
-      ? `## Pinned plan: ${plan.title}\n\n${plan.body}`
-      : `## Pinned plan: ${plan.title}\n\n(plan content unavailable)`);
-  }
-  if (sections.length === 0) return '';
-
-  return [
-    'The user pinned the following project context.',
-    ...sections,
-  ].join('\n\n');
-};
-
-/**
  * When to reach for a workflow, stated in every session that has the
  * `openchamber_workflow` tool. A run costs many agents, so the agent starts
  * one only when the user asks; spotting a task that fits is the agent's job
@@ -211,12 +124,13 @@ const buildGuidance = ({ linking, rendering, workflows, directTools }) => [
 /**
  * The text each entry should hold now. An empty text means the entry goes
  * away; a key left out keeps what the session holds, which is what a branch
- * that could not be read means.
+ * that could not be read means. Pinned notes/plans and project memory are
+ * not injected in this stage, so their entries are always removed.
  */
-export const buildKnowledgeEntries = ({ notes, plans, memory, linking = false, rendering = false, workflows = false, directTools = true, checkout = null }) => {
+export const buildKnowledgeEntries = ({ linking = false, rendering = false, workflows = false, directTools = true, checkout = null }) => {
   const entries = {
-    [KNOWLEDGE_ENTRY_KEYS.pinned]: truncate(buildPinnedBlock({ notes, plans })),
-    [KNOWLEDGE_ENTRY_KEYS.memory]: truncate(buildMemoryBlock(memory)),
+    [KNOWLEDGE_ENTRY_KEYS.pinned]: '',
+    [KNOWLEDGE_ENTRY_KEYS.memory]: '',
     [KNOWLEDGE_ENTRY_KEYS.guidance]: buildGuidance({ linking, rendering, workflows, directTools }),
   };
   // The branch is told while the agent has the tool, whose worktree move is
@@ -228,10 +142,6 @@ export const buildKnowledgeEntries = ({ notes, plans, memory, linking = false, r
 
 export const createSessionKnowledgeRuntime = (dependencies) => {
   const {
-    projectContextRuntime,
-    agentMemoryRuntime,
-    resolveProjectId,
-    isAgentMemoryEnabled,
     // Whether this session's agent has the `openchamber` tool to link with.
     isSessionLinkingAvailable = null,
     // The checked-out branch, or '' when none is checked out. Failures throw;
@@ -247,90 +157,14 @@ export const createSessionKnowledgeRuntime = (dependencies) => {
     // Whether the managed tools run through Code Mode's catalog rather than
     // as direct tools.
     areAgentToolsInCodeMode = async () => false,
-    // Pins live in OpenChamber's own session metadata store.
-    readSessionMetadata = null,
-    persistSessionMetadata = null,
     // The session's instruction entries in OpenCode: `put(sessionId,
     // directory, key, text)` and `remove(sessionId, directory, key)`. Both are
     // idempotent there, so writing an unchanged value tells the agent nothing.
     instructionEntries = null,
   } = dependencies;
 
-  const requireMetadataStore = () => {
-    if (typeof readSessionMetadata !== 'function' || typeof persistSessionMetadata !== 'function') {
-      throw new Error('project knowledge needs a session metadata store');
-    }
-  };
-
-  /** The session shape the readers below expect, built from our own store. */
-  const readStoredSession = async (sessionId) => ({ metadata: await readSessionMetadata(sessionId) });
-
-  const readPins = (session) => {
-    const metadata = isRecord(session?.metadata) ? session.metadata : {};
-    const openchamber = isRecord(metadata.openchamber) ? metadata.openchamber : {};
-    const pins = isRecord(openchamber[PINS_METADATA_KEY]) ? openchamber[PINS_METADATA_KEY] : {};
-    const strings = (value) => Array.isArray(value)
-      ? [...new Set(value.filter((entry) => typeof entry === 'string' && entry.trim()).map((entry) => entry.trim()))]
-      : [];
-    return { notes: strings(pins.notes), plans: strings(pins.plans) };
-  };
-
-  /**
-   * Everything the session should be carrying, read fresh. A failure in one
-   * source never blanks the rest: a memory store that will not load must not
-   * take the user's pinned notes down with it.
-   */
-  const collect = async (directory, pins = { notes: [], plans: [] }) => {
-    const projectId = directory ? await resolveProjectId(directory) : '';
-
-    let notes = [];
-    let plans = [];
-    if (projectId) {
-      try {
-        const context = await projectContextRuntime.readContext(projectId);
-        const noteIds = new Set(pins.notes);
-        const planIds = new Set(pins.plans);
-        notes = (context.notes || []).filter((note) => noteIds.has(note.id));
-        const pinnedPlans = (context.plans || []).filter((plan) => planIds.has(plan.id));
-        plans = await Promise.all(pinnedPlans.map(async (plan) => {
-          try {
-            const content = await projectContextRuntime.readPlan(projectId, plan.id);
-            return { id: plan.id, title: plan.title, body: content?.body?.trim() || '' };
-          } catch {
-            return { id: plan.id, title: plan.title, body: '' };
-          }
-        }));
-      } catch {
-        notes = [];
-        plans = [];
-      }
-    }
-
-    let memory = { global: [], project: [], enabled: false, complete: false };
-    const memoryEnabled = typeof isAgentMemoryEnabled === 'function'
-      ? await isAgentMemoryEnabled().catch(() => false)
-      : true;
-    if (memoryEnabled) {
-      try {
-        const stored = await agentMemoryRuntime.readAll(projectId || null);
-        // A scope that failed to load is left out entirely rather than indexed
-        // as empty, which would teach the agent to store what it already has.
-        //
-        // Flagged entries are withheld from the model but left in the store, so
-        // the user can see what was caught. Dropping them would hide the
-        // attempt from the only person able to judge it.
-        const visible = (entries) => entries.filter((entry) => !entry.flagged);
-        memory = {
-          global: stored.globalFailed ? [] : visible(stored.global),
-          project: stored.projectFailed ? [] : visible(stored.project),
-          enabled: true,
-          complete: !stored.globalFailed && !stored.projectFailed,
-        };
-      } catch {
-        memory = { global: [], project: [], enabled: true, complete: false };
-      }
-    }
-
+  /** Everything the session should be carrying, read fresh. */
+  const collect = async (directory) => {
     const linking = typeof isSessionLinkingAvailable === 'function'
       ? await Promise.resolve(isSessionLinkingAvailable()).catch(() => false)
       : false;
@@ -347,57 +181,7 @@ export const createSessionKnowledgeRuntime = (dependencies) => {
     const workflows = await Promise.resolve(isWorkflowAvailable()).catch(() => false);
     const directTools = !(await Promise.resolve(areAgentToolsInCodeMode()).catch(() => false));
 
-    return { notes, plans, memory, linking, rendering, workflows, directTools, checkout };
-  };
-
-  /**
-   * What the session is carrying, for display. Deliberately does not read plan
-   * bodies: the panel states counts and names, and reading every pinned plan
-   * off disk to show a number would make opening a panel cost what sending a
-   * message costs.
-   */
-  const collectSummary = async (directory, pins = { notes: [], plans: [] }) => {
-    const projectId = directory ? await resolveProjectId(directory) : '';
-    const empty = { notes: [], plans: [], memory: { global: 0, project: 0 } };
-    if (!projectId) return empty;
-
-    let notes = [];
-    let plans = [];
-    try {
-      const context = await projectContextRuntime.readContext(projectId);
-      const noteIds = new Set(pins.notes);
-      const planIds = new Set(pins.plans);
-      notes = (context.notes || []).filter((note) => noteIds.has(note.id))
-        .map((note) => ({ id: note.id, body: note.body }));
-      plans = (context.plans || []).filter((plan) => planIds.has(plan.id))
-        .map((plan) => ({ id: plan.id, title: plan.title }));
-    } catch {
-      notes = [];
-      plans = [];
-    }
-
-    let memory = { global: 0, project: 0 };
-    const memoryEnabled = typeof isAgentMemoryEnabled === 'function'
-      ? await isAgentMemoryEnabled().catch(() => false)
-      : true;
-    if (memoryEnabled) {
-      try {
-        const stored = await agentMemoryRuntime.readAll(projectId);
-        memory = {
-          global: stored.globalFailed ? 0 : stored.global.length,
-          project: stored.projectFailed ? 0 : stored.project.length,
-        };
-      } catch {
-        memory = { global: 0, project: 0 };
-      }
-    }
-
-    return { notes, plans, memory };
-  };
-
-  const collectSummaryForSession = async (sessionId, directory) => {
-    const session = await readStoredSession(sessionId).catch(() => null);
-    return collectSummary(directory, readPins(session));
+    return { linking, rendering, workflows, directTools, checkout };
   };
 
   /**
@@ -410,8 +194,7 @@ export const createSessionKnowledgeRuntime = (dependencies) => {
   const sync = async (sessionId, directory) => {
     if (!instructionEntries || !sessionId) return false;
     try {
-      const session = await readStoredSession(sessionId).catch(() => null);
-      const entries = buildKnowledgeEntries(await collect(directory, readPins(session)));
+      const entries = buildKnowledgeEntries(await collect(directory));
       const writes = await Promise.allSettled(Object.entries(entries).map(([key, text]) => (text
         ? instructionEntries.put(sessionId, directory, key, text)
         : instructionEntries.remove(sessionId, directory, key))));
@@ -424,27 +207,8 @@ export const createSessionKnowledgeRuntime = (dependencies) => {
     }
   };
 
-  const setPin = async (sessionId, directory, kind, id, pinned) => {
-    requireMetadataStore();
-    const pins = readPins(await readStoredSession(sessionId));
-    const key = kind === 'note' ? 'notes' : 'plans';
-    const next = new Set(pins[key]);
-    if (pinned) next.add(id);
-    else next.delete(id);
-    // The next send writes the changed pin set; the merge patch leaves
-    // neighbouring state alone.
-    await persistSessionMetadata(sessionId, directory, {
-      openchamber: { [PINS_METADATA_KEY]: { ...pins, [key]: [...next] } },
-    });
-    return { ...pins, [key]: [...next] };
-  };
-
   return {
     collect,
-    collectSummary,
-    collectSummaryForSession,
     sync,
-    readPins,
-    setPin,
   };
 };

@@ -846,14 +846,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isVSCode,
   },
   {
-    id: 'sessions.agent-knowledge-tool',
-    page: 'general',
-    titleKey: 'settings.openchamber.tools.field.agentKnowledgeTool',
-    descriptionKey: 'settings.openchamber.tools.field.agentKnowledgeToolInfo',
-    keywords: ['agent', 'tool', 'project', 'knowledge', 'notes', 'todos', 'plans', 'openchamber'],
-    isAvailable: (ctx) => !ctx.isVSCode,
-  },
-  {
     id: 'general.isolated-spaces',
     page: 'isolated-spaces',
     titleKey: 'settings.openchamber.spaces.field.enabled',
@@ -880,16 +872,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['machine', 'ssh', 'remote', 'docker', 'space', 'spaces', 'host', 'server'],
     // Rendered only while the switch is on, and never in VS Code.
     isAvailable: (ctx) => !ctx.isVSCode && useUIStore.getState().isolatedSpacesEnabled,
-  },
-  {
-    id: 'sessions.agent-memory-tool',
-    page: 'general',
-    titleKey: 'settings.openchamber.tools.field.agentMemoryTool',
-    descriptionKey: 'settings.openchamber.tools.field.agentMemoryToolInfo',
-    keywords: ['agent', 'tool', 'memory', 'remember', 'recall', 'preferences', 'openchamber'],
-    // Unreleased: searching for a setting that is not rendered would take the
-    // user to an empty spot on the page.
-    isAvailable: (ctx) => !ctx.isVSCode && useUIStore.getState().agentMemoryFeatureAvailable,
   },
   {
     id: 'sessions.agent-workflow-tool',
@@ -1062,13 +1044,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     titleKey: 'settings.projects.team.title',
     descriptionKey: 'settings.projects.team.info',
     keywords: ['shared', 'team', 'repository', '.openchamber', 'project.json', 'trust'],
-  },
-  {
-    id: 'projects.shared.plansDir',
-    page: 'projects',
-    titleKey: 'settings.projects.shared.plansDir',
-    descriptionKey: 'settings.projects.shared.plansDirInfo',
-    keywords: ['plans', 'folder', 'shared', 'team', 'docs'],
   },
   {
     id: 'remote-instances.client-auth',

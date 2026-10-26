@@ -240,7 +240,7 @@ describe('the actions of a space', () => {
     // The project's setup as the host's project route answers it: personal commands only, so no trust prompt.
     const projectSetup = (commands: string[]) => ({
       trust: { hash: null, trusted: true }, setupWorktree: commands, setupWorktreeWait: false, projectActions: [], projectActionsPrimaryId: null, draftStarters: [],
-      shared: { status: 'missing', path: '.openchamber/project.json', setupWorktree: [], setupWorktreeWait: null, projectActions: [], draftStarters: [], plansDir: null },
+      shared: { status: 'missing', path: '.openchamber/project.json', setupWorktree: [], setupWorktreeWait: null, projectActions: [], draftStarters: [] },
       personal: { setupWorktree: commands, setupWorktreeWait: null, setupWorktreeMode: 'append', projectActions: [], projectActionsPrimaryId: null, draftStarters: [], hiddenSharedActionIds: [], sharedTrust: null },
     });
 

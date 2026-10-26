@@ -25,34 +25,6 @@ other.
   by the scheduled-task service. An empty update clears the target. Create
   without a model inherits the target selection; an explicit agent overrides
   it. A task without a target still requires a model.
-- `project-knowledge.js` runs the `knowledge.*` actions of the
-  `openchamber_knowledge` agent tool (`list`, `save`, `delete`, `show`;
-  `kind` names note, todo or plan) against
-  `../project-context/runtime.js`. The owner is the session directory (or the
-  given `projectId` / `directory`) resolved by the same resolver session
-  knowledge and memory use, so what an agent writes is what the next session
-  is given. Notes it creates are `source: agent` with the calling session as
-  origin; payload provenance is ignored. Plans are handed out as file paths
-  (`list`, and the answer to `save`), never as text: the agent reads a plan
-  and makes small edits, such as ticking a step, with its own file tools, and
-  `save` creates or replaces one whole. `expected` guards a replacement only:
-  a save that carries it without an `id` is a 400, never a silently ignored
-  conflict check. Notes and todos carry `planId`, todos `dependsOn`, under
-  the storage rules of `../project-context/DOCUMENTATION.md`; an update may
-  send only those fields. `list` narrows notes, todos and plans to one `planId`; `ready: true`
-  keeps only unfinished todos whose dependencies all exist and are completed,
-  judged on the whole stored list before the plan filter. Readiness is never
-  stored. A plan save with `sessionId` sets or replaces (`null` clears) the
-  existing plan's session link; it carries no markdown, and a call with
-  both, or without an `id`, is refused before anything is written. That
-  input names the plan's session and never a note's origin. A field the
-  tool declares for another kind is a 400. The actions answer `403` while
-  `agentKnowledgeToolEnabled` is `false`. `show` checks the plan exists and
-  sends `openchamber:plan-open-request` to every connected window, like
-  `file.open`; every layout opens the plan the way a click in the Project
-  knowledge Plans list does: in place in the panel on desktop and web, in the
-  drawer's plan viewer on mobile. No
-  window reached is `503`.
 - `render-page.js` runs `render.page` for the `openchamber_render` agent tool. Only `html` is required: a page sent without a title is named after its own `<title>`, else its first h1 to h3, else "Page", with the same rule the chat uses (`renderedPage` in `packages/ui/src/lib/opencode/tools.ts`). Weaker models sent title and html in separate calls, each refused call costing the whole page again; a missing html now also asks for both in one call.
   The chat draws the page from the call's own input, so the action stores
   nothing: it checks `html` (at most 200,000 characters) and `title` (at most

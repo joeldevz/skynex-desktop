@@ -24,6 +24,14 @@ const runtimeCtx = {
 };
 
 describe('settings search', () => {
+  test('has no native knowledge, memory or saved-plan settings', () => {
+    for (const query of ['agent knowledge', 'agent memory', 'plans folder']) {
+      const results = buildSettingsSearchResults({ query, runtimeCtx, t, getPageTitle: (page) => page });
+      expect(results.map((result) => result.id)).not.toContain('sessions.agent-knowledge-tool');
+      expect(results.map((result) => result.id)).not.toContain('sessions.agent-memory-tool');
+      expect(results.map((result) => result.id)).not.toContain('projects.shared.plansDir');
+    }
+  });
   test('finds double-paste on every shared Settings surface', () => {
     for (const query of ['double paste', 'ctrl v', 'cmd v']) {
       for (const context of [runtimeCtx, { ...runtimeCtx, isDesktop: true }, { ...runtimeCtx, isVSCode: true }, { ...runtimeCtx, isMobile: true }]) {

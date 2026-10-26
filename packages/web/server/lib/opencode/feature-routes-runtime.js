@@ -22,9 +22,7 @@ import { registerDevServerRoutes } from '../dev-servers/routes.js';
 import { registerMagicPromptRoutes } from '../magic-prompts/routes.js';
 import { registerSessionFoldersRoutes } from '../session-folders/routes.js';
 import { registerSessionDraftRoutes } from '../session-drafts/routes.js';
-import { registerProjectContextRoutes } from '../project-context/routes.js';
 import { registerProjectDirectoryRoutes, registerProjectSetupRoutes } from '../projects/routes.js';
-import { registerAgentMemoryRoutes } from '../agent-memory/routes.js';
 import { registerSessionKnowledgeRoutes } from '../session-knowledge/routes.js';
 import { registerMessageSearchRoutes } from '../message-search/routes.js';
 import { registerPermissionAutoAcceptRoutes } from '../permission-auto-accept/runtime.js';
@@ -250,9 +248,6 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       environmentRuntime,
       listConfiguredProjects,
       projectConfigRuntime,
-      projectContextRuntime,
-      agentMemoryRuntime,
-      isAgentMemoryEnabled,
       sessionKnowledgeRuntime,
       scheduledTasksRuntime,
       scheduledTaskService,
@@ -766,7 +761,6 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       resolvePrimaryWorktreeRoot,
       resolveWorktreeTopLevel,
     });
-    registerProjectContextRoutes(app, { projectContextRuntime });
     registerProjectDirectoryRoutes(app, {
       fsPromises,
       validateDirectoryPath,
@@ -775,7 +769,6 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       persistSettings,
     });
     registerProjectSetupRoutes(app, { projectConfigRuntime });
-    registerAgentMemoryRoutes(app, { agentMemoryRuntime, isAgentMemoryEnabled });
     registerSessionKnowledgeRoutes(app, { sessionKnowledgeRuntime });
     registerMessageSearchRoutes(app, { messageSearchRuntime });
     registerSessionWarmingRoutes(app, {

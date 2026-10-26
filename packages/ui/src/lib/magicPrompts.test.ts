@@ -34,14 +34,14 @@ afterEach(() => {
 describe('resolveMagicPromptTemplate', () => {
   test('takes project, then global, then built-in text, and an empty override is a value', () => {
     const layers = {
-      project: new Map([['plan.todo.instructions', '']]),
-      global: new Map([['plan.todo.visible', 'global todo'], ['plan.todo.instructions', 'global steps']]),
+      project: new Map([['session.summary.instructions', '']]),
+      global: new Map([['session.summary.visible', 'global summary'], ['session.summary.instructions', 'global steps']]),
     };
 
-    expect(resolveMagicPromptTemplate(layers, 'plan.todo.instructions')).toEqual({ template: '', source: 'project' });
-    expect(resolveMagicPromptTemplate(layers, 'plan.todo.visible')).toEqual({ template: 'global todo', source: 'global' });
-    expect(resolveMagicPromptTemplate(layers, 'plan.improve.visible')).toEqual({
-      template: getDefaultMagicPromptTemplate('plan.improve.visible'),
+    expect(resolveMagicPromptTemplate(layers, 'session.summary.instructions')).toEqual({ template: '', source: 'project' });
+    expect(resolveMagicPromptTemplate(layers, 'session.summary.visible')).toEqual({ template: 'global summary', source: 'global' });
+    expect(resolveMagicPromptTemplate(layers, 'session.review.visible')).toEqual({
+      template: getDefaultMagicPromptTemplate('session.review.visible'),
       source: 'builtin',
     });
   });
@@ -49,12 +49,12 @@ describe('resolveMagicPromptTemplate', () => {
 
 describe('loadMagicPrompts', () => {
   test('reads the prompts of the directory as sessionDirectory, so a space folder stays on the host', async () => {
-    respond = () => json({ version: 1, overrides: { 'plan.todo.visible': 'Project: {{todo_text}}' } });
+    respond = () => json({ version: 1, overrides: { 'session.summary.visible': 'Project: {{topic_line}}' } });
 
     const prompts = await loadMagicPrompts('/spaces/space-1/repo');
 
-    expect(prompts.render('plan.todo.visible', { todo_text: 'ship it' })).toBe('Project: ship it');
-    expect(prompts.render('plan.improve.visible', { plan_title: 'X' })).toContain('X');
+    expect(prompts.render('session.summary.visible', { topic_line: 'ship it' })).toBe('Project: ship it');
+    expect(prompts.render('session.review.visible')).toBe(getDefaultMagicPromptTemplate('session.review.visible'));
     expect(calls).toHaveLength(1);
     expect([...calls[0].url.searchParams.entries()]).toEqual([['sessionDirectory', '/spaces/space-1/repo']]);
     expect(calls[0].headers.has('x-opencode-directory')).toBe(false);

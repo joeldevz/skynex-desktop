@@ -207,7 +207,7 @@ const withOfferedBuiltInStarters = (starters: DraftStarterRef[], snapshot: Setti
     const insertAt = anchor >= 0 ? anchor + 1 : next.length;
     next = [...next.slice(0, insertAt), { type: 'command', name }, ...next.slice(insertAt)];
   };
-  if (snapshot.draftStartersCraftGoalAdded !== true) insertAfter('craft-goal', 'plan-feature');
+  if (snapshot.draftStartersCraftGoalAdded !== true) insertAfter('craft-goal', 'workspace-review');
   if (snapshot.draftStartersScheduleTaskAdded !== true) insertAfter('schedule-task', 'craft-goal');
   return next;
 };
@@ -297,8 +297,6 @@ export const SETTINGS_REGISTRY = {
   agentNotifyToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentNotifyToolEnabled', (v) => useUIStore.getState().setAgentNotifyToolEnabled(v)) }),
   agentRenderToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentRenderToolEnabled', (v) => useUIStore.getState().setAgentRenderToolEnabled(v)) }),
   agentToolsCodeMode: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentToolsCodeMode', (v) => useUIStore.getState().setAgentToolsCodeMode(v)) }),
-  agentMemoryToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentMemoryToolEnabled', (v) => useUIStore.getState().setAgentMemoryToolEnabled(v)) }),
-  agentKnowledgeToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentKnowledgeToolEnabled', (v) => useUIStore.getState().setAgentKnowledgeToolEnabled(v)) }),
   agentWorkflowToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentWorkflowToolEnabled', (v) => useUIStore.getState().setAgentWorkflowToolEnabled(v)) }),
   // The isolated-spaces switch. The server reads it once at start; a change takes effect at the
   // next start, which the settings row says. Never shown in VS Code (decision 16 of the design).
@@ -314,13 +312,6 @@ export const SETTINGS_REGISTRY = {
   // the feature comes up; the "Isolated spaces" page writes it through the host's `PUT /machine`
   // route, never directly, since the host rebuilds its places on the change.
   isolatedSpacesSshHost: field({ scope: 'instance', parse: parseTrimmedStringUpTo(320) }),
-  // Server-owned: it says whether this build has the feature at all.
-  agentMemoryFeatureAvailable: field({
-    scope: 'instance',
-    computed: true,
-    parse: parseBoolean,
-    ui: uiStore('agentMemoryFeatureAvailable', (v) => useUIStore.getState().setAgentMemoryFeatureAvailable(v), { autoSave: false }),
-  }),
   // Server-owned: whether this build has agent workflows (`OPENCHAMBER_WORKFLOWS_ENABLE`).
   agentWorkflowFeatureAvailable: field({
     scope: 'instance',
@@ -669,6 +660,7 @@ export const LOCAL_DEVICE_KEYS = [
   'mobileWorkspaceHiddenTabs',
   'mobileWorkStatusHiddenSections',
   'contextSurfaceZones',
+  'contextZoneSizes',
   'contextEditorTreeVisible',
   'contextEditorVisible',
   'contextEditorTreeWidth',
@@ -690,7 +682,6 @@ export const LOCAL_DEVICE_KEYS = [
   'showTerminalQuickKeysOnDesktop',
   'dockBadgeEnabled',
   'alwaysShowScrollbars',
-  'agentMemoryViewedAt',
 ] as const;
 
 /**

@@ -19,7 +19,6 @@ import { BUILTIN_BROWSER_PROVIDER, browserProviderGuests } from '@/lib/guests/br
 import { loadGuestCatalog } from '@/lib/guests/load-catalog';
 import { useGuestsStore } from '@/lib/guests/store';
 import { updateDesktopSettings } from '@/lib/persistence';
-import { useAgentMemoryStore } from '@/stores/useAgentMemoryStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -83,18 +82,11 @@ export const OpenChamberToolsSettings: React.FC = () => {
   const browserProvider = useUIStore((state) => state.browserProvider);
   const setBrowserProvider = useUIStore((state) => state.setBrowserProvider);
   const guests = useGuestsStore((state) => state.guests);
-  const agentMemoryToolEnabled = useUIStore((state) => state.agentMemoryToolEnabled);
-  // Absent, not merely off: the feature is finished but unreleased, and a
-  // visible switch invites turning on something that was never announced.
-  const agentMemoryAvailable = useUIStore((state) => state.agentMemoryFeatureAvailable);
-  const setAgentMemoryToolEnabled = useUIStore((state) => state.setAgentMemoryToolEnabled);
-  const agentKnowledgeToolEnabled = useUIStore((state) => state.agentKnowledgeToolEnabled);
-  const setAgentKnowledgeToolEnabled = useUIStore((state) => state.setAgentKnowledgeToolEnabled);
   const agentNotifyToolEnabled = useUIStore((state) => state.agentNotifyToolEnabled);
   const setAgentNotifyToolEnabled = useUIStore((state) => state.setAgentNotifyToolEnabled);
   const agentRenderToolEnabled = useUIStore((state) => state.agentRenderToolEnabled);
   const setAgentRenderToolEnabled = useUIStore((state) => state.setAgentRenderToolEnabled);
-  // Absent in builds without workflows, the way memory is.
+  // Absent in builds without workflows.
   const agentWorkflowAvailable = useUIStore((state) => state.agentWorkflowFeatureAvailable);
   const agentWorkflowToolEnabled = useUIStore((state) => state.agentWorkflowToolEnabled);
   const setAgentWorkflowToolEnabled = useUIStore((state) => state.setAgentWorkflowToolEnabled);
@@ -126,11 +118,6 @@ export const OpenChamberToolsSettings: React.FC = () => {
     void updateDesktopSettings({ agentRenderToolEnabled: enabled });
   }, [setAgentRenderToolEnabled]);
 
-  const handleAgentKnowledgeToolChange = React.useCallback((enabled: boolean) => {
-    setAgentKnowledgeToolEnabled(enabled);
-    void updateDesktopSettings({ agentKnowledgeToolEnabled: enabled });
-  }, [setAgentKnowledgeToolEnabled]);
-
   const handleAgentWorkflowToolChange = React.useCallback((enabled: boolean) => {
     setAgentWorkflowToolEnabled(enabled);
     void updateDesktopSettings({ agentWorkflowToolEnabled: enabled });
@@ -158,23 +145,6 @@ export const OpenChamberToolsSettings: React.FC = () => {
     setBrowserProvider(value);
     void updateDesktopSettings({ browserProvider: value });
   }, [setBrowserProvider]);
-
-  // Turning memory off removes the whole feature, not just the tool: the panel
-  // tab goes with it and sessions stop being given the index. Showing the user
-  // what is stored would be pointless once the agent can no longer manage it.
-  const handleAgentMemoryToolChange = React.useCallback((enabled: boolean) => {
-    setAgentMemoryToolEnabled(enabled);
-    // Re-read after the write lands, not before. The switch flips the client
-    // immediately, which makes the panel ask the server straight away — and
-    // while the setting is still being written the server truthfully answers
-    // "disabled", which used to leave the tab hidden until a restart.
-    void updateDesktopSettings({ agentMemoryToolEnabled: enabled })
-      .finally(() => {
-        if (enabled) {
-          void useAgentMemoryStore.getState().refresh();
-        }
-      });
-  }, [setAgentMemoryToolEnabled]);
 
   return (
     <SettingsSection title={t('settings.openchamber.tools.title')}>
@@ -274,30 +244,6 @@ export const OpenChamberToolsSettings: React.FC = () => {
           info={t('settings.openchamber.tools.field.agentRenderToolInfo')}
           ariaLabel={t('settings.openchamber.tools.field.agentRenderToolAria')}
         />
-
-        <ToolRow
-          icon="sticky-note"
-          settingsItem="sessions.agent-knowledge-tool"
-          checked={agentKnowledgeToolEnabled}
-          onChange={handleAgentKnowledgeToolChange}
-          title={t('settings.openchamber.tools.field.agentKnowledgeTool')}
-          summary={t('settings.openchamber.tools.field.agentKnowledgeToolSummary')}
-          info={t('settings.openchamber.tools.field.agentKnowledgeToolInfo')}
-          ariaLabel={t('settings.openchamber.tools.field.agentKnowledgeToolAria')}
-        />
-
-        {agentMemoryAvailable ? (
-          <ToolRow
-            icon="brain"
-            settingsItem="sessions.agent-memory-tool"
-            checked={agentMemoryToolEnabled}
-            onChange={handleAgentMemoryToolChange}
-            title={t('settings.openchamber.tools.field.agentMemoryTool')}
-            summary={t('settings.openchamber.tools.field.agentMemoryToolSummary')}
-            info={t('settings.openchamber.tools.field.agentMemoryToolInfo')}
-            ariaLabel={t('settings.openchamber.tools.field.agentMemoryToolAria')}
-          />
-        ) : null}
 
         {agentWorkflowAvailable ? (
           <ToolRow

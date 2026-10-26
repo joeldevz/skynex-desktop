@@ -250,7 +250,7 @@ describe('settings runtime', () => {
     }
   });
 
-  it('only remaps project plan paths within the migrated storage directory', async () => {
+  it('preserves historical paths and archives the original config during id migration', async () => {
     const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime();
     try {
       const projectPath = path.join(tempRoot, 'project');
@@ -258,7 +258,6 @@ describe('settings runtime', () => {
       const newProjectId = createProjectIdFromPath(projectPath);
       const projectsRoot = path.join(path.dirname(settingsFilePath), 'projects');
       const oldStorageDir = path.join(projectsRoot, oldProjectId);
-      const newStorageDir = path.join(projectsRoot, newProjectId);
       const siblingStorageDir = `${oldStorageDir}-sibling`;
 
       await fsPromises.mkdir(projectPath, { recursive: true });
@@ -282,13 +281,17 @@ describe('settings runtime', () => {
         'utf8',
       );
 
+      const originalConfig = await fsPromises.readFile(path.join(projectsRoot, `${oldProjectId}.json`), 'utf8');
       await runtime.readSettingsFromDiskMigrated();
 
       const migratedConfig = JSON.parse(await fsPromises.readFile(path.join(projectsRoot, `${newProjectId}.json`), 'utf8'));
       expect(migratedConfig.projectPlanFiles).toEqual([
-        { id: 'inside', path: path.join(newStorageDir, 'plans', 'inside.md') },
+        { id: 'inside', path: path.join(oldStorageDir, 'plans', 'inside.md') },
         { id: 'sibling', path: path.join(siblingStorageDir, 'plans', 'outside.md') },
       ]);
+      const retired = (await fsPromises.readdir(projectsRoot)).filter((name) => name.startsWith(`${oldProjectId}.json.`) && name.endsWith('.retired'));
+      expect(retired).toHaveLength(1);
+      expect(await fsPromises.readFile(path.join(projectsRoot, retired[0]), 'utf8')).toBe(originalConfig);
     } finally {
       await cleanup();
     }
@@ -379,7 +382,7 @@ describe('settings runtime', () => {
     }
   });
 
-  it('moves project storage into the bounded folder when the canonical id is too long for a folder name', async () => {
+  it('leaves historical project storage in place when migrating a long canonical id', async () => {
     const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime();
     try {
       const projectPath = path.join(tempRoot, `${'segment-'.repeat(18)}`, 'demo-repo');
@@ -415,17 +418,21 @@ describe('settings runtime', () => {
 
       expect(settings.projects.map((project) => project.id)).toEqual([newProjectId]);
       const migratedConfig = JSON.parse(await fsPromises.readFile(path.join(projectsRoot, `${stem}.json`), 'utf8'));
-      expect(migratedConfig.projectPlanFiles).toEqual([{ id: 'inside', path: path.join(newStorageDir, 'plans', 'inside.md') }]);
-      expect(JSON.parse(await fsPromises.readFile(path.join(newStorageDir, 'context.json'), 'utf8')).todos).toHaveLength(1);
-      await fsPromises.access(path.join(newStorageDir, 'plans', 'inside.md'));
-      await fsPromises.access(path.join(newStorageDir, 'memory.json'));
-      expect((await fsPromises.readdir(projectsRoot)).sort()).toEqual([stem, `${stem}.json`]);
+      expect(migratedConfig.projectPlanFiles).toEqual([{ id: 'inside', path: path.join(oldStorageDir, 'plans', 'inside.md') }]);
+      expect(JSON.parse(await fsPromises.readFile(path.join(oldStorageDir, 'context.json'), 'utf8')).todos).toHaveLength(1);
+      expect(await fsPromises.readFile(path.join(oldStorageDir, 'plans', 'inside.md'), 'utf8')).toBe('# Inside\n');
+      expect(await fsPromises.readFile(path.join(oldStorageDir, 'memory.json'), 'utf8')).toBe(JSON.stringify({ version: 1, entries: [] }));
+      await expect(fsPromises.access(newStorageDir)).rejects.toMatchObject({ code: 'ENOENT' });
+      const files = await fsPromises.readdir(projectsRoot);
+      expect(files).toContain(oldProjectId);
+      expect(files).toContain(`${stem}.json`);
+      expect(files.filter((name) => name.endsWith('.retired'))).toHaveLength(1);
     } finally {
       await cleanup();
     }
   });
 
-  it('moves a folder an older build created under a raw id that still fit a folder name into the bounded folder', async () => {
+  it('leaves raw-id and bounded historical folders unchanged across repeated startup', async () => {
     const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime();
     try {
       // Long enough for the bounded name, short enough that an older build
@@ -458,18 +465,19 @@ describe('settings runtime', () => {
         'utf8',
       );
 
+      const historical = [
+        path.join(rawStorageDir, 'context.json'), path.join(rawStorageDir, 'plans', 'old.md'),
+        path.join(rawStorageDir, 'memory.json'), path.join(boundedStorageDir, 'context.json'),
+      ];
+      const before = await Promise.all(historical.map((file) => fsPromises.readFile(file, 'utf8')));
       const settings = await runtime.readSettingsFromDiskMigrated();
 
       expect(settings.projects.map((project) => project.id)).toEqual([projectId]);
-      const context = JSON.parse(await fsPromises.readFile(path.join(boundedStorageDir, 'context.json'), 'utf8'));
-      expect(context.notes.map((note) => note.id).sort()).toEqual(['n1', 'n2']);
-      await fsPromises.access(path.join(boundedStorageDir, 'plans', 'old.md'));
-      expect(JSON.parse(await fsPromises.readFile(path.join(boundedStorageDir, 'memory.json'), 'utf8')).entries).toHaveLength(1);
-      await expect(fsPromises.access(rawStorageDir)).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(await Promise.all(historical.map((file) => fsPromises.readFile(file, 'utf8')))).toEqual(before);
 
-      // A second startup finds nothing left to move.
+      // Subsequent startup does not rewrite or combine retired stores either.
       await runtime.readSettingsFromDiskMigrated();
-      expect(JSON.parse(await fsPromises.readFile(path.join(boundedStorageDir, 'context.json'), 'utf8')).notes).toHaveLength(2);
+      expect(await Promise.all(historical.map((file) => fsPromises.readFile(file, 'utf8')))).toEqual(before);
     } finally {
       await cleanup();
     }

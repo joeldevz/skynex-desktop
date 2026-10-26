@@ -35,6 +35,18 @@ const localeDictionaries = {
 } as const;
 
 describe('i18n dictionaries', () => {
+  test('removes native project knowledge and memory copy while keeping shared session controls', () => {
+    const retired = /^(?:rightSidebar\.contextNotesTodo\.|planView\.|saveProjectPlanDialog\.|contextRail\.surface\.notes(?:\.|$)|settings\.openchamber\.tools\.field\.agent(?:Memory|Knowledge)Tool|settings\.projects\.shared\.plansDir|settings\.magicPrompts\.(?:sidebar\.(?:group\.(?:memory|planning)|item\.(?:memoryTidy|planTodo|planImprove|planImplement|sessionFeaturePlan))|page\.group\.(?:memoryTidy|planTodo|planImprove|planImplement|sessionFeaturePlan)))/;
+    for (const dictionary of Object.values(localeDictionaries)) {
+      expect(Object.keys(dictionary).filter((key) => retired.test(key))).toEqual([]);
+      expect(dictionary['session.execution.default'].length).toBeGreaterThan(0);
+      expect(dictionary['session.execution.cancel'].length).toBeGreaterThan(0);
+      expect(dictionary['session.execution.send'].length).toBeGreaterThan(0);
+      expect(dictionary['session.execution.sending'].length).toBeGreaterThan(0);
+      expect(dictionary['session.execution.worktreeRequiresGitRepo'].length).toBeGreaterThan(0);
+      expect(dictionary['session.execution.createSessionFailed'].length).toBeGreaterThan(0);
+    }
+  });
   test('repository links name either provider in every locale', () => {
     for (const dictionary of Object.values(localeDictionaries)) {
       expect(dictionary['gitView.header.openRepository']).toContain('{provider}');

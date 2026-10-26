@@ -22,6 +22,12 @@ import { renderSettingsRegistrySnapshot, SETTINGS_REGISTRY_SNAPSHOT_PATHS } from
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
 
 describe('settings registry', () => {
+  test('drops retired native knowledge and memory settings', () => {
+    expect(parseSettingsDocument({ agentMemoryToolEnabled: true, agentKnowledgeToolEnabled: true, agentMemoryFeatureAvailable: true })).toEqual({});
+    expect(SETTINGS_KEYS).not.toContain('agentMemoryToolEnabled');
+    expect(SETTINGS_KEYS).not.toContain('agentKnowledgeToolEnabled');
+    expect(SETTINGS_KEYS).not.toContain('agentMemoryFeatureAvailable');
+  });
   test('round-trips all large text paste modes through settings and local persistence', async () => {
     const options = useUIStore.persist.getOptions();
     const original = useUIStore.getState();

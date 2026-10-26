@@ -17,7 +17,7 @@ type ThinkingPillProps = {
 
 export const ThinkingPill = ({ value, options, disabled, onChange }: ThinkingPillProps) => {
   const { t } = useI18n();
-  const label = value || t('rightSidebar.contextNotesTodo.sendDialog.variant.default');
+  const label = value || t('session.execution.default');
 
   const trigger = (
     <div
@@ -39,7 +39,7 @@ export const ThinkingPill = ({ value, options, disabled, onChange }: ThinkingPil
       <DropdownMenuContent align="start" className="max-w-[220px]" portalToBody>
         <DropdownMenuItem className="typography-meta" onSelect={() => onChange('')}>
           <span className={cn('font-medium', !value && 'text-primary')}>
-            {t('rightSidebar.contextNotesTodo.sendDialog.variant.default')}
+            {t('session.execution.default')}
           </span>
         </DropdownMenuItem>
         {options.map((option) => (

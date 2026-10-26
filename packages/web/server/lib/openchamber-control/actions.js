@@ -80,47 +80,6 @@ export const OPENCHAMBER_WEB_ACTIONS = Object.freeze(
 );
 
 /**
- * Memory is its own tool for the same reason web is: remembering across
- * sessions is a distinct intent from controlling one, and a shared description
- * would blur both. It also has to switch off cleanly and completely, which a
- * shared schema cannot do.
- *
- * The session already carries an index of stored titles and says to read an
- * entry before acting on it (../session-knowledge/runtime.js), so memory.read
- * takes a title as the index spells it and memory.list is for a missing or
- * stale index.
- */
-export const OPENCHAMBER_MEMORY_ACTION_DEFINITIONS = Object.freeze([
-  { action: 'memory.read', title: 'Read a stored memory', description: 'Full text of one memory; requires title or memoryId' },
-  { action: 'memory.list', title: 'List stored memories', description: 'Titles, when the session index is missing or stale' },
-  { action: 'memory.save', title: 'Remember something', description: 'Requires title, body, scope. Saving the same thing updates it; memoryId rewrites that entry, to correct one or merge several into it' },
-  { action: 'memory.delete', title: 'Forget a memory', description: 'For a memory that turned out wrong or obsolete; requires memoryId and scope' },
-]);
-
-export const OPENCHAMBER_MEMORY_ACTIONS = Object.freeze(
-  OPENCHAMBER_MEMORY_ACTION_DEFINITIONS.map(({ action }) => action),
-);
-
-/**
- * Project knowledge is its own tool: keeping the Notes, Todos and Plans the
- * user sees in the panel is a distinct intent from running sessions, and the
- * user switches it off on its own without losing session control. One small
- * vocabulary with `kind` keeps the bare verbs unambiguous, the way memory's are.
- * Plans are markdown files, so reading one and small edits use the agent's
- * own file tools on the path list gives.
- */
-export const OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS = Object.freeze([
-  { action: 'knowledge.list', title: 'List project knowledge', description: 'Notes with text, todos with state and links, plans with their file paths and session. Optional planId and ready filters. List before adding, to avoid duplicates' },
-  { action: 'knowledge.save', title: 'Save project knowledge', description: 'Requires kind and body; with id it replaces. A plan body is the whole markdown, and the answer gives its path. An update may send only the fields it changes: completed, planId or dependsOn; sessionId on a plan, without body' },
-  { action: 'knowledge.delete', title: 'Delete project knowledge', description: 'Requires kind and id' },
-  { action: 'knowledge.show', title: 'Show a plan to the user', description: 'Open a plan for the user to read, comment on and send to a session; requires kind plan and id' },
-]);
-
-export const OPENCHAMBER_KNOWLEDGE_ACTIONS = Object.freeze(
-  OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS.map(({ action }) => action),
-);
-
-/**
  * Notify is its own tool so it can stay off by default and disappear
  * completely: an agent that can page the user is a choice the user makes.
  */
@@ -186,19 +145,12 @@ export const OPENCHAMBER_WORKFLOW_ANSWER_ACTIONS = Object.freeze(
 /**
  * Which actions each managed tool may ask for.
  *
- * The callback needs this because models routinely drop the namespace: asked
- * for `memory.read` from a tool already called `openchamber_memory`, they send
- * `read`, since the tool's own name appears to have said "memory" already. The
- * name is unambiguous inside one tool's action set even when it is not across
- * all of them (`delete` belongs to both schedule and memory), so resolution
- * starts from the tool that asked.
+ * Models may drop the namespace, so resolution starts from the tool that asked.
  */
 const ACTIONS_BY_TOOL = Object.freeze({
   openchamber: OPENCHAMBER_AGENT_TOOL_ACTIONS,
   openchamber_schedule: OPENCHAMBER_SCHEDULE_ACTIONS,
   openchamber_web: OPENCHAMBER_WEB_ACTIONS,
-  openchamber_memory: OPENCHAMBER_MEMORY_ACTIONS,
-  openchamber_knowledge: OPENCHAMBER_KNOWLEDGE_ACTIONS,
   openchamber_notify: OPENCHAMBER_NOTIFY_ACTIONS,
   openchamber_render: OPENCHAMBER_RENDER_ACTIONS,
   openchamber_workflow: OPENCHAMBER_WORKFLOW_ACTIONS,
@@ -224,6 +176,7 @@ const uniqueMatch = (candidates, requested) => {
 export const resolveAgentToolAction = (requested, toolName) => {
   const value = typeof requested === 'string' ? requested.trim() : '';
   const scoped = ACTIONS_BY_TOOL[toolName] ?? null;
+  if (toolName && !scoped) return { error: `Unsupported OpenChamber tool: ${toolName}` };
   const known = scoped ?? OPENCHAMBER_ALL_ACTIONS;
 
   if (value && known.includes(value)) {
@@ -248,8 +201,6 @@ export const resolveAgentToolAction = (requested, toolName) => {
 export const OPENCHAMBER_ALL_ACTIONS = Object.freeze([
   ...OPENCHAMBER_CONTROL_ACTIONS,
   ...OPENCHAMBER_WEB_ACTIONS,
-  ...OPENCHAMBER_MEMORY_ACTIONS,
-  ...OPENCHAMBER_KNOWLEDGE_ACTIONS,
   ...OPENCHAMBER_NOTIFY_ACTIONS,
   ...OPENCHAMBER_RENDER_ACTIONS,
   ...OPENCHAMBER_WORKFLOW_ACTIONS,

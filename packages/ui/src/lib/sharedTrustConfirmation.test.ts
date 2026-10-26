@@ -39,7 +39,6 @@ const baseSetup = (): ProjectSetup => ({
     setupWorktreeWait: null,
     projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev' }],
     draftStarters: [],
-    plansDir: null,
   },
   personal: {
     setupWorktree: ['cp .env.example .env'],

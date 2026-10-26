@@ -18,8 +18,7 @@ scheduled like one more project, with three differences:
 - **Identity.** The UI and the routes address the scope as `openchamber:chats`
   (the UI's `CHAT_DRAFT_PROJECT_ID`). A colon is not a valid Windows file name,
   so tasks are stored under the chats root's path id
-  (`createProjectIdFromPath(<chats root>)`, the same id agent memory uses for
-  chats). The service maps the public id to the storage id on the way in, and
+  (`createProjectIdFromPath(<chats root>)`). The service maps the public id to the storage id on the way in, and
   `openchamber:scheduled-task-ran` events map it back on the way out.
 - **One new chat per run.** A project run works in the project path. A chats run
   creates `<chats root>/<yyyy-mm-dd>/session-<uuid>`, the layout the UI uses for

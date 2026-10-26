@@ -107,8 +107,7 @@ let heldSendsTail: Promise<void> | null = null
  * Runs a send once OpenCode has started, in the order sends were made. Every
  * send held through startup would otherwise go out on the same connection
  * notification and race: a later message could reach OpenCode first, and
- * each would fetch the session's project knowledge before the other reported
- * it delivered. A held send starts only after the one before it settled, that
+ * their context refreshes could overlap. A held send starts only after the one before it settled, that
  * is, was handed to OpenCode or failed. A send made while held sends are
  * still going out queues behind them too.
  */

@@ -3,19 +3,12 @@ import { createPortal, flushSync } from 'react-dom';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useChatColumnActions, useChatSessionSelection } from '../chatColumnSession';
 import { useInlineCommentDraftStore } from '@/stores/useInlineCommentDraftStore';
-import { useSessionDirectory } from '@/sync/sync-context';
 import { useInputStore } from '@/sync/input-store';
 import { useUIStore } from '@/stores/useUIStore';
-import { useProjectsStore } from '@/stores/useProjectsStore';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { Icon } from "@/components/icon/Icon";
-import { PROJECT_NOTE_BODY_MAX_LENGTH } from '@/lib/projectContextApi';
-import { useProjectContextStore } from '@/stores/useProjectContextStore';
-import { summarizeSelectionForNotes } from '@/lib/smallModel';
-import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { getTypeToCommentText } from '@/lib/typeToComment';
 import { useCommentImagePaste } from '@/components/comments/useCommentImagePaste';
@@ -74,10 +67,6 @@ interface SelectionPayload {
   clear?: () => void;
 }
 
-const normalizeDistilledInsight = (insight: string): string => (
-  insight.trim().replace(/^[-*+]\s+/, '').slice(0, PROJECT_NOTE_BODY_MAX_LENGTH)
-);
-
 const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef, readingKey, canReadAloud, frameSelections = false }) => {
   const { t } = useI18n();
   const { isPlaying: isReading, play: playReading, stop: stopReading } = useMessageTTS(readingKey);
@@ -134,7 +123,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
   const { attachCitedImages, discardPastedImages } = commentImagePaste;
   const isDraggingRef = React.useRef(false);
   const [isOpening, setIsOpening] = React.useState(false);
-  const [isAddingToNotes, setIsAddingToNotes] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const menuWidthRef = React.useRef(DESKTOP_MENU_FALLBACK_WIDTH_PX);
   const menuHeightRef = React.useRef(DESKTOP_MENU_FALLBACK_HEIGHT_PX);
@@ -151,12 +139,9 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
   const setPendingInputText = useInputStore((state) => state.setPendingInputText);
   const requestBtwComposer = useInputStore((state) => state.requestBtwComposer);
   const isMobile = useUIStore((state) => state.isMobile);
-  const projects = useProjectsStore((state) => state.projects);
-  const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
   const effectiveDirectory = useEffectiveDirectory();
   // A leaf read: the session list is replaced on every streamed step, while
   // only this session's directory feeds the notes project fallback.
-  const currentSessionDirectory = useSessionDirectory(currentSessionId);
   const mobileCommentController = useMobileCommentComposerController();
   const mobileCommentDraft = useMobileCommentDraft(mobileCommentController);
   const mobileCommentActive = mobileCommentDraft.status === 'open';
@@ -699,52 +684,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
     });
   }, [addContextDraft, attachCitedImages, commentText, currentSessionId, effectiveDirectory, focusColumnInput, hideMenu, newSessionDraftOpen, selectedAnchor, selectedMessageId, selectedTextMarkdown, t]);
 
-  const currentProjectRef = React.useMemo(() => {
-    const directory = effectiveDirectory ?? currentSessionDirectory ?? '';
-    const resolved = resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory);
-    return resolved ? { id: resolved.id, path: resolved.path } : null;
-  }, [availableWorktreesByProject, currentSessionDirectory, effectiveDirectory, projects]);
-
-  const handleAddToNotes = React.useCallback(async () => {
-    if (!selectedText || !currentProjectRef) {
-      if (!currentProjectRef) {
-        toast.error(t('chat.textSelection.toast.noProject'));
-      }
-      return;
-    }
-
-    try {
-      setIsAddingToNotes(true);
-      // Long selections are distilled into a compact note by the small model;
-      // short ones (and any generation failure) go in verbatim.
-      const noteText = await summarizeSelectionForNotes(selectedTextMarkdown || selectedText, currentSessionId);
-      const insight = normalizeDistilledInsight(noteText);
-      if (!insight) {
-        toast.error(t('chat.textSelection.toast.addToNotesFailed'));
-        return;
-      }
-      // Recorded as its own note with provenance, so the distilled insight can
-      // later be traced back to the conversation it came from.
-      const saved = await useProjectContextStore.getState().createNote(currentProjectRef, {
-        body: insight,
-        source: 'selection',
-        ...(currentSessionId ? { origin: { sessionId: currentSessionId } } : {}),
-      });
-      if (!saved) {
-        toast.error(t('chat.textSelection.toast.addToNotesFailed'));
-        return;
-      }
-      toast.success(t('chat.textSelection.toast.addToNotesSuccess'));
-      hideMenu();
-      window.getSelection()?.removeAllRanges();
-    } catch (error) {
-      const description = error instanceof Error ? error.message : undefined;
-      toast.error(t('chat.textSelection.toast.addToNotesFailed'), description ? { description } : undefined);
-    } finally {
-      setIsAddingToNotes(false);
-    }
-  }, [currentProjectRef, currentSessionId, hideMenu, selectedText, selectedTextMarkdown, t]);
-
   if (!position.show) return null;
 
   const commentHighlightOverlay = commentMode && commentRects && commentRects.length > 0
@@ -901,24 +840,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
               </button>
             ) : null}
 
-            {!isVSCodeRuntime() ? (
-              <button
-                onClick={handleAddToNotes}
-                disabled={isAddingToNotes}
-                className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 text-start',
-                  'text-sm font-medium leading-tight',
-                  'bg-foreground/[0.04] text-foreground',
-                  'active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed',
-                  'transition-opacity duration-150'
-                )}
-                title={t('chat.textSelection.title.saveInsightToNotes')}
-                type="button"
-              >
-                {isAddingToNotes ? <Icon name="loader-4" className="h-5 w-5 flex-shrink-0 animate-spin" /> : <Icon name="booklet" className="h-5 w-5 flex-shrink-0" />}
-                <span className="min-w-0 whitespace-normal">{t('chat.textSelection.actions.addToNotes')}</span>
-              </button>
-            ) : null}
           </div>
         </div>
       </div>,
@@ -989,28 +910,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
           ) : null}
 
 
-          {!isVSCodeRuntime() ? (
-            <>
-              <div className="mx-0.5 h-5 w-px shrink-0 bg-[var(--interactive-border)]" />
-
-              <button
-                onClick={handleAddToNotes}
-                disabled={isAddingToNotes}
-                className={cn(
-                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-full',
-                  'text-sm font-medium',
-                  'text-foreground',
-                  'hover:bg-[var(--interactive-hover)] disabled:opacity-60 disabled:cursor-not-allowed',
-                  'transition-colors duration-150'
-                )}
-                title={t('chat.textSelection.title.saveInsightToNotes')}
-                type="button"
-              >
-                {isAddingToNotes ? <Icon name="loader-4" className="h-4 w-4 animate-spin" /> : null}
-                <span className="whitespace-nowrap">{t('chat.textSelection.actions.addToNotes')}</span>
-              </button>
-            </>
-          ) : null}
 
           {canReadAloud ? (
             <>

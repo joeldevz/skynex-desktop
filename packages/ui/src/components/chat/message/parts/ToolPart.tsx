@@ -1117,8 +1117,6 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
     const hideToolInputPreview = part.tool === 'openchamber'
         || part.tool === 'openchamber_schedule'
         || part.tool === 'openchamber_web'
-        || part.tool === 'openchamber_memory'
-        || part.tool === 'openchamber_knowledge'
         || part.tool === 'openchamber_notify'
         || part.tool === 'openchamber_render'
         || part.tool === 'openchamber_workflow'

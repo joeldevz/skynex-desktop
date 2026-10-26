@@ -133,11 +133,6 @@ import { createGuestSurfaceRuntime } from './lib/guests/surface.js';
 import { BROWSER_PROVIDER_IDLE_MS } from '@openchamber/sdk';
 import { createProjectConfigRuntime } from './lib/projects/project-config.js';
 import { ensureChatsDir, migrateLegacyUserDirs } from './lib/data-dir-migration.js';
-import { createProjectContextRuntime } from './lib/project-context/runtime.js';
-import { createAgentMemoryRuntime } from './lib/agent-memory/runtime.js';
-import { createAgentMemoryActions } from './lib/agent-memory/actions.js';
-import { createMemoryProjectResolver } from './lib/agent-memory/project-resolution.js';
-import { isAgentMemoryFeatureAvailable } from './lib/agent-memory/feature-flag.js';
 import { createSpacesHost } from './lib/spaces/host.js';
 import { createSpaceArchive } from './lib/spaces/space-archive.js';
 import { readIdleStopSetting, startIdleStop } from './lib/spaces/idle-stop.js';
@@ -617,7 +612,7 @@ const broadcastPermissionUiEvent = (payload) => {
 
 /**
  * Per-session OpenChamber state (goal progress, the assist recap, the
- * obligatory-context cursor, pinned notes) lives in OpenCode's session
+ * obligatory-context cursor) lives in OpenCode's session
  * metadata. The store merge-patches it there and migrates what older
  * OpenChamber versions kept in `sessions-metadata.json`.
  */
@@ -695,39 +690,6 @@ const projectConfigRuntime = createProjectConfigRuntime({
   path,
   projectsDirPath: OPENCHAMBER_PROJECTS_CONFIG_DIR,
 });
-
-const projectContextRuntime = createProjectContextRuntime({
-  fsPromises,
-  path,
-  projectsDirPath: OPENCHAMBER_PROJECTS_CONFIG_DIR,
-  resolveSharedPlansDir: (projectId) => projectConfigRuntime.resolveSharedPlansDir(projectId),
-  onChanged: (projectId) => broadcastOpenChamberUiEvent({
-    type: 'openchamber:project-context-changed',
-    properties: { projectId },
-  }),
-});
-
-const agentMemoryRuntime = createAgentMemoryRuntime({
-  fsPromises,
-  path,
-  projectsDirPath: OPENCHAMBER_PROJECTS_CONFIG_DIR,
-  userConfigRoot: OPENCHAMBER_USER_CONFIG_ROOT,
-});
-
-/**
- * One switch for everything memory-related. It gates the tool, these routes,
- * and the session index alike, so turning memory off leaves nothing behind
- * that still reads or writes the store.
- */
-const isAgentMemoryEnabled = async () => {
-  // The feature gate comes first: unreleased means absent, not merely switched
-  // off, so no stored setting can bring it back.
-  if (!isAgentMemoryFeatureAvailable()) {
-    return false;
-  }
-  const settings = await readSettingsFromDiskMigrated().catch(() => null);
-  return settings?.agentMemoryToolEnabled === true;
-};
 
 // HMR-persistent state via globalThis
 // These values survive Vite HMR reloads to prevent zombie OpenCode processes
@@ -1105,17 +1067,11 @@ const openCodeSessionClient = (directory) => createOpenCodeClient({
 });
 
 /**
- * Owns what a session must be told about the project's knowledge. Every sender
+ * Owns checkout context and managed-tool guidance. Every sender
  * asks it — the UI over HTTP, scheduled tasks and agent-dispatched sessions in
  * process — so the answer cannot differ between them.
  */
 const sessionKnowledgeRuntime = createSessionKnowledgeRuntime({
-  projectContextRuntime,
-  agentMemoryRuntime,
-  // Called, not captured: the resolver is declared further down, and taking a
-  // reference here would read it before it exists.
-  resolveProjectId: (directory) => resolveMemoryProjectId(directory),
-  isAgentMemoryEnabled,
   // The plugin carrying the tool exists only in an OpenCode we launched.
   isSessionLinkingAvailable: async () => {
     if (isExternalOpenCode || ENV_SKIP_OPENCODE_START) return false;
@@ -1138,9 +1094,6 @@ const sessionKnowledgeRuntime = createSessionKnowledgeRuntime({
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
     return settings?.agentToolsCodeMode === true;
   },
-  readSessionMetadata: readStoredSessionMetadata,
-  // Pins are read from and written to OpenChamber's own store.
-  persistSessionMetadata: (sessionID, directory, patch) => persistSessionMetadataPatch(sessionID, patch, { directory }),
   instructionEntries: {
     put: (sessionID, directory, key, value) => openCodeSessionClient(directory)
       .session.instructions.entry.put({ sessionID, key, value }),
@@ -1835,40 +1788,6 @@ const emitSessionCreatedEvent = (event) => {
     }
   }
 };
-/**
- * Maps a session directory onto the project whose memory it belongs to, so a
- * session running in a worktree writes to the project the panel shows.
- */
-const resolveMemoryProjectId = createMemoryProjectResolver({
-  listProjectPaths: async () => {
-    const settings = await readSettingsFromDiskMigrated().catch(() => null);
-    return sanitizeProjects(settings?.projects || []).map((project) => project.path);
-  },
-  resolvePrimaryWorktreeRoot,
-  managedProjectRoots: [...new Set([path.join(OPENCHAMBER_USER_CONFIG_ROOT, 'chats'), OPENCHAMBER_CHATS_DIR])],
-});
-
-/**
- * Tells open panels that the service changed what it remembers, so what it just
- * stored is visible without reopening anything.
- */
-const emitAgentMemoryChangedEvent = (event) => {
-  for (const client of uiOpenChamberEventClients) {
-    try {
-      writeSseEvent(client, {
-        // The UI listens for exactly this name (`lib/openchamberEvents.ts`);
-        // under any other name the Memory panel only catches up on reload.
-        type: 'openchamber:agent-memory-changed',
-        properties: {
-          scope: event.scope,
-          ...(event.projectId ? { projectId: event.projectId } : {}),
-        },
-      });
-    } catch {
-      uiOpenChamberEventClients.delete(client);
-    }
-  }
-};
 const scheduledTaskService = createScheduledTaskService({
   readSettingsFromDiskMigrated,
   sanitizeProjects,
@@ -1998,31 +1917,6 @@ const openChamberControlService = createOpenChamberControlService({
   scheduledTaskService,
   browserControl: browserControlRouter,
   fileOpen: fileOpenRequester,
-  projectContextRuntime,
-  // The resolver session knowledge reads pinned notes and plans through, so
-  // what an agent writes is what the next session is given.
-  resolveProjectContextId: resolveMemoryProjectId,
-  // On by default; a plugin generated before it was switched off must not
-  // keep writing.
-  // Like file.open: every connected window hears it, the ones showing that
-  // project open the plan.
-  showPlan: (request) => {
-    let delivered = 0;
-    for (const client of uiOpenChamberEventClients) {
-      try {
-        writeSseEvent(client, { type: 'openchamber:plan-open-request', properties: request });
-        delivered += 1;
-      } catch {
-        uiOpenChamberEventClients.delete(client);
-      }
-    }
-    return delivered;
-  },
-  isKnowledgeToolEnabled: async () => {
-    const settings = await readSettingsFromDiskMigrated().catch(() => null);
-    return settings?.agentKnowledgeToolEnabled !== false;
-  },
-  // On by default, like knowledge.
   isRenderToolEnabled: async () => {
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
     return settings?.agentRenderToolEnabled !== false;
@@ -2055,13 +1949,6 @@ const openChamberControlService = createOpenChamberControlService({
     }
     return pluginNotificationEmitter.emit(input);
   },
-  agentMemoryActions: createAgentMemoryActions({
-    agentMemoryRuntime,
-    createError: (message, status) => new OpenChamberControlError(message, status),
-    onMemoryChanged: emitAgentMemoryChangedEvent,
-    isAgentMemoryEnabled,
-    resolveProjectId: resolveMemoryProjectId,
-  }),
   sessionLinks: createSessionLinker({
     trackers: trackerRegistry,
     updateMetadata: updateSessionMetadataWith,
@@ -2223,7 +2110,6 @@ async function main(options = {}) {
     agentToolRuntime,
     limitFailoverRuntime,
     readSettings: () => readSettingsFromDiskMigrated(),
-    isAgentMemoryAvailable: isAgentMemoryFeatureAvailable,
     isWorkflowAvailable: isWorkflowFeatureAvailable,
   });
   await ensureChatsDir({ fsPromises, chatsDir: OPENCHAMBER_CHATS_DIR, warn: (message) => console.warn(`[data-dir] ${message}`) });
@@ -2809,9 +2695,6 @@ async function main(options = {}) {
     devServerScanner,
     buildAugmentedPath,
     projectConfigRuntime,
-    projectContextRuntime,
-    agentMemoryRuntime,
-    isAgentMemoryEnabled,
     sessionKnowledgeRuntime,
     scheduledTasksRuntime,
     scheduledTaskService,

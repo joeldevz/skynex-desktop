@@ -250,14 +250,12 @@ describe('createParsedStatus', () => {
 
         test('say what the action does instead of the tool name', () => {
             expect(statusOf([call('openchamber_web', { action: 'browser.snapshot', parameters: {} })]).statusText).toBe('reading a page');
-            expect(statusOf([call('openchamber_memory', { action: 'memory.save', parameters: { title: 'x' } })]).statusText).toBe('saving to memory');
             expect(statusOf([call('openchamber', { action: 'session.create' })]).statusText).toBe('starting a session');
             expect(statusOf([call('openchamber_notify', { title: 'Done' })]).statusText).toBe('sending a notification');
         });
 
         test('fall back to the tool phrase for an action without its own', () => {
             expect(statusOf([call('openchamber_web', { action: 'browser.click' })]).statusText).toBe('using the browser');
-            expect(statusOf([call('openchamber_knowledge', {})]).statusText).toBe('checking project knowledge');
         });
 
         test('a page that waits for the answer says so once it shows', () => {
@@ -269,8 +267,8 @@ describe('createParsedStatus', () => {
         test('read the same from inside a Code Mode script', () => {
             expect(statusOf([script([
                 { tool: 'openchamber_web', status: 'completed', input: { action: 'browser.open' } },
-                { tool: 'openchamber_memory', status: 'running', input: { action: 'memory.read' } },
-            ])]).statusText).toBe('checking memory');
+                { tool: 'openchamber_web', status: 'running', input: { action: 'browser.snapshot' } },
+            ])]).statusText).toBe('reading a page');
         });
     });
 

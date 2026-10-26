@@ -7,7 +7,6 @@ const BUILT_IN_CONTEXT_PANEL_MODES = [
   'browser',
   'git',
   'pr',
-  'notes',
   'terminal',
   'workflows',
 ] as const;

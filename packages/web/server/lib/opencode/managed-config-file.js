@@ -47,7 +47,6 @@ const DISABLED_BUILTIN_PLUGINS = ['-opencode.browser'];
  * @param {object|null} [dependencies.agentToolRuntime]
  * @param {object|null} [dependencies.limitFailoverRuntime] `../limit-failover/runtime.js`; its plugin calls back through the agent tool's address
  * @param {() => Promise<object|null>} dependencies.readSettings
- * @param {() => boolean} dependencies.isAgentMemoryAvailable
  * @param {() => boolean} [dependencies.isWorkflowAvailable] whether workflows ship in this build (`../workflows/feature-flag.js`)
  */
 export const createManagedConfigRuntime = ({
@@ -58,7 +57,6 @@ export const createManagedConfigRuntime = ({
   agentToolRuntime = null,
   limitFailoverRuntime = null,
   readSettings,
-  isAgentMemoryAvailable,
   isWorkflowAvailable = () => false,
 }) => {
   const filePath = path.join(instanceDir, MANAGED_CONFIG_FILE_NAME);
@@ -93,8 +91,6 @@ export const createManagedConfigRuntime = ({
     const includeControl = settings?.agentControlToolEnabled !== false;
     const includeSchedule = settings?.agentScheduleToolEnabled !== false;
     const includeWeb = settings?.agentWebToolEnabled !== false;
-    const includeMemory = isAgentMemoryAvailable() && settings?.agentMemoryToolEnabled === true;
-    const includeKnowledge = settings?.agentKnowledgeToolEnabled !== false;
     const includeNotify = settings?.agentNotifyToolEnabled === true;
     const includeRender = settings?.agentRenderToolEnabled !== false;
     // On by default wherever the build has workflows: the build flag is the opt-in.
@@ -103,8 +99,8 @@ export const createManagedConfigRuntime = ({
 
     const directories = [];
     let permissions = [];
-    if (agentToolRuntime && (includeControl || includeSchedule || includeWeb || includeMemory || includeKnowledge || includeNotify || includeRender || includeWorkflow)) {
-      directories.push(await agentToolRuntime.materializePlugin({ includeControl, includeSchedule, includeWeb, includeMemory, includeKnowledge, includeNotify, includeRender, includeWorkflow, codeMode }));
+    if (agentToolRuntime && (includeControl || includeSchedule || includeWeb || includeNotify || includeRender || includeWorkflow)) {
+      directories.push(await agentToolRuntime.materializePlugin({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }));
       permissions = managedPermissionRules({ includeWorkflow });
     }
     // Only while an option is on: otherwise every limit error would cost the

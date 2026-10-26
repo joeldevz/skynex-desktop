@@ -85,8 +85,6 @@ describe("tool row description", () => {
       action: "session.send",
       parameters: { sessionId: "ses_1", prompt: "Addition from the maintainer\nmore" },
     }, undefined)).toEqual({ kind: "text", value: "session.send · Addition from the maintainer" })
-    expect(toolDescription("openchamber_memory", { action: "memory.save", parameters: { title: "Drafts rule" } }, undefined))
-      .toEqual({ kind: "text", value: "memory.save · Drafts rule" })
     expect(toolDescription("openchamber_web", { action: "browser.snapshot", parameters: {} }, undefined))
       .toEqual({ kind: "text", value: "browser.snapshot" })
     expect(toolDescription("openchamber_notify", { title: "Review ready" }, undefined))
@@ -315,4 +313,3 @@ describe("proposedWorkflowRunId", () => {
     expect(proposedWorkflowRunId(...completed(envelope({ ok: true, action: "workflow.run", data: { runId: "wf_one" } }), "openchamber"))).toBeNull()
   })
 })
-

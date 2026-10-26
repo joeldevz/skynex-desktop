@@ -23,7 +23,6 @@ const emptyShared = {
   setupWorktreeWait: null,
   projectActions: [],
   draftStarters: [],
-  plansDir: null,
 };
 
 // A minimal stand-in for the server: one personal document per project, the
@@ -125,12 +124,11 @@ describe('project config client', () => {
 
   test('exposes the merged view with the shared and personal blocks', async () => {
     stored = { ...emptyPersonal, setupWorktree: ['cp .env.example .env'], draftStarters: [{ type: 'command', name: 'mine' }] };
-    sharedOverride = { status: 'ok', setupWorktree: ['bun install'], setupWorktreeWait: true, plansDir: 'docs/plans', draftStarters: [{ type: 'skill', name: 'triage-prs' }] };
+    sharedOverride = { status: 'ok', setupWorktree: ['bun install'], setupWorktreeWait: true, draftStarters: [{ type: 'skill', name: 'triage-prs' }] };
     const setup = await getProjectSetup(project);
     expect(setup.setupWorktree).toEqual(['bun install', 'cp .env.example .env']);
     expect(setup.setupWorktreeWait).toBe(true);
     expect(setup.shared.status).toBe('ok');
-    expect(setup.shared.plansDir).toBe('docs/plans');
     expect(setup.personal.setupWorktree).toEqual(['cp .env.example .env']);
     expect(await getProjectDraftStarters(project)).toEqual([
       { type: 'skill', name: 'triage-prs', source: 'shared' },
@@ -164,17 +162,15 @@ describe('project config client', () => {
   test('writes the shared file through its own route without source marks and returns the view', async () => {
     const view = await updateSharedProjectSetup(project, {
       projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev', source: 'personal' }],
-      plansDir: 'docs/plans',
     });
     expect(requests[0]).toEqual({
       url: `${endpoint}/shared`,
       method: 'PUT',
-      body: { projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev' }], plansDir: 'docs/plans' },
+      body: { projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev' }] },
     });
-    expect(view?.shared.plansDir).toBe('docs/plans');
     expect(view?.projectActions).toEqual([{ id: 'dev', name: 'Dev', command: 'bun run dev', source: 'shared' }]);
     failWith = 500;
-    expect(await updateSharedProjectSetup(project, { plansDir: null })).toBeNull();
+    expect(await updateSharedProjectSetup(project, { projectActions: [] })).toBeNull();
   });
 
   test('a failed read resolves to the empty value and a failed write to false', async () => {

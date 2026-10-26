@@ -74,7 +74,7 @@ for ordinary edits.
 
 ### Why the server tells clients to read again instead of sending the folders
 
-The announcement carries only the revision, like `project-context-changed`.
+The announcement carries only the revision.
 A client reads the folders once per change it has not seen, so an event that
 arrives late or twice cannot show an old map, and the event stays small for
 any number of projects.

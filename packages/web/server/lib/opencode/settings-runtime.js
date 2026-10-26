@@ -71,8 +71,6 @@ const MANAGED_PLUGIN_SETTINGS_KEYS = new Set([
   'agentControlToolEnabled',
   'agentScheduleToolEnabled',
   'agentWebToolEnabled',
-  'agentMemoryToolEnabled',
-  'agentKnowledgeToolEnabled',
   'agentNotifyToolEnabled',
   'agentRenderToolEnabled',
   'agentWorkflowToolEnabled',
@@ -165,33 +163,9 @@ export const createSettingsRuntime = (deps) => {
     return result;
   };
 
-  const remapPlanPaths = (entries, fromDir, toDir) => {
-    if (!Array.isArray(entries) || !fromDir || !toDir || fromDir === toDir) {
-      return Array.isArray(entries) ? entries : [];
-    }
-    return entries.map((entry) => {
-      if (!entry || typeof entry !== 'object' || typeof entry.path !== 'string') {
-        return entry;
-      }
-      const trimmedPath = entry.path.trim();
-      const relativePath = path.relative(fromDir, trimmedPath);
-      if (relativePath && (relativePath.startsWith('..') || path.isAbsolute(relativePath))) {
-        return entry;
-      }
-      return {
-        ...entry,
-        path: relativePath ? path.join(toDir, relativePath) : toDir,
-      };
-    });
-  };
-
-  const mergeProjectConfigData = ({ oldConfig, newConfig, oldStorageDir, newStorageDir, projectPath }) => {
+  const mergeProjectConfigData = ({ oldConfig, newConfig, projectPath }) => {
     const oldValue = oldConfig && typeof oldConfig === 'object' ? oldConfig : {};
     const newValue = newConfig && typeof newConfig === 'object' ? newConfig : {};
-    const oldPlanFiles = remapPlanPaths(oldValue.projectPlanFiles, oldStorageDir, newStorageDir);
-    const newPlanFiles = remapPlanPaths(newValue.projectPlanFiles, oldStorageDir, newStorageDir);
-    const oldNotes = typeof oldValue.projectNotes === 'string' ? oldValue.projectNotes : '';
-    const newNotes = typeof newValue.projectNotes === 'string' ? newValue.projectNotes : '';
 
     return {
       ...oldValue,
@@ -200,18 +174,11 @@ export const createSettingsRuntime = (deps) => {
       ...(uniqueStrings([...(Array.isArray(oldValue['setup-worktree']) ? oldValue['setup-worktree'] : []), ...(Array.isArray(newValue['setup-worktree']) ? newValue['setup-worktree'] : [])]).length > 0
         ? { 'setup-worktree': uniqueStrings([...(Array.isArray(oldValue['setup-worktree']) ? oldValue['setup-worktree'] : []), ...(Array.isArray(newValue['setup-worktree']) ? newValue['setup-worktree'] : [])]) }
         : {}),
-      ...(oldNotes || newNotes ? { projectNotes: newNotes || oldNotes } : {}),
-      ...(mergeByKey(oldValue.projectTodos, newValue.projectTodos, (item) => item.id).length > 0
-        ? { projectTodos: mergeByKey(oldValue.projectTodos, newValue.projectTodos, (item) => item.id) }
-        : {}),
       ...(mergeByKey(oldValue.projectActions, newValue.projectActions, (item) => item.id).length > 0
         ? { projectActions: mergeByKey(oldValue.projectActions, newValue.projectActions, (item) => item.id) }
         : {}),
       ...(mergeByKey(oldValue.scheduledTasks, newValue.scheduledTasks, (item) => item.id).length > 0
         ? { scheduledTasks: mergeByKey(oldValue.scheduledTasks, newValue.scheduledTasks, (item) => item.id) }
-        : {}),
-      ...(mergeByKey(oldPlanFiles, newPlanFiles, (item) => item.id || item.path).length > 0
-        ? { projectPlanFiles: mergeByKey(oldPlanFiles, newPlanFiles, (item) => item.id || item.path) }
         : {}),
       ...(typeof newValue.projectActionsPrimaryId === 'string' && newValue.projectActionsPrimaryId.trim().length > 0
         ? { projectActionsPrimaryId: newValue.projectActionsPrimaryId }
@@ -219,33 +186,6 @@ export const createSettingsRuntime = (deps) => {
           ? { projectActionsPrimaryId: oldValue.projectActionsPrimaryId }
           : {}),
     };
-  };
-
-  const moveDirectoryContents = async (fromDir, toDir) => {
-    try {
-      const entries = await fsPromises.readdir(fromDir, { withFileTypes: true });
-      await fsPromises.mkdir(toDir, { recursive: true });
-
-      for (const entry of entries) {
-        const fromPath = path.join(fromDir, entry.name);
-        const toPath = path.join(toDir, entry.name);
-        if (entry.isDirectory()) {
-          await moveDirectoryContents(fromPath, toPath);
-          continue;
-        }
-        try {
-          await fsPromises.access(toPath);
-        } catch {
-          await fsPromises.rename(fromPath, toPath);
-        }
-      }
-
-      await fsPromises.rm(fromDir, { recursive: true, force: true });
-    } catch (error) {
-      if (!(error && typeof error === 'object' && error.code === 'ENOENT')) {
-        throw error;
-      }
-    }
   };
 
   const migrateProjectIconFiles = async ({ oldId, newId }) => {
@@ -281,56 +221,6 @@ export const createSettingsRuntime = (deps) => {
     }
   };
 
-  /**
-   * Merge the server-owned `context.json` (notes/todos/plans) across a project
-   * id change.
-   *
-   * `moveDirectoryContents` only renames a file when the destination is free,
-   * so without this step an existing `<newId>/context.json` would silently
-   * discard everything stored under `<oldId>`. Every list is merged by identity
-   * so neither side loses entries.
-   *
-   * A version 1 context stored notes as a single string. It is left untouched
-   * here: `project-context` converts it on read, and converting in two places
-   * would mean two definitions of the same migration.
-   */
-  const mergeProjectContextFiles = async (oldStorageDir, newStorageDir) => {
-    const oldContextPath = path.join(oldStorageDir, 'context.json');
-    const newContextPath = path.join(newStorageDir, 'context.json');
-
-    const [oldContext, newContext] = await Promise.all([
-      readJsonFile(oldContextPath).catch(() => null),
-      readJsonFile(newContextPath).catch(() => null),
-    ]);
-
-    if (!oldContext || !newContext) {
-      // Nothing to reconcile: the plain directory move handles a single side.
-      return;
-    }
-
-    const mergeNotes = () => {
-      // One side may still be a version 1 string; keep whichever is a list, and
-      // prefer the destination when both are strings.
-      const oldIsList = Array.isArray(oldContext.notes);
-      const newIsList = Array.isArray(newContext.notes);
-      if (oldIsList && newIsList) {
-        return mergeByKey(oldContext.notes, newContext.notes, (item) => item.id);
-      }
-      if (newIsList) return newContext.notes;
-      if (oldIsList) return oldContext.notes;
-      return newContext.notes || oldContext.notes || '';
-    };
-
-    await writeJsonFile(newContextPath, {
-      ...oldContext,
-      ...newContext,
-      notes: mergeNotes(),
-      todos: mergeByKey(oldContext.todos, newContext.todos, (item) => item.id),
-      plans: mergeByKey(oldContext.plans, newContext.plans, (item) => item.id || item.file),
-    });
-    await fsPromises.rm(oldContextPath, { force: true });
-  };
-
   const migrateProjectScopedStorage = async ({ oldId, newId, projectPath }) => {
     if (!oldId || !newId || oldId === newId) {
       return;
@@ -338,8 +228,6 @@ export const createSettingsRuntime = (deps) => {
 
     const oldConfigPath = path.join(PROJECTS_ROOT_DIR, `${projectConfigFileStemOf(oldId)}.json`);
     const newConfigPath = path.join(PROJECTS_ROOT_DIR, `${projectConfigFileStemOf(newId)}.json`);
-    const oldStorageDir = path.join(PROJECTS_ROOT_DIR, projectConfigFileStemOf(oldId));
-    const newStorageDir = path.join(PROJECTS_ROOT_DIR, projectConfigFileStemOf(newId));
 
     const [oldConfig, newConfig] = await Promise.all([
       readJsonFile(oldConfigPath),
@@ -347,35 +235,12 @@ export const createSettingsRuntime = (deps) => {
     ]);
 
     if (oldConfig || newConfig) {
-      const merged = mergeProjectConfigData({ oldConfig, newConfig, oldStorageDir, newStorageDir, projectPath });
+      const merged = mergeProjectConfigData({ oldConfig, newConfig, projectPath });
       await writeJsonFile(newConfigPath, merged);
     }
 
-    await mergeProjectContextFiles(oldStorageDir, newStorageDir);
-    await moveDirectoryContents(oldStorageDir, newStorageDir);
-    await fsPromises.rm(oldConfigPath, { force: true });
-  };
-
-  /**
-   * A build before the bounded folder name created `<projectId>/` for an id
-   * the filesystem still accepted (201 to 255 characters; longer ids never
-   * got a folder). Only the bounded folder is read now, so that folder's
-   * notes, plans, and memory are moved over once. A raw name the filesystem
-   * cannot hold (ENAMETOOLONG) means no such folder ever existed.
-   */
-  const migrateRawIdStorageFolder = async (projectId) => {
-    const stem = projectConfigFileStemOf(projectId);
-    if (stem === projectId) return;
-    const rawStorageDir = path.join(PROJECTS_ROOT_DIR, projectId);
-    try {
-      await fsPromises.stat(rawStorageDir);
-    } catch (error) {
-      if (error?.code === 'ENOENT' || error?.code === 'ENAMETOOLONG') return;
-      throw error;
-    }
-    const boundedStorageDir = path.join(PROJECTS_ROOT_DIR, stem);
-    await mergeProjectContextFiles(rawStorageDir, boundedStorageDir);
-    await moveDirectoryContents(rawStorageDir, boundedStorageDir);
+    // Retain the original bytes without admitting the old file as an orphan again.
+    if (oldConfig) await fsPromises.rename(oldConfigPath, `${oldConfigPath}.${crypto.randomUUID()}.retired`);
   };
 
   const migrateSettingsToDeterministicProjectIds = async (current) => {
@@ -398,7 +263,6 @@ export const createSettingsRuntime = (deps) => {
         await migrateProjectScopedStorage({ oldId: project.id, newId: nextId, projectPath: project.path });
         await migrateProjectIconFiles({ oldId: project.id, newId: nextId });
       }
-      await migrateRawIdStorageFolder(nextId);
       nextProjects.push({ ...project, id: nextId });
     }
 
@@ -458,11 +322,8 @@ export const createSettingsRuntime = (deps) => {
       const content = await readJsonFile(filePath);
       if (!content) continue;
       const hasContent = [
-        typeof content.projectNotes === 'string' && content.projectNotes.trim().length > 0,
-        Array.isArray(content.projectTodos) && content.projectTodos.length > 0,
         Array.isArray(content.projectActions) && content.projectActions.length > 0,
         Array.isArray(content['setup-worktree']) && content['setup-worktree'].length > 0,
-        Array.isArray(content.projectPlanFiles) && content.projectPlanFiles.length > 0,
       ].some(Boolean);
       if (!hasContent) continue;
       orphans.push({ orphanId, filePath, content });
@@ -541,22 +402,16 @@ export const createSettingsRuntime = (deps) => {
       if (!project) continue;
       const targetStem = projectConfigFileStemOf(project.id);
       const targetPath = path.join(PROJECTS_ROOT_DIR, `${targetStem}.json`);
-      const targetStorageDir = path.join(PROJECTS_ROOT_DIR, targetStem);
 
       for (const orphan of orphansForProject) {
         const targetExisting = (await readJsonFile(targetPath)) || {};
-        // An orphan is named by the file found on disk, so its folder is the raw name.
-        const orphanStorageDir = path.join(PROJECTS_ROOT_DIR, orphan.orphanId);
         const merged = mergeProjectConfigData({
           oldConfig: orphan.content,
           newConfig: targetExisting,
-          oldStorageDir: orphanStorageDir,
-          newStorageDir: targetStorageDir,
           projectPath: project.path,
         });
         await writeJsonFile(targetPath, merged);
-        await moveDirectoryContents(orphanStorageDir, targetStorageDir);
-        await fsPromises.rm(orphan.filePath, { force: true });
+        await fsPromises.rename(orphan.filePath, `${orphan.filePath}.${crypto.randomUUID()}.retired`);
         orphansConsumed.add(orphan.orphanId);
         console.log(`[projects] Recovered orphan ${orphan.orphanId} -> ${project.id} (${project.path})`);
       }

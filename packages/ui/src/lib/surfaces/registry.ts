@@ -12,7 +12,6 @@ type BuiltInContextSurfaceId =
   | 'diff'
   | 'walkthrough'
   | 'terminal'
-  | 'notes'
   | 'context'
   | 'browser'
   | 'workflows'
@@ -96,14 +95,6 @@ export const CONTEXT_SURFACES: readonly ContextSurfaceDescriptor[] = [
     mode: 'terminal',
     icon: 'terminal-box',
     labelKey: 'layout.mainTab.terminal',
-    availability: 'always',
-  },
-  {
-    id: 'notes',
-    descriptionKey: 'contextRail.surface.notes.description',
-    mode: 'notes',
-    icon: 'book-marked',
-    labelKey: 'contextRail.surface.notes',
     availability: 'always',
   },
   {

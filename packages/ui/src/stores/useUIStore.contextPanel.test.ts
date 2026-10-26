@@ -227,22 +227,6 @@ describe('useUIStore context panel tabs', () => {
     expect(tabs[0]?.readOnly).toBe(false);
   });
 
-  test('opens an agent-shown plan in the Project knowledge surface, not a plan tab', () => {
-    useUIStore.setState({ projectContextTab: 'notes', projectKnowledgePlanRequest: null });
-
-    useUIStore.getState().openProjectKnowledgePlan('/repo', 'path_repo', 'plan-1');
-
-    const state = useUIStore.getState();
-    expect(state.projectContextTab).toBe('plans');
-    expect(state.projectKnowledgePlanRequest).toEqual({ projectContextId: 'path_repo', planId: 'plan-1' });
-    const tabs = getContextPanelTabs('/repo');
-    expect(tabs.map((tab) => tab.mode)).toEqual(['notes']);
-    expect(state.contextPanelByDirectory['/repo'].activeTabId).toBe(tabs[0].id);
-
-    state.clearProjectKnowledgePlanRequest();
-    expect(useUIStore.getState().projectKnowledgePlanRequest).toBeNull();
-  });
-
   test('drops persisted plan tabs: saved plans open in Project knowledge and plan mode is gone', () => {
     const directory = '/repo';
     const planTab = (id: string, projectPlanId: string | null, projectPlanRef: { id: string; path: string } | null) => ({
@@ -1080,7 +1064,7 @@ describe('useUIStore zone sizes', () => {
       },
     } });
 
-    expect(sizes).toEqual({ left: 700, right: 500, bottom: 250 });
+    expect(sizes).toEqual({ left: 700, right: 500 });
     const panel = useUIStore.getState().contextPanelByDirectory[directory];
     expect(panel).not.toHaveProperty('widthByMode');
     expect(panel).not.toHaveProperty('heightByMode');
