@@ -272,9 +272,16 @@ git project's menu in the sidebar opens it on that project's repository. It
 uses `useReferenceBrowser` and the shared parts without checkboxes; the
 preview's footer holds actions instead of what the agent gets.
 
-- The board keeps its own project, tab and, per tracker, container (Linear team) per runtime
-  (`stores/useSourceBoardStore.ts`). Switching them never changes the app's
-  selected project. A tracker's tab is `tracker:<id>`; the `linear` tab and
+- The board lists one folder of one workspace, picked in its toolbar (workspace,
+  then folder, then a repository under the folder when the folder is not one).
+  It keeps its own workspace, folder, tab and, per tracker, container (Linear
+  team) per runtime (`stores/useSourceBoardStore.ts`). Switching them never
+  changes the workspace the sidebar shows. Projects are not offered: a folder
+  is read the way a project root was, and an item's new session opens in the
+  workspace with only that folder selected (`openWorkspaceDraft`). A worktree
+  from an item branches from that folder.
+  A workspace page's Issues and PRs tab opens the board on that workspace
+  (`focusWorkspace`), keeping the folder when the board was already there. A tracker's tab is `tracker:<id>`; the `linear` tab and
   `linearTeamId` stored before trackers read as `tracker:linear` and Linear's
   container.
 - On desktop and web the board stays mounted once opened and is only hidden
@@ -385,7 +392,7 @@ preview's footer holds actions instead of what the agent gets.
   session, or a new session in a worktree.
 - A tracker lists one container or all. An item starts in its container's
   mapped project (`resolveTrackerMappedProjectPath`), else the mapping's
-  default, else the board's project; the user can pick another for that item.
+  default, else the board's folder; the user can pick another folder of the workspace for that item.
   Where the tracker can change states (`stateUpdate`), its state pill in the
   preview opens the container's states (`SourceBoardTrackerStatus`), ordered
   by category (triage, backlog, todo, in progress, done, canceled), then
@@ -398,8 +405,8 @@ preview's footer holds actions instead of what the agent gets.
   without the app moving there (`lib/surfaces/DOCUMENTATION.md`, Tracker): the
   board is a catalogue people go to, and nothing opens it for them. The phone,
   which has no side panel, and a window with no folder on screen open it on
-  the board instead, selected. The board moves to the session's project and
-  tab and previews the item, read on its own (`focusRepositoryItem` with its
+  the board instead, selected. The board moves to the workspace folder that
+  holds the session's directory (the deepest one) and the tab, and previews the item, read on its own (`focusRepositoryItem` with its
   link, `focusTrackerItem` with its tracker and identifier, then the browser's
   `pinnedItem`) while the search stays empty and the list as it was. A link
   finds that one item whatever its state, on GitLab too, where a number or link

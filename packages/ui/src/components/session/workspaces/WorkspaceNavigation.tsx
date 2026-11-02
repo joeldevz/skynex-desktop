@@ -29,10 +29,12 @@ function WorkspaceInitial({ index, name }: { index: number; name: string }) {
   );
 }
 
-export function WorkspaceNavigation({ renderHistory, onSelected, footer, inlineOverview = false }: {
+export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageButtons, inlineOverview = false }: {
   renderHistory(onSelected: (id: string) => void): React.ReactNode;
   onSelected?: (id: string) => void;
   footer?: React.ReactNode;
+  /** Page toggles shown beside Session history in both views. */
+  pageButtons?: React.ReactNode;
   inlineOverview?: boolean;
 }) {
   const { t } = useI18n();
@@ -45,7 +47,6 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, inlineO
   const connected = useConfigStore((state) => state.isConnected);
   const currentId = useSessionUIStore((state) => state.currentSessionId);
   const openFailure = useSessionUIStore((state) => state.openSessionFailure);
-  const scheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
   const [history, setHistory] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [name, setName] = React.useState('');
@@ -70,17 +71,7 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, inlineO
   return <div className="flex h-full min-h-0 flex-col text-foreground">
     <div className="flex shrink-0 items-center justify-between gap-2 p-2">
       <Button variant="ghost" aria-pressed={history} onClick={() => setHistory(!history)}>{t('workspaces.history')}</Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={t('sessions.sidebar.header.actions.scheduledTasks')}
-        title={t('sessions.sidebar.header.actions.scheduledTasks')}
-        aria-pressed={scheduledTasksOpen}
-        className={scheduledTasksOpen ? 'bg-interactive-selection text-interactive-selection-foreground hover:bg-interactive-selection hover:text-interactive-selection-foreground' : 'text-muted-foreground'}
-        onClick={() => useUIStore.getState().setScheduledTasksDialogOpen(!scheduledTasksOpen)}
-      >
-        <Icon name="calendar-schedule" className="size-4" />
-      </Button>
+      {pageButtons}
     </div>
     <div className="min-h-0 flex-1 overflow-hidden">
     {history ? renderHistory((id) => { setHistory(false); onSelected?.(id); }) : <div className="h-full min-h-0 overflow-y-auto p-2">

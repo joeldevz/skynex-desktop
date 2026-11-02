@@ -117,7 +117,7 @@ export function useShowTrackerItem() {
         const project = target.source === 'repository'
             ? resolveProjectForSessionDirectory(projects, worktreesByProject, directory ?? null)
             : null;
-        if (target.source === 'repository' && !project) return false;
+        if (target.source === 'repository' && !project && !directory) return false;
 
         const panelDirectory = mobile ? undefined : resolveEffectiveDirectory();
         if (panelDirectory) {
@@ -136,7 +136,8 @@ export function useShowTrackerItem() {
         const board = useSourceBoardStore.getState();
         if (target.source === 'tracker') board.focusTrackerItem(target.provider, target.identifier);
         // The link itself is the search: it finds that one item, in its own repository.
-        else if (project) board.focusRepositoryItem(project.id, target.kind, url);
+        // The board lists workspace folders, so it looks the folder up by the chat's directory.
+        else if (directory) board.focusRepositoryItem(directory, target.kind, url);
         openBoard(mobile);
         return true;
     }, [mobile, trackerUrls, trackers, urls]);

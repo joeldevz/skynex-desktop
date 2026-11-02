@@ -12,6 +12,8 @@ import { checkWorkspaceScopeAccess } from '@/lib/workspaces/runtime-policy';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useI18n } from '@/lib/i18n';
 import { useMobileAppActions } from '@/apps/mobileAppContext';
+import { useSourceBoardStore } from '@/stores/useSourceBoardStore';
+import { isVSCodeRuntime } from '@/lib/desktop';
 
 export function WorkspaceSurface() {
   const { t } = useI18n();
@@ -20,6 +22,7 @@ export function WorkspaceSurface() {
   const primary = workspace?.folders[0]?.path;
   const renderWorkspaceHistory = useWorkspaceFolderHistory(workspace);
   const scheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
+  const sourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
   const providers = useConfigStore((state) => selectProvidersForDirectory(state, primary));
   const agents = useConfigStore((state) => selectConfigAgentsForDirectory(state, primary));
   const [picker, setPicker] = React.useState(false);
@@ -38,6 +41,13 @@ export function WorkspaceSurface() {
         else useUIStore.getState().setScheduledTasksDialogOpen(true);
       }}
       scheduledTasksOpen={scheduledTasksOpen}
+      // VS Code has no Issues and PRs board.
+      onOpenSourceBoard={isVSCodeRuntime() ? undefined : () => {
+        useSourceBoardStore.getState().focusWorkspace(workspace.id);
+        if (mobileActions) mobileActions.openSourceBoard();
+        else useUIStore.getState().setSourceBoardOpen(true);
+      }}
+      sourceBoardOpen={sourceBoardOpen}
       onUpdate={async (patch) => {
         if (patch.defaults?.model && !models.some(({ value }) => value.providerID === patch.defaults?.model?.providerID && value.id === patch.defaults.model.id)) throw new Error(t('workspaces.invalidDefault'));
         if (patch.defaults?.agent && !agents.some((agent) => agent.name === patch.defaults?.agent)) throw new Error(t('workspaces.invalidDefault'));
@@ -72,7 +82,7 @@ export function WorkspaceSurface() {
         useUIStore.getState().setSessionSwitcherOpen(false);
         window.dispatchEvent(new CustomEvent('openchamber:navigate', { detail: { view: 'chat' } }));
       }} />
-    <DirectoryExplorerDialog open={picker} onOpenChange={setPicker} onSelectFolders={async (paths) => {
+    <DirectoryExplorerDialog open={picker} onOpenChange={setPicker} addedFolders={workspace.folders.map((folder) => folder.path)} onSelectFolders={async (paths) => {
       const latest = useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === workspace.id);
       if (!latest) throw new Error(t('workspaces.actionFailed'));
       const folders = [...latest.folders];

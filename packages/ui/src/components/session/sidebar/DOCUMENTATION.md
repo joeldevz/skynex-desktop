@@ -635,10 +635,12 @@ is mounted only while open and keyed by its open count, so every open, including
 a handover while it is already on screen, starts with the query it was given
 (empty for a plain open) and no directory filter.
 
-The history header's page buttons (Issues and PRs, Archive, extension pages,
-Usage in the footer) are toggles: pressed while their page is open, and the
-next click closes it. Scheduled tasks is in the workspace navigation row above
-the workspace list and keeps the same toggle behavior.
+The sidebar's page buttons are toggles: pressed while their page is open, and
+the next click closes it. Overview, Issues and PRs, Archive, the integrations
+catalog and Scheduled tasks sit together in the workspace navigation row beside
+Session history (`SidebarPageButtons`), so they stay reachable in both the
+workspace view and the history view. Extension pages stay at the start of the
+history header, and Usage stays in the footer.
 
 The scheduled-task list groups Chat-owned tasks by Chat, workspace, and folder
 target. Each view fetches and mutates through its single storage owner. Legacy

@@ -65,7 +65,8 @@ import { useTrackedItems } from '@/lib/trackedItems/interest';
 import { isTrackedWorkItem, type TrackedItem } from '@/lib/trackedItems/model';
 import { normalizeProjectPath, resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { currentTrackerAccountId, isTrackerConnected, useTrackerAuthEntry } from '@/stores/useTrackerAuthStore';
-import { useProjectsStore } from '@/stores/useProjectsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import type { Workspace } from '@/lib/workspaces/model';
 import { useSourceBoardChoice, useSourceBoardStore, type SourceBoardTab } from '@/stores/useSourceBoardStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
@@ -182,6 +183,13 @@ const MobileBoardHeader: React.FC<{ onClose?: () => void; onBack?: () => void; c
     );
 };
 
+/** A workspace's folders as the project entries the board's pickers and actions read. */
+const workspaceFolderEntries = (workspace: Workspace): ProjectEntry[] => workspace.folders.map((folder) => ({
+    id: folder.id,
+    path: folder.path,
+    label: normalizeProjectPath(folder.path)?.split('/').filter(Boolean).at(-1) ?? folder.path,
+}));
+
 type SourceBoardLayout = 'desktop' | 'mobile';
 
 /** What the board lists: the repository's issues, change requests or discussions, or one tracker's items. */
@@ -193,8 +201,8 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
     // Only signed-in trackers get a tab; connecting one happens in Settings.
     const trackerTabs = useTrackerSources();
     const trackersPending = useTrackerSourcesPending();
-    const projects = useProjectsStore((state) => state.projects);
-    const activeProjectId = useProjectsStore((state) => state.activeProjectId);
+    const workspaces = useWorkspacesStore((state) => state.catalog.workspaces);
+    const sidebarWorkspaceId = useWorkspacesStore((state) => state.selectedWorkspaceId);
     const choice = useSourceBoardChoice();
     const updateChoice = useSourceBoardStore((state) => state.update);
     // The repository tab to land on when switching back from a tracker.
@@ -204,11 +212,18 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
     const onScreen = layout === 'mobile' || desktopBoardOpen;
     useBoardRevalidation(onScreen);
 
-    // The remembered project while it still exists, else the app's own.
-    const project = projects.find((entry) => entry.id === choice.projectId)
-        ?? projects.find((entry) => entry.id === activeProjectId)
-        ?? projects[0]
+    // The board lists one folder of one workspace: the remembered workspace while
+    // it still exists, else the one the sidebar shows, else the first. Folders
+    // stand in for projects below, so the repository and action code reads a
+    // folder exactly as it read a project.
+    const workspace = workspaces.find((entry) => entry.id === choice.workspaceId)
+        ?? workspaces.find((entry) => entry.id === sidebarWorkspaceId)
+        ?? workspaces[0]
         ?? null;
+    const projects = React.useMemo(() => (workspace ? workspaceFolderEntries(workspace) : []), [workspace]);
+    const project = projects.find((entry) => entry.id === choice.projectId) ?? projects[0] ?? null;
+    const workspaceEntries = React.useMemo(() => workspaces.map((entry) => ({ id: entry.id, path: entry.folders[0]?.path ?? entry.name, label: entry.name })), [workspaces]);
+    const selectedWorkspaceEntry = workspace ? workspaceEntries.find((entry) => entry.id === workspace.id) ?? null : null;
     const projectRoot = project ? normalizeProjectPath(project.path) : null;
     // The folder everything below reads from: the project's root, or the
     // repository under it when the root is not one.
@@ -244,12 +259,24 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
     const storedContainerId = tracker ? choice.trackerContainerByProvider[tracker] ?? null : null;
     const containerId = storedContainerId && containers.some((container) => container.id === storedContainerId) ? storedContainerId : null;
 
+    const workspacePicker = selectedWorkspaceEntry ? (
+        <SourceBoardProjectPicker
+            projects={workspaceEntries}
+            selected={selectedWorkspaceEntry}
+            onSelect={(workspaceId) => updateChoice({ workspaceId, projectId: null, tab: 'repository' })}
+            ariaLabel={t('sourceBoard.scope.workspace')}
+            searchPlaceholder={t('chat.chatInput.draftPicker.searchWorkspaces')}
+            size="toolbar"
+            sheet={layout === 'mobile'}
+        />
+    ) : null;
     const projectPicker = project ? (
         <SourceBoardProjectPicker
             projects={projects}
             selected={project}
-            onSelect={(projectId) => updateChoice({ projectId, tab: 'repository' })}
-            ariaLabel={t('sourceBoard.project.label')}
+            onSelect={(projectId) => updateChoice({ workspaceId: workspace?.id ?? null, projectId, tab: 'repository' })}
+            ariaLabel={t('sourceBoard.scope.folder')}
+            searchPlaceholder={t('chat.chatInput.draftPicker.searchFolders')}
             size="toolbar"
             sheet={layout === 'mobile'}
         />
@@ -269,7 +296,7 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
             sheet={layout === 'mobile'}
         />
     ) : null;
-    const projectScope = <>{projectPicker}{repositoryPicker}</>;
+    const projectScope = <>{workspacePicker}{projectPicker}{repositoryPicker}</>;
     // On a tracker the board lists a container (a Linear team). The project's
     // pickers stay beside it when the project offers no repository tab, the
     // only other way off the tracker.
@@ -305,7 +332,7 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
                 )}
                 {repository.status === 'ready' && !trackersPending ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center typography-meta text-muted-foreground">
-                        <span>{t(projects.length === 0 ? 'sourceBoard.empty.noProjects' : 'sourceBoard.empty.noSource')}</span>
+                        <span>{t(projects.length === 0 ? 'sourceBoard.empty.noWorkspaces' : 'sourceBoard.empty.noSource')}</span>
                         {projects.length > 0 ? (
                             <Button size="sm" variant="outline" onClick={openIntegrationsSettings}>{t('references.picker.actions.openSettings')}</Button>
                         ) : null}
@@ -336,6 +363,7 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
             key={`${tab}:${tab === 'repository' ? `${allRepositories ? 'all:' : ''}${directory}` : containerId ?? ''}`}
             tab={tab}
             project={project}
+            workspaceId={workspace?.id ?? null}
             directory={directory}
             allRepositories={allRepositories}
             trackerContainerId={containerId}
@@ -355,7 +383,10 @@ const SourceBoard: React.FC<{ layout: SourceBoardLayout; onLeave?: () => void; o
 
 const SourceBoardBody: React.FC<{
     tab: SourceBoardTab;
+    /** The workspace folder the board lists, shaped as a project. */
     project: ProjectEntry | null;
+    /** The workspace that folder belongs to; sessions started from an item open there. */
+    workspaceId: string | null;
     /** The folder the board reads; the project's root while it lists `allRepositories`. */
     directory: string | null;
     /** The repositories listed together, or null while one folder is read. */
@@ -379,7 +410,7 @@ const SourceBoardBody: React.FC<{
     onLeave?: () => void;
     /** The phone page's close button. */
     onClose?: () => void;
-}> = ({ tab, project, directory, allRepositories, trackerContainerId, mapping, projects, scopePicker, kinds, initialRepositoryKind, onSelectKind, layout, onScreen, onLeave, onClose }) => {
+}> = ({ tab, project, workspaceId, directory, allRepositories, trackerContainerId, mapping, projects, scopePicker, kinds, initialRepositoryKind, onSelectKind, layout, onScreen, onLeave, onClose }) => {
     const isMobile = layout === 'mobile';
     const { t } = useI18n();
     const { sourceControl, trackers } = useRuntimeAPIs();
@@ -510,7 +541,7 @@ const SourceBoardBody: React.FC<{
         ? projects.find((entry) => entry.id === trackerProjectOverride) ?? mappedProject ?? project
         : project;
     const actionPath = actionProjectEntry ? normalizeProjectPath(actionProjectEntry.path) : null;
-    const actionProject: SourceBoardProject | null = actionProjectEntry && actionPath ? { id: actionProjectEntry.id, path: actionPath } : null;
+    const actionProject: SourceBoardProject | null = actionProjectEntry && actionPath ? { id: actionProjectEntry.id, path: actionPath, workspaceId } : null;
     // A tracker item is read nowhere; an issue or PR is acted on in the repository it was listed from.
     // An item of a repository under a root that is not one: the project itself is no repository to branch from.
     const readsNestedRepository = tab === 'repository'

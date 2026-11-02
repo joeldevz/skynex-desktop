@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { useSourceBoardStore } from './useSourceBoardStore';
+import { findWorkspaceFolder, useSourceBoardStore } from './useSourceBoardStore';
 
 // What localStorage may hold: the store's own shape, an older or broken one, or anything else.
 type StoredValue = string | { choices: string | Record<string, Record<string, string | number | null | Record<string, string | boolean>>>; listWidth?: number | string };
@@ -20,8 +20,8 @@ describe('source board choice', () => {
     useSourceBoardStore.getState().update({ tab: 'tracker:linear' });
     useSourceBoardStore.getState().update({ repositoryByProject: { p1: '/work/web' } });
     expect(Object.values(useSourceBoardStore.getState().choices)[0]?.repositoryByProject).toEqual({ p1: '/work/web', p2: '/other/api' });
-    expect(merge({ choices: { local: { projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' } } } }, current).choices)
-      .toEqual({ local: { projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' }, repositoryByProject: {}, allRepositoriesByProject: {} } });
+    expect(merge({ choices: { local: { workspaceId: null, projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' } } } }, current).choices)
+      .toEqual({ local: { workspaceId: null, projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' }, repositoryByProject: {}, allRepositoriesByProject: {} } });
     expect(merge({ choices: { local: { repositoryPath: '/work/app' } } }, current).choices.local?.repositoryByProject).toEqual({});
     expect(merge({ choices: { local: { repositoryByProject: 'garbage' } } }, current).choices.local?.repositoryByProject).toEqual({});
   });
@@ -48,14 +48,14 @@ describe('source board choice', () => {
     useSourceBoardStore.getState().update({ trackerContainerByProvider: { jira: 'OPS' } });
     const choices = Object.values(useSourceBoardStore.getState().choices);
     expect(choices).toEqual([{
-      projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1', jira: 'OPS' }, repositoryByProject: {}, allRepositoriesByProject: {},
+      workspaceId: null, projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1', jira: 'OPS' }, repositoryByProject: {}, allRepositoriesByProject: {},
     }]);
   });
 
   test('reads the Linear tab and team stored before trackers had their own tabs', () => {
     const current = useSourceBoardStore.getState();
-    expect(merge({ choices: { local: { projectId: 'p1', tab: 'linear', linearTeamId: 't1' } } }, current).choices)
-      .toEqual({ local: { projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' }, repositoryByProject: {}, allRepositoriesByProject: {} } });
+    expect(merge({ choices: { local: { workspaceId: null, projectId: 'p1', tab: 'linear', linearTeamId: 't1' } } }, current).choices)
+      .toEqual({ local: { workspaceId: null, projectId: 'p1', tab: 'tracker:linear', trackerContainerByProvider: { linear: 't1' }, repositoryByProject: {}, allRepositoriesByProject: {} } });
     // A team stored as null lists every team.
     expect(merge({ choices: { local: { tab: 'linear', linearTeamId: null } } }, current).choices.local?.trackerContainerByProvider).toEqual({});
   });
@@ -72,12 +72,33 @@ describe('source board choice', () => {
 
   test('keeps the readable parts of stored data and drops the rest', () => {
     const current = useSourceBoardStore.getState();
-    expect(merge({ choices: { local: { projectId: 'p1', tab: 'nonsense', linearTeamId: 5 } } }, current).choices)
-      .toEqual({ local: { projectId: 'p1', tab: 'repository', trackerContainerByProvider: {}, repositoryByProject: {}, allRepositoriesByProject: {} } });
+    expect(merge({ choices: { local: { workspaceId: null, projectId: 'p1', tab: 'nonsense', linearTeamId: 5 } } }, current).choices)
+      .toEqual({ local: { workspaceId: null, projectId: 'p1', tab: 'repository', trackerContainerByProvider: {}, repositoryByProject: {}, allRepositoriesByProject: {} } });
     expect(merge({ choices: { local: { tab: 'tracker:Not An Id' } } }, current).choices.local?.tab).toBe('repository');
     expect(merge('garbage', current).choices).toEqual({});
     expect(merge({ choices: {}, listWidth: 360 }, current).listWidth).toBe(360);
     expect(merge({ choices: {}, listWidth: 'wide' }, current).listWidth).toBeNull();
     expect(merge({ choices: 'garbage' }, current).choices).toEqual({});
+  });
+
+  test('a link focuses the workspace folder that holds the chat directory, the deepest one first', () => {
+    const workspaces = [
+      { id: 'w1', name: 'Lms', description: '', defaults: {}, folders: [{ id: 'root', path: '/work', role: '' }, { id: 'api', path: '/work/api', role: '' }] },
+      { id: 'w2', name: 'Other', description: '', defaults: {}, folders: [{ id: 'web', path: '/elsewhere/web', role: '' }] },
+    ];
+    expect(findWorkspaceFolder(workspaces, '/work/api/src')).toEqual({ workspaceId: 'w1', folderId: 'api' });
+    expect(findWorkspaceFolder(workspaces, '/work/apiary')).toEqual({ workspaceId: 'w1', folderId: 'root' });
+    expect(findWorkspaceFolder(workspaces, '/elsewhere/web')).toEqual({ workspaceId: 'w2', folderId: 'web' });
+    expect(findWorkspaceFolder(workspaces, '/nowhere')).toBeNull();
+  });
+
+  test('opening the board from a workspace keeps its folder only when the board was already on that workspace', () => {
+    useSourceBoardStore.setState({ choices: {} });
+    const store = useSourceBoardStore.getState();
+    store.update({ workspaceId: 'w1', projectId: 'api', tab: 'tracker:linear' });
+    store.focusWorkspace('w1');
+    expect(Object.values(useSourceBoardStore.getState().choices)[0]).toMatchObject({ workspaceId: 'w1', projectId: 'api', tab: 'repository' });
+    store.focusWorkspace('w2');
+    expect(Object.values(useSourceBoardStore.getState().choices)[0]).toMatchObject({ workspaceId: 'w2', projectId: null, tab: 'repository' });
   });
 });

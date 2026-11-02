@@ -31,8 +31,6 @@ type Props = {
   showProjectDisplayControls: boolean;
   showSectionControls: boolean;
   handleOpenDirectoryDialog: () => void;
-  /** Whether the issues and pull requests board is offered. */
-  showSourceBoard: boolean;
   headerActionIconClass: string;
   headerActionButtonClass: string;
   isSessionSearchOpen: boolean;
@@ -49,41 +47,40 @@ type Props = {
 };
 
 /**
- * Whether every extension page gets its own button next to the built-in pages
+ * Whether every extension page gets its own button at the start of the row
  * without pushing into the list controls. All or nothing: once they stop
  * fitting, they all move into one menu, so a page never hops between the row
- * and the menu as the sidebar resizes. The measured parts don't change with
- * the answer, so it cannot flip back and forth on its own.
+ * and the menu as the sidebar resizes. The buttons are 1.5rem wide (`w-6`), so
+ * the space they need is known without rendering them and the answer cannot
+ * flip back and forth on its own.
  */
 function useGuestPagesFitInline(
   rowRef: React.RefObject<HTMLDivElement | null>,
-  builtinPagesRef: React.RefObject<HTMLDivElement | null>,
+  pagesRef: React.RefObject<HTMLDivElement | null>,
   listControlsRef: React.RefObject<HTMLDivElement | null>,
   count: number,
 ): boolean {
   const [fits, setFits] = React.useState(true);
   React.useLayoutEffect(() => {
     const row = rowRef.current;
-    const builtinPages = builtinPagesRef.current;
+    const pages = pagesRef.current;
     const listControls = listControlsRef.current;
-    if (!row || !builtinPages || !listControls || count === 0) return;
+    if (!row || !pages || !listControls || count === 0) return;
     const measure = () => {
-      const button = builtinPages.lastElementChild;
-      const buttonWidth = button ? button.getBoundingClientRect().width : 0;
-      const gap = Number.parseFloat(getComputedStyle(builtinPages).columnGap) || 0;
+      const buttonWidth = 1.5 * (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+      const gap = Number.parseFloat(getComputedStyle(pages).columnGap) || 0;
       const rowGap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
-      const needed = builtinPages.getBoundingClientRect().width + count * (gap + buttonWidth);
-      const available = row.getBoundingClientRect().right - builtinPages.getBoundingClientRect().left
+      const needed = count * buttonWidth + Math.max(0, count - 1) * gap;
+      const available = row.getBoundingClientRect().right - pages.getBoundingClientRect().left
         - listControls.getBoundingClientRect().width - rowGap;
       setFits(needed <= available);
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(row);
-    observer.observe(builtinPages);
     observer.observe(listControls);
     return () => observer.disconnect();
-  }, [rowRef, builtinPagesRef, listControlsRef, count]);
+  }, [rowRef, pagesRef, listControlsRef, count]);
   return fits;
 }
 
@@ -119,6 +116,53 @@ function SidebarPageButton({ label, pressed, onClick, className, children }: {
   );
 }
 
+/**
+ * The pages the sidebar opens, plus scheduled tasks. Shown in the workspace
+ * navigation row, so they stay reachable whether the workspace list or the
+ * session history is on screen.
+ */
+export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClassName }: {
+  showSourceBoard: boolean;
+  buttonClassName: string;
+  iconClassName: string;
+}): React.ReactNode {
+  const { t } = useI18n();
+  const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
+  const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
+  const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
+  const isArchiveOpen = useUIStore((state) => state.isArchivePageOpen);
+  const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
+  const isScheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
+  // The bundled catalog offers outside services; enterprise mode waits for
+  // administrator-curated sources instead.
+  const enterpriseMode = useEnterpriseMode();
+  return (
+    <div className="flex items-center gap-1.5">
+      {showSourceBoard && overviewAvailable ? (
+        <SidebarPageButton label={t('overview.title')} pressed={isOverviewOpen} onClick={() => useUIStore.getState().setOverviewOpen(!isOverviewOpen)} className={buttonClassName}>
+          <Icon name="compass-3" className={iconClassName} />
+        </SidebarPageButton>
+      ) : null}
+      {showSourceBoard ? (
+        <SidebarPageButton label={t('sourceBoard.title')} pressed={isSourceBoardOpen} onClick={() => useUIStore.getState().setSourceBoardOpen(!isSourceBoardOpen)} className={buttonClassName}>
+          <Icon name="git-pull-request" className={iconClassName} />
+        </SidebarPageButton>
+      ) : null}
+      <SidebarPageButton label={t('sessions.sidebar.nav.archive')} pressed={isArchiveOpen} onClick={() => useUIStore.getState().setArchivePageOpen(!isArchiveOpen)} className={buttonClassName}>
+        <Icon name="archive" className={iconClassName} />
+      </SidebarPageButton>
+      {enterpriseMode ? null : (
+        <SidebarPageButton label={t('integrationsCatalog.sidebar.open')} pressed={isIntegrationsCatalogOpen} onClick={() => useUIStore.getState().setIntegrationsCatalogOpen(!isIntegrationsCatalogOpen)} className={buttonClassName}>
+          <Icon name="store-2" className={iconClassName} />
+        </SidebarPageButton>
+      )}
+      <SidebarPageButton label={t('sessions.sidebar.header.actions.scheduledTasks')} pressed={isScheduledTasksOpen} onClick={() => useUIStore.getState().setScheduledTasksDialogOpen(!isScheduledTasksOpen)} className={buttonClassName}>
+        <Icon name="calendar-schedule" className={iconClassName} />
+      </SidebarPageButton>
+    </div>
+  );
+}
+
 export function SidebarHeader(props: Props): React.ReactNode {
   const { t } = useI18n();
   const guestPages = useGuestPages();
@@ -127,7 +171,6 @@ export function SidebarHeader(props: Props): React.ReactNode {
     showProjectDisplayControls,
     showSectionControls,
     handleOpenDirectoryDialog,
-    showSourceBoard,
     headerActionIconClass,
     headerActionButtonClass,
     isSessionSearchOpen,
@@ -143,21 +186,13 @@ export function SidebarHeader(props: Props): React.ReactNode {
   } = props;
 
   const rowRef = React.useRef<HTMLDivElement>(null);
-  const builtinPagesRef = React.useRef<HTMLDivElement>(null);
+  const pagesRef = React.useRef<HTMLDivElement>(null);
   const listControlsRef = React.useRef<HTMLDivElement>(null);
-  const guestPagesInline = useGuestPagesFitInline(rowRef, builtinPagesRef, listControlsRef, guestPages.length);
+  const guestPagesInline = useGuestPagesFitInline(rowRef, pagesRef, listControlsRef, guestPages.length);
 
   const selectionModeEnabled = useSessionMultiSelectStore((state) => state.enabled);
   const toggleSelectionMode = useSessionMultiSelectStore((state) => state.toggleMode);
 
-  const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
-  const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
-  const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
-  const isArchiveOpen = useUIStore((state) => state.isArchivePageOpen);
-  const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
-  // The bundled catalog offers outside services; enterprise mode waits for
-  // administrator-curated sources instead.
-  const enterpriseMode = useEnterpriseMode();
   const openGuestPageId = useUIStore((state) => state.openGuestPageId);
 
   const showChatsSection = useSessionDisplayStore((state) => state.showChatsSection);
@@ -329,50 +364,7 @@ export function SidebarHeader(props: Props): React.ReactNode {
               ms-[3px] compensates the icon inset inside the 24px buttons so the
               first glyph sits 16px from the sidebar edge, in line with the
               titlebar controls. */}
-          <div className="ms-[3px] flex min-w-0 items-center gap-1.5">
-            <div ref={builtinPagesRef} className="flex items-center gap-1.5">
-              {showSourceBoard && overviewAvailable ? (
-                <SidebarPageButton
-                  label={t('overview.title')}
-                  pressed={isOverviewOpen}
-                  onClick={() => useUIStore.getState().setOverviewOpen(!isOverviewOpen)}
-                  className={headerActionButtonClass}
-                >
-                  <Icon name="compass-3" className={headerActionIconClass} />
-                </SidebarPageButton>
-              ) : null}
-
-              {showSourceBoard ? (
-                <SidebarPageButton
-                  label={t('sourceBoard.title')}
-                  pressed={isSourceBoardOpen}
-                  onClick={() => useUIStore.getState().setSourceBoardOpen(!isSourceBoardOpen)}
-                  className={headerActionButtonClass}
-                >
-                  <Icon name="git-pull-request" className={headerActionIconClass} />
-                </SidebarPageButton>
-              ) : null}
-
-              <SidebarPageButton
-                label={t('sessions.sidebar.nav.archive')}
-                pressed={isArchiveOpen}
-                onClick={() => useUIStore.getState().setArchivePageOpen(!isArchiveOpen)}
-                className={headerActionButtonClass}
-              >
-                <Icon name="archive" className={headerActionIconClass} />
-              </SidebarPageButton>
-
-              {enterpriseMode ? null : (
-                <SidebarPageButton
-                  label={t('integrationsCatalog.sidebar.open')}
-                  pressed={isIntegrationsCatalogOpen}
-                  onClick={() => useUIStore.getState().setIntegrationsCatalogOpen(!isIntegrationsCatalogOpen)}
-                  className={headerActionButtonClass}
-                >
-                  <Icon name="store-2" className={headerActionIconClass} />
-                </SidebarPageButton>
-              )}
-            </div>
+          <div ref={pagesRef} className="ms-[3px] flex min-w-0 items-center gap-1.5">
             {guestPagesInline ? guestPages.map((guest) => {
               const pressed = openGuestPageId === guest.id;
               return (

@@ -594,7 +594,7 @@ Diff prefetch admits at most two outstanding transport requests per runtime and 
 
 `useTrackerAuthStore` holds each tracker's auth status, keyed by tracker id (Linear today); the trackers themselves come from `lib/trackers/registry.ts`. `refreshTrackers(apis.trackers)` reads the registry, then every served tracker's status, where source-control auth is refreshed (`App.tsx`, `MobileApp.tsx`); VS Code has no trackers. A failed status read keeps the last status with its error and leaves the tracker unchecked, so it is retried instead of reading as disconnected. Trackers are signed in on the instance, so `runtimeEndpointReset.ts` drops every status and the registry's list on a switch, and a generation guard keeps an answer for the previous instance out of the new one.
 
-`useSourceBoardStore` remembers, per runtime, the board's project, tab (`repository` or `tracker:<id>`) and each tracker's container (`trackerContainerByProvider`). Data stored before trackers had their own tabs (`tab: 'linear'`, `linearTeamId`) reads as `tracker:linear` and Linear's container.
+`useSourceBoardStore` remembers, per runtime, the board's workspace and folder (`workspaceId`, and the folder in `projectId`, which also keys the per-folder repository maps), tab (`repository` or `tracker:<id>`) and each tracker's container (`trackerContainerByProvider`). Data stored before trackers had their own tabs (`tab: 'linear'`, `linearTeamId`) reads as `tracker:linear` and Linear's container.
 
 ### Source-control stores
 

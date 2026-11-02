@@ -19,7 +19,7 @@ import { useSessionProjectViewState } from './sidebar/projects/useSessionProject
 import { useProjectRepoStatus } from './sidebar/projects/useProjectRepoStatus';
 import { ProjectEditDialog } from '@/components/layout/ProjectEditDialog';
 import { UpdateDialog } from '@/components/ui/UpdateDialog';
-import { SidebarHeader } from './sidebar/shell/SidebarHeader';
+import { SidebarHeader, SidebarPageButtons } from './sidebar/shell/SidebarHeader';
 import { SidebarFooter } from './sidebar/shell/SidebarFooter';
 import { SidebarSearchEmptyState } from './sidebar/shell/SidebarSearchEmptyState';
 import { SessionProjectCollection } from './sidebar/list/SessionProjectCollection';
@@ -565,12 +565,8 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   // The projects view always groups by worktree (parallel-work overview).
   // VS Code has no worktree groups, so it renders the merged per-project list.
   const useGroupedSections = !isVSCode;
-  const desktopHeaderActionButtonClass =
-    'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
-  const mobileHeaderActionButtonClass =
-    'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
-  const headerActionButtonClass = mobileVariant ? mobileHeaderActionButtonClass : desktopHeaderActionButtonClass;
-  const headerActionIconClass = 'h-4 w-4';
+  const headerActionButtonClass = mobileVariant ? MOBILE_HEADER_ACTION_BUTTON_CLASS : DESKTOP_HEADER_ACTION_BUTTON_CLASS;
+  const headerActionIconClass = HEADER_ACTION_ICON_CLASS;
 
   const worktreeRefreshDependencies = React.useMemo(() => ({
     projects,
@@ -735,8 +731,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
         showProjectDisplayControls={!isVSCode}
         showSectionControls={!isVSCode}
         handleOpenDirectoryDialog={handleOpenDirectoryDialog}
-        // A desktop page: phones have their own shell, VS Code no source pickers.
-        showSourceBoard={!mobileVariant && !isVSCode}
         headerActionIconClass={headerActionIconClass}
         headerActionButtonClass={headerActionButtonClass}
         isSessionSearchOpen={isSessionSearchOpen}
@@ -781,6 +775,12 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   );
 };
 
+const DESKTOP_HEADER_ACTION_BUTTON_CLASS =
+  'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
+const MOBILE_HEADER_ACTION_BUTTON_CLASS =
+  'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
+const HEADER_ACTION_ICON_CLASS = 'h-4 w-4';
+
 export const SessionSidebar = React.memo(function SessionSidebar(props: SessionSidebarProps) {
   const isVSCode = isVSCodeRuntime();
   return <>
@@ -788,6 +788,12 @@ export const SessionSidebar = React.memo(function SessionSidebar(props: SessionS
       inlineOverview={Boolean(props.mobileVariant) || isVSCode}
       onSelected={props.onSessionSelected}
       footer={<SidebarFooterController mobileVariant={Boolean(props.mobileVariant)} isVSCode={isVSCode} />}
+      // Overview and Issues and PRs are desktop pages: phones have their own shell, VS Code no source pickers.
+      pageButtons={<SidebarPageButtons
+        showSourceBoard={!props.mobileVariant && !isVSCode}
+        buttonClassName={props.mobileVariant ? MOBILE_HEADER_ACTION_BUTTON_CLASS : DESKTOP_HEADER_ACTION_BUTTON_CLASS}
+        iconClassName={HEADER_ACTION_ICON_CLASS}
+      />}
       renderHistory={(onSessionSelected) => <SessionSidebarComponent {...props} onSessionSelected={onSessionSelected} />}
     />
     <SessionClosePresenter />

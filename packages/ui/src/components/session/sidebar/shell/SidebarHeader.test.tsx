@@ -5,14 +5,13 @@ import { Window } from 'happy-dom';
 import { I18nProvider } from '@/lib/i18n';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useUIStore } from '@/stores/useUIStore';
-import { SidebarHeader } from './SidebarHeader';
+import { SidebarHeader, SidebarPageButtons } from './SidebarHeader';
 
 const baseProps = {
   hideDirectoryControls: false,
   showProjectDisplayControls: true,
   showSectionControls: true,
   handleOpenDirectoryDialog: () => undefined,
-  showSourceBoard: true,
   headerActionIconClass: 'h-4.5 w-4.5',
   headerActionButtonClass: 'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed',
   isSessionSearchOpen: false,
@@ -148,6 +147,8 @@ describe('SidebarHeader', () => {
     expect(document.querySelector('input')).toBeNull();
     expect(document.querySelector('[aria-label="Search sessions"]')).not.toBeNull();
     expect(document.querySelector('[aria-label="Add project"]')).not.toBeNull();
+    // The page toggles live beside Session history (SidebarPageButtons), not in this header.
+    expect(document.querySelector('[aria-label="Archive"]')).toBeNull();
     expect(document.querySelector('[aria-label="Display mode"]')).not.toBeNull();
   });
 
@@ -158,15 +159,14 @@ describe('SidebarHeader', () => {
       await act(async () => root.render(
         <I18nProvider>
           <TooltipProvider>
-            <SidebarHeader {...baseProps} />
+            <SidebarPageButtons showSourceBoard buttonClassName={baseProps.headerActionButtonClass} iconClassName={baseProps.headerActionIconClass} />
           </TooltipProvider>
         </I18nProvider>,
       ));
       const button = (label: string) => document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
-      // Scheduled tasks open from the workspace navigation (workspaces DOCUMENTATION.md), not this header.
-      expect(document.querySelector('[aria-label="Scheduled tasks"]')).toBeNull();
       for (const [label, isOpen] of [
         ['Archive', () => useUIStore.getState().isArchivePageOpen],
+        ['Scheduled tasks', () => useUIStore.getState().isScheduledTasksDialogOpen],
         ['Issues and PRs', () => useUIStore.getState().isSourceBoardOpen],
         ['Overview', () => useUIStore.getState().isOverviewOpen],
       ] as const) {
@@ -190,7 +190,7 @@ describe('SidebarHeader', () => {
       await act(async () => root.render(
         <I18nProvider>
           <TooltipProvider>
-            <SidebarHeader {...baseProps} />
+            <SidebarPageButtons showSourceBoard buttonClassName={baseProps.headerActionButtonClass} iconClassName={baseProps.headerActionIconClass} />
           </TooltipProvider>
         </I18nProvider>,
       ));

@@ -32,8 +32,21 @@ import { resolvePullLinkTarget } from './boardRepository';
 import { landsWithIt, mergeChoiceOf } from './mergeChoice';
 import { newMutationKey } from './mutationKey';
 
-/** A project the board acts in: its id and root folder. */
-export type SourceBoardProject = { id: string; path: string };
+/**
+ * Where the board acts: a workspace folder (its id and path) and the workspace
+ * it belongs to. Without a workspace it is a plain project.
+ */
+export type SourceBoardProject = { id: string; path: string; workspaceId?: string | null };
+
+/** Opens a new session in that one folder of its workspace, like the folder's own new-session action. */
+const openBoardDraft = (project: SourceBoardProject): void => {
+    const ui = useSessionUIStore.getState();
+    if (project.workspaceId) {
+        ui.openWorkspaceDraft(project.workspaceId, { kind: 'folder', folderId: project.id });
+        return;
+    }
+    ui.openNewSessionDraft({ selectedProjectId: project.id, directoryOverride: project.path });
+};
 
 const MERGE_METHOD_LABELS = {
     squash: 'gitView.pr.mergeMethod.squash',
@@ -161,7 +174,7 @@ export const SourceBoardActions: React.FC<{
 
     const startSession = () => {
         if (!project) return;
-        useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: project.id, directoryOverride: project.path });
+        openBoardDraft(project);
         onLeave?.();
         // The draft opens first, so the chip lands on its composer.
         attachToComposer();
@@ -444,7 +457,7 @@ export const SourceBoardPullLinks: React.FC<{
         });
         if (mobile) {
             if (target.mobileDirectory === currentDirectory) ui.closeMainSurfaces();
-            else useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: project.id, directoryOverride: project.path });
+            else openBoardDraft(project);
             // A repository under the folder is shown in place of the Git selection, which stays as it was.
             usePullRequestSelectionStore.getState().requestDiff(target.mobileRequestDirectory, source, target.mobileRepository);
             onLeave?.();
@@ -452,7 +465,7 @@ export const SourceBoardPullLinks: React.FC<{
             return;
         }
         if (currentDirectory) ui.closeMainSurfaces();
-        else useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: project.id, directoryOverride: project.path });
+        else openBoardDraft(project);
         // Another project's PR, or one of a repository under a root that is
         // not one, is read through the folder its tab names; the request is
         // keyed by that same folder.

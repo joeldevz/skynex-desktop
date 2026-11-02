@@ -4,11 +4,11 @@
 
 The overview edits one workspace through callback props. The parent owns folder picking, persistence, session creation and navigation. Model and agent options come from the parent. This component makes no runtime requests.
 
-`WorkspaceNavigation` binds catalog selection, explicit membership and history access. `WorkspaceSurface` connects the editor to acknowledged catalog writes and `openWorkspaceDraft`. The directory dialog's selection-only branch validates existing paths through the runtime files API and performs no project creation, cloning or filesystem creation. VS Code offers existing editor roots only. Catalog reads address only the overview's primary folder; creation validates defaults against its selected primary folder.
+`WorkspaceNavigation` binds catalog selection, explicit membership and history access. `WorkspaceSurface` connects the editor to acknowledged catalog writes and `openWorkspaceDraft`. Add folders opens the same directory explorer that adds projects (path field with completion, folder list, checkboxes, quick add, hidden toggle, keyboard), in its folder-pick mode: folders already in the workspace show as added, the clone action and the existing-repository identity step are gone, and a path that does not exist cannot be submitted. Each picked path is read through the runtime files API before it is linked, and no project, clone or directory is created. VS Code offers existing editor roots only, through the plain root list. Catalog reads address only the overview's primary folder; creation validates defaults against its selected primary folder.
 
 `WorkspaceNavigation` owns the view shell and its pinned footer slot. The parent supplies the sidebar footer and its controller once, outside both the overview and history scrollers; history remains responsible for its own list scrolling.
 
-The Scheduled tasks action sits in the navigation row above the workspace list. It opens the shared scheduled-task view from both workspace navigation and session history, and exposes its open state through the selected-button styling.
+The navigation row above the workspace list holds Session history and the sidebar's page toggles: Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks. `SessionSidebar` supplies them as `pageButtons`, so the row shows them in both the workspace view and session history, each pressed while its page is open.
 
 The scheduled-task view uses workspace and folder rows as virtual scopes over
 the Chat task store. Selecting a workspace includes its folders; selecting a

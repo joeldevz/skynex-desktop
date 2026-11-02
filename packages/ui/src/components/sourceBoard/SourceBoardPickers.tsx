@@ -56,7 +56,9 @@ export const SourceBoardProjectPicker: React.FC<{
     size: PickerSize;
     /** The phone shell picks from a bottom sheet: a popup there cannot scroll far enough for a long list. */
     sheet?: boolean;
-}> = ({ projects, selected, onSelect, ariaLabel, size, sheet = false }) => {
+    /** The search field's hint; the board's workspace and folder pickers name what they search. */
+    searchPlaceholder?: string;
+}> = ({ projects, selected, onSelect, ariaLabel, size, sheet = false, searchPlaceholder }) => {
     const { t } = useI18n();
     const { currentTheme } = useThemeSystem();
     const [open, setOpen] = React.useState(false);
@@ -99,7 +101,7 @@ export const SourceBoardProjectPicker: React.FC<{
                     onSelectProject={choose}
                     theme={currentTheme}
                     title={ariaLabel}
-                    searchPlaceholder={t('chat.chatInput.draftPicker.searchProjects')}
+                    searchPlaceholder={searchPlaceholder ?? t('chat.chatInput.draftPicker.searchProjects')}
                 />
             </>
         );
@@ -142,8 +144,8 @@ export const SourceBoardProjectPicker: React.FC<{
                         <Command className="min-h-0 flex-1" shouldFilter={false} value={effectiveActive ?? undefined} onValueChange={setActiveId}>
                             <CommandInput
                                 ref={searchRef}
-                                aria-label={t('chat.chatInput.draftPicker.searchProjects')}
-                                placeholder={t('chat.chatInput.draftPicker.searchProjects')}
+                                aria-label={searchPlaceholder ?? t('chat.chatInput.draftPicker.searchProjects')}
+                                placeholder={searchPlaceholder ?? t('chat.chatInput.draftPicker.searchProjects')}
                                 value={query}
                                 onValueChange={setQuery}
                                 onKeyDown={(event) => {
