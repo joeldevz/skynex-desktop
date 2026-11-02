@@ -1,10 +1,14 @@
 import { execFile } from 'node:child_process';
 import { lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
 
 const executable = '/home/clasing/.local/share/pnpm/bin/skynex';
 const taskPattern = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const stepPattern = /^step-[0-9]{3,}$/;
+const stringSchema = z.string();
+const jsonValueSchema = z.json();
+const statusSchema = z.enum(['pending', 'in_progress', 'done', 'blocked']);
 
 export class TasksError extends Error {
   constructor(status, code, message) {
@@ -18,17 +22,22 @@ const badCli = () => new TasksError(502, 'badCLI', 'Tasks returned an invalid re
 const unavailable = () => new TasksError(503, 'unavailable', 'Tasks are unavailable.');
 const missingTask = () => new TasksError(404, 'missing', 'Task not found.');
 export const validateTaskId = (id) => {
-  if (typeof id !== 'string' || !taskPattern.test(id)) throw invalid();
-  return id;
+  const parsed = stringSchema.safeParse(id);
+  if (!parsed.success || !taskPattern.test(parsed.data)) throw invalid();
+  return parsed.data;
 };
-const isStepId = (id) => typeof id === 'string' && id.length <= 80 && stepPattern.test(id);
+const isStepId = (id) => {
+  const parsed = stringSchema.safeParse(id);
+  return parsed.success && parsed.data.length <= 80 && stepPattern.test(parsed.data);
+};
 export const validateStepId = (id) => {
   if (!isStepId(id)) throw invalid();
   return id;
 };
 export const validateTitle = (value) => {
-  if (typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value)) throw invalid();
-  const title = value.trim();
+  const parsed = stringSchema.safeParse(value);
+  if (!parsed.success || /[\p{Cc}\p{Cf}]/u.test(parsed.data)) throw invalid();
+  const title = parsed.data.trim();
   if (!title || title.length > 200 || title.startsWith('-')) throw invalid();
   return title;
 };
@@ -84,24 +93,34 @@ export function createTasksService() {
   });
   const read = async (root, id) => {
     const raw = await run(root, ['status', '--task', id]);
-    if (!raw || raw.taskId !== id || typeof raw.title !== 'string' || !Array.isArray(raw.steps)) throw badCli();
+    const response = z.object({ taskId: z.string(), title: z.string(), steps: z.array(z.json()) }).passthrough().safeParse(raw);
+    if (!response.success || response.data.taskId !== id) throw badCli();
     const seen = new Set();
-    const steps = raw.steps.map((step) => {
-      if (!step || !isStepId(step.id) || seen.has(step.id)
-        || typeof step.title !== 'string' || !['pending', 'in_progress', 'done', 'blocked'].includes(step.status)
-        || (step.parent !== undefined && step.parent !== null && !isStepId(step.parent))) throw badCli();
-      seen.add(step.id);
-      return { id: step.id, title: step.title, done: step.status === 'done', parent: step.parent ?? null };
+    const steps = response.data.steps.map((rawStep) => {
+      const step = z.object({ id: jsonValueSchema, title: jsonValueSchema, status: jsonValueSchema, parent: jsonValueSchema.optional() }).passthrough().safeParse(rawStep);
+      if (!step.success) throw badCli();
+      const stepId = stringSchema.safeParse(step.data.id);
+      const title = stringSchema.safeParse(step.data.title);
+      const status = statusSchema.safeParse(step.data.status);
+      const parent = step.data.parent === undefined || step.data.parent === null ? null : stringSchema.safeParse(step.data.parent);
+      if (!stepId.success || !isStepId(stepId.data) || seen.has(stepId.data)
+        || !title.success || !status.success || (parent !== null && (!parent.success || !isStepId(parent.data)))) throw badCli();
+      seen.add(stepId.data);
+      return { id: stepId.data, title: title.data, done: status.data === 'done', parent: parent === null ? null : parent.data };
     });
-    return { id, title: raw.title, steps, progress: { done: steps.filter((step) => step.done).length, total: steps.length } };
+    return { id, title: response.data.title, steps, progress: { done: steps.filter((step) => step.done).length, total: steps.length } };
   };
   const ids = async (root) => {
     const raw = await run(root, ['list']);
-    if (!raw || !Array.isArray(raw.tasks)) throw badCli();
-    return raw.tasks.map((task) => {
-      const id = task?.taskId ?? task?.id;
-      if (typeof id !== 'string' || !taskPattern.test(id)) throw badCli();
-      return { id, format: task?.format };
+    const response = z.object({ tasks: z.array(z.json()) }).passthrough().safeParse(raw);
+    if (!response.success) throw badCli();
+    return response.data.tasks.map((rawTask) => {
+      const task = z.object({ taskId: jsonValueSchema.optional(), id: jsonValueSchema.optional(), format: jsonValueSchema.optional() }).passthrough().safeParse(rawTask);
+      if (!task.success) throw badCli();
+      const taskId = task.data.taskId ?? task.data.id;
+      const id = stringSchema.safeParse(taskId);
+      if (!id.success || !taskPattern.test(id.data)) throw badCli();
+      return { id: id.data, format: task.data.format };
     });
   };
   const existing = async (root, id) => {
@@ -125,8 +144,9 @@ export function createTasksService() {
       const title = validateTitle(value);
       const root = await notebookAt(directory, { create: true });
       const raw = await run(root, ['init', title]);
-      if (!raw || typeof raw.taskId !== 'string' || !taskPattern.test(raw.taskId)) throw badCli();
-      return read(root, raw.taskId);
+      const response = z.object({ taskId: z.string() }).passthrough().safeParse(raw);
+      if (!response.success || !taskPattern.test(response.data.taskId)) throw badCli();
+      return read(root, response.data.taskId);
     }),
     addStep: (directory, taskId, value, parentValue) => serial(async () => {
       const id = validateTaskId(taskId);
@@ -139,7 +159,8 @@ export function createTasksService() {
       const args = ['next', 'add', title, '--scope', 'sandbox', '--done-when', 'observed', '--evidence', 'test'];
       if (parent) args.push('--parent', parent);
       const raw = await run(root, [...args, '--task', id]);
-      if (!raw || typeof raw.stepId !== 'string' || !stepPattern.test(raw.stepId)) throw badCli();
+      const response = z.object({ stepId: z.string() }).passthrough().safeParse(raw);
+      if (!response.success || !stepPattern.test(response.data.stepId)) throw badCli();
       return read(root, id);
     }),
     completeStep: (directory, taskId, stepId) => serial(async () => {

@@ -1,7 +1,9 @@
 import { TasksError, validateTaskId, validateStepId, validateTitle } from './service.js';
 import express from 'express';
+import { z } from 'zod';
 
 const parseJsonBody = express.json({ limit: '1mb' });
+const bodySchema = z.record(z.string(), z.string());
 
 export function registerSkynexTasksRoutes(app, { service, resolveProjectDirectory }) {
   const route = (status, fields, operation) => async (req, res) => {
@@ -10,10 +12,9 @@ export function registerSkynexTasksRoutes(app, { service, resolveProjectDirector
       if (!project.directory) throw new TasksError(400, 'invalid', 'Active workspace is required.');
       if (Object.keys(req.query).some((key) => key !== 'directory')) throw new TasksError(400, 'invalid', 'Invalid task request.');
       if (req.method === 'POST' && (!req.is('application/json') || req.body === undefined)) throw new TasksError(400, 'invalid', 'Expected a JSON object.');
-      if (req.body !== undefined && (req.body === null || typeof req.body !== 'object' || Array.isArray(req.body))) {
-        throw new TasksError(400, 'invalid', 'Invalid task request.');
-      }
-      const body = req.body ?? {};
+      const parsedBody = bodySchema.safeParse(req.body === undefined ? {} : req.body);
+      if (!parsedBody.success) throw new TasksError(400, 'invalid', 'Invalid task request.');
+      const body = parsedBody.data;
       if (Object.keys(body).some((key) => !fields.includes(key))) throw new TasksError(400, 'invalid', 'Invalid task request.');
       if (fields.includes('title')) validateTitle(body.title);
       if (req.params.taskId) validateTaskId(req.params.taskId);

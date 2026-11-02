@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { runtimeFetch } from '@/lib/runtime-fetch';
+import { runtimeFetch, type RuntimeFetchOptions } from '@/lib/runtime-fetch';
 
 const taskSchema = z.object({
   id: z.string(), title: z.string(),
@@ -10,9 +10,14 @@ export type SkynexTask = z.infer<typeof taskSchema>;
 const base = '/api/skynex/tasks';
 type Body = { title: string; parent?: string } | Record<string, never>;
 const request = async <T>(url: string, directory: string, schema: z.ZodType<T>, body?: Body): Promise<T> => {
+  const options: RuntimeFetchOptions = { query: { directory } };
+  if (body !== undefined) {
+    options.method = 'POST';
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(body);
+  }
   const response = await runtimeFetch(url, {
-    query: { directory },
-    ...(body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    ...options,
   });
   if (!response.ok) throw new Error('Tasks request failed');
   return schema.parse(await response.json());

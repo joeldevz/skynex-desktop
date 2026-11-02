@@ -1,9 +1,11 @@
 import { MemoryError } from './service.js';
 import express from 'express';
+import { z } from 'zod';
 
 const parseJsonBody = express.json({ limit: '1mb' });
 
 const NOTE_FIELDS = ['what', 'why', 'where', 'learned'];
+const bodySchema = z.record(z.string(), z.string());
 
 export function registerSkynexMemoryRoutes(app, { service, resolveProjectDirectory }) {
   const route = (status, fields, operation) => async (req, res) => {
@@ -12,10 +14,9 @@ export function registerSkynexMemoryRoutes(app, { service, resolveProjectDirecto
       if (!project.directory) throw new MemoryError(400, 'invalid', 'Active workspace is required.');
       if (Object.keys(req.query).some((key) => key !== 'directory')) throw new MemoryError(400, 'invalid', 'Invalid memory request.');
       if (req.method === 'POST' && (!req.is('application/json') || req.body === undefined)) throw new MemoryError(400, 'invalid', 'Expected a JSON object.');
-      if (req.body !== undefined && (req.body === null || typeof req.body !== 'object' || Array.isArray(req.body))) {
-        throw new MemoryError(400, 'invalid', 'Invalid memory request.');
-      }
-      const body = req.body ?? {};
+      const parsedBody = bodySchema.safeParse(req.body === undefined ? {} : req.body);
+      if (!parsedBody.success) throw new MemoryError(400, 'invalid', 'Invalid memory request.');
+      const body = parsedBody.data;
       if (Object.keys(body).some((key) => !fields.includes(key))) throw new MemoryError(400, 'invalid', 'Invalid memory request.');
       res.set('Cache-Control', 'no-store').status(status).json(await operation(body, project.directory));
     } catch (error) {

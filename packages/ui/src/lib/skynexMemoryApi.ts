@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { runtimeFetch } from '@/lib/runtime-fetch';
+import { runtimeFetch, type RuntimeFetchOptions } from '@/lib/runtime-fetch';
 
 const memorySchema = z.object({
   id: z.string(),
@@ -15,9 +15,14 @@ export type SkynexMemoryNote = { what: string; why: string; where: string; learn
 const base = '/api/skynex/memory';
 const memoriesSchema = z.object({ memories: z.array(memorySchema) });
 const request = async <T>(url: string, directory: string, schema: z.ZodType<T>, init?: { method: 'POST'; body: SkynexMemoryNote | { query: string } }): Promise<T> => {
+  const options: RuntimeFetchOptions = { query: { directory } };
+  if (init !== undefined) {
+    options.method = init.method;
+    options.headers = { 'Content-Type': 'application/json' };
+    options.body = JSON.stringify(init.body);
+  }
   const response = await runtimeFetch(url, {
-    query: { directory },
-    ...(init === undefined ? {} : { method: init.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }),
+    ...options,
   });
   if (!response.ok) throw new Error('Memory request failed');
   return schema.parse(await response.json());

@@ -1,10 +1,19 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { z } from 'zod';
 
 const LIST_LIMIT = 50;
 const RECALL_LIMIT = 20;
 const TEXT_LIMIT = 1000;
 const TITLE_LIMIT = 120;
+const textSchema = z.string();
+const memoryEntrySchema = z.object({
+  id: z.union([z.string(), z.number()]),
+  content: z.string(),
+  title: z.json().optional(),
+  observation_type: z.json().optional(),
+  created_at: z.json().optional(),
+}).passthrough();
 
 export class MemoryError extends Error {
   constructor(status, code, message) {
@@ -19,8 +28,9 @@ const unavailable = () => new MemoryError(503, 'unavailable', 'Memory is unavail
 
 // Free text reaches the CLI as one argv element; a leading dash would read as a flag.
 const validateText = (value, limit = TEXT_LIMIT) => {
-  if (typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value)) throw invalid();
-  const text = value.trim();
+  const parsed = textSchema.safeParse(value);
+  if (!parsed.success || /[\p{Cc}\p{Cf}]/u.test(parsed.data)) throw invalid();
+  const text = parsed.data.trim();
   if (!text || text.length > limit || text.startsWith('-')) throw invalid();
   return text;
 };
@@ -33,15 +43,18 @@ const namespaceOf = (directory) => {
 };
 
 const toMemory = (entry) => {
-  if (!entry || typeof entry !== 'object') throw badCli();
-  if (typeof entry.id !== 'string' && typeof entry.id !== 'number') throw badCli();
-  if (typeof entry.content !== 'string') throw badCli();
+  const parsed = memoryEntrySchema.safeParse(entry);
+  if (!parsed.success) throw badCli();
+  const memory = parsed.data;
+  const title = textSchema.safeParse(memory.title);
+  const observationType = textSchema.safeParse(memory.observation_type);
+  const createdAt = textSchema.safeParse(memory.created_at);
   return {
-    id: String(entry.id),
-    title: typeof entry.title === 'string' ? entry.title : null,
-    content: entry.content,
-    observationType: typeof entry.observation_type === 'string' ? entry.observation_type : null,
-    createdAt: typeof entry.created_at === 'string' ? entry.created_at : null,
+    id: String(memory.id),
+    title: title.success ? title.data : null,
+    content: memory.content,
+    observationType: observationType.success ? observationType.data : null,
+    createdAt: createdAt.success ? createdAt.data : null,
   };
 };
 
@@ -49,8 +62,9 @@ const toMemory = (entry) => {
 const readMemories = (stdout, key) => {
   let raw;
   try { raw = JSON.parse(stdout); } catch { throw badCli(); }
-  if (!raw || typeof raw !== 'object' || !(raw[key] === null || Array.isArray(raw[key]))) throw badCli();
-  return (raw[key] ?? []).map(toMemory);
+  const parsed = z.object({ [key]: z.union([z.null(), z.array(z.json())]) }).passthrough().safeParse(raw);
+  if (!parsed.success) throw badCli();
+  return (parsed.data[key] ?? []).map(toMemory);
 };
 
 export function createMemoryService() {
