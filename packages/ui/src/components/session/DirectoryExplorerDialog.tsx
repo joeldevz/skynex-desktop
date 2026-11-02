@@ -16,7 +16,7 @@ import { PendingGitOperationError } from '@/lib/source-control/git-operation-rec
 import { useGitOperationRecovery } from '@/components/views/git/useGitOperationRecovery';
 import { GitOperationStatus } from '@/components/views/git/GitOperationStatus';
 import { useExistingRepositorySummary } from './useExistingRepositorySummary';
-import { getRuntimeKey } from '@/lib/runtime-switch';
+import { getRuntimeKey, isTransientRuntimeKey } from '@/lib/runtime-switch';
 import { identityTransport, isCompleteIdentity } from '@/lib/api/git-identity';
 import { applyIdentityToRepository, identityApplicability, type IdentityApplicability } from '@/lib/source-control/applyIdentity';
 import type { GitIdentityProfile } from '@/lib/api/types';
@@ -57,6 +57,7 @@ import {
 interface DirectoryExplorerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSelectFolders?: (paths: readonly string[]) => Promise<void>;
 }
 
 type BrowseEntry = {
@@ -178,7 +179,89 @@ const resolveFreshFilesystemHome = async (): Promise<string | null> => {
   return opencodeClient.getFilesystemHome().catch(() => null);
 };
 
-export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = ({
+export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (props) => props.onSelectFolders
+  ? <ExistingFolderDialog open={props.open} onOpenChange={props.onOpenChange} onSelectFolders={props.onSelectFolders} />
+  : <ProjectDirectoryExplorerDialog {...props} />;
+
+function ExistingFolderDialog({ open, onOpenChange, onSelectFolders }: Required<DirectoryExplorerDialogProps>) {
+  const { t } = useI18n();
+  const { files, runtime } = useRuntimeAPIs();
+  const home = useDirectoryStore((state) => state.homeDirectory);
+  const roots = useProjectsStore((state) => state.projects);
+  const [path, setPath] = React.useState(home || '/');
+  const [entries, setEntries] = React.useState<BrowseEntry[]>([]);
+  const [selected, setSelected] = React.useState<readonly string[]>([]);
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState(false);
+  const runtimeKey = getRuntimeKey();
+  const isCurrentRuntime = () => !isTransientRuntimeKey(runtimeKey) && runtimeKey === getRuntimeKey();
+  React.useEffect(() => {
+    if (!open) return;
+    setPath(home || '/');
+    setSelected([]);
+    setEntries([]);
+    setError(false);
+    setPending(false);
+  }, [open, home, runtimeKey]);
+  async function browse() {
+    if (!isCurrentRuntime()) return;
+    setPending(true);
+    setError(false);
+    try {
+      if (!isCurrentRuntime()) return;
+      const result = await files.listDirectory(path);
+      if (!isCurrentRuntime()) return;
+      setPath(result.directory);
+      setEntries(result.entries.filter((entry) => entry.isDirectory));
+    } catch { if (isCurrentRuntime()) setError(true); }
+    finally { if (isCurrentRuntime()) setPending(false); }
+  }
+  const choices = runtime.isVSCode ? roots.map((root) => ({ name: root.label || root.path, path: root.path })) : entries;
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent>
+      <DialogTitle>{t('workspaces.addFolders')}</DialogTitle>
+      <DialogDescription>{t(runtime.isVSCode ? 'workspaces.editorRoots' : 'workspaces.existingFolders')}</DialogDescription>
+      {!runtime.isVSCode && <div className="flex gap-2">
+        <Input dir="ltr" aria-label={t('directoryExplorerDialog.pathInput.placeholder')} value={path} onChange={(event) => setPath(event.currentTarget.value)} />
+        <Button variant="outline" disabled={pending} onClick={() => void browse()}>{t('directoryExplorerDialog.footer.select')}</Button>
+      </div>}
+      <div className="max-h-64 space-y-2 overflow-y-auto">
+        {choices.map((entry) => <label key={entry.path} className="flex min-h-11 items-center gap-2 typography-ui-label">
+          <input type="checkbox" checked={selected.includes(entry.path)} disabled={pending} onChange={(event) => setSelected(event.currentTarget.checked ? [...selected, entry.path] : selected.filter((value) => value !== entry.path))} />
+          <span dir="ltr" className="min-w-0 flex-1 truncate" title={entry.path}>{entry.name}</span>
+          {!runtime.isVSCode && <Button variant="ghost" disabled={pending} onClick={(event) => { event.preventDefault(); setPath(entry.path); }}>{t('directoryExplorerDialog.footer.select')}</Button>}
+        </label>)}
+      </div>
+      <div role="alert" className="min-h-6 typography-meta text-[var(--status-error-text)]">{error ? t('directoryExplorerDialog.browse.loadFailed') : ''}</div>
+      <DialogFooter>
+        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t('dialog.common.actions.cancel')}</Button>
+        <Button disabled={pending || runtime.isVSCode && selected.length === 0 || !runtime.isVSCode && !path.trim()} onClick={() => {
+          if (!isCurrentRuntime()) return;
+          setPending(true);
+          setError(false);
+          const paths = selected.length ? selected : [path];
+          void (async () => {
+            try {
+              const existing: string[] = [];
+              for (const candidate of paths) {
+                if (!isCurrentRuntime()) return;
+                const result = await files.listDirectory(candidate);
+                if (!isCurrentRuntime()) return;
+                existing.push(result.directory);
+              }
+              if (!isCurrentRuntime()) return;
+              await onSelectFolders(existing);
+              if (isCurrentRuntime()) onOpenChange(false);
+            } catch { if (isCurrentRuntime()) setError(true); }
+            finally { if (isCurrentRuntime()) setPending(false); }
+          })();
+        }}>{t('directoryExplorerDialog.actions.addSelected')}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>;
+}
+
+const ProjectDirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = ({
   open,
   onOpenChange,
 }) => {

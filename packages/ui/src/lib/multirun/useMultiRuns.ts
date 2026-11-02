@@ -54,25 +54,6 @@ export function useMultiRunTitle(runKey: string | null): string | null {
   }, [runKey]));
 }
 
-/**
- * Ids of every active member of the run `sessionId` belongs to, or an empty
- * list. Joined into one string inside the selector so the caller re-renders
- * only when membership changes.
- */
-export function useMultiRunMemberIds(sessionId: string | null): readonly string[] {
-  const joined = useGlobalSessionsStore(React.useCallback((state) => {
-    if (!sessionId) return '';
-    const own = state.activeSessions.find((session) => session.id === sessionId);
-    const key = own && isActiveRoot(own) ? readMultiRunIdentity(own, resolveLegacyScope(own))?.key : undefined;
-    if (!key) return '';
-    const ids = state.activeSessions
-      .filter((session) => isActiveRoot(session) && readMultiRunIdentity(session, resolveLegacyScope(session))?.key === key)
-      .map((session) => session.id);
-    return ids.length >= 2 ? ids.join('\n') : '';
-  }, [sessionId]));
-  return React.useMemo(() => (joined ? joined.split('\n') : []), [joined]);
-}
-
 export type MultiRunLookup = { run: MultiRunSummary | null; sessionById: ReadonlyMap<string, Session> };
 
 export function useMultiRun(runKey: string | null): MultiRunLookup {

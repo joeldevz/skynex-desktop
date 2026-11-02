@@ -16,8 +16,6 @@ import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { refreshGlobalSessions, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { subscribeOpenchamberEvents } from '@/lib/openchamberEvents';
 import { openSessionFromRoute } from '@/lib/router/openSessionFromRoute';
-import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
-import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { cn, formatDirectoryName } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 import type { ProjectEntry } from '@/lib/api/types';
@@ -43,6 +41,8 @@ import { useFilesViewTabsStore } from '@/stores/useFilesViewTabsStore';
 import { CHAT_DRAFT_PROJECT_ID } from '@/lib/chatDirectories';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { createTaskRequestGate, mayCommitTaskList, mayEndTaskLoad } from './scheduledTasksRequests';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
 
 const scheduleTimes = (task: ScheduledTask): string[] => {
   const raw = Array.isArray(task.schedule.times)
@@ -209,6 +209,21 @@ const TaskTargetLine: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   return <p className="truncate typography-meta text-muted-foreground">{t('sessions.scheduledTasks.editor.targetSession')}: {session?.title || sessionId}</p>;
 };
 
+const TaskWorkspaceTargetLine: React.FC<{ target: NonNullable<ScheduledTask['target']> }> = ({ target }) => {
+  const { t } = useI18n();
+  const workspaces = useWorkspacesStore((state) => state.catalog.workspaces);
+  if (target.kind === 'chats') return <p className="truncate typography-meta text-muted-foreground">{t('sessions.scheduledTasks.editor.destination.chats')}</p>;
+  const workspace = workspaces.find((entry) => entry.id === target.workspaceId);
+  if (!workspace) return <p className="truncate typography-meta text-destructive">{t('sessions.scheduledTasks.editor.destination.missingWorkspace')}</p>;
+  const folder = workspace?.folders.find((entry) => entry.id === target.folderId);
+  const folderLabel = target.folderId
+    ? folder
+      ? formatWorkspaceLabel(folder.path.replace(/\\+$/, '').split(/[\\/]/).at(-1) || folder.path)
+      : t('sessions.scheduledTasks.editor.destination.missingFolder')
+    : t('sessions.scheduledTasks.editor.destination.allFolders');
+  return <p className={cn('truncate typography-meta', target.folderId && !folder ? 'text-destructive' : 'text-muted-foreground')}>{formatWorkspaceLabel(workspace.name)} · {folderLabel}</p>;
+};
+
 // Next to "Paused" on a repository loop that waits for the user: the icon
 // says why, the sentence is its title. A loop the user paused has none.
 const LoopApprovalMark: React.FC<{ reason: NonNullable<ScheduledTask['loopApproval']> }> = ({ reason }) => {
@@ -251,11 +266,23 @@ export function ScheduledTasksView({ layout, onLeave }: {
   const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
   const storedProjects = useProjectsStore((state) => state.projects);
   const projects = useProjectsInSidebarOrder(storedProjects);
-  const activeProject = useProjectsStore((state) => state.getActiveProject());
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory);
-  const { currentTheme } = useThemeSystem();
+  const workspaces = useWorkspacesStore((state) => state.catalog.workspaces);
+  const selectedWorkspaceId = useWorkspacesStore((state) => state.selectedWorkspaceId);
+  // Chats are scheduled like a project; each run starts a new chat. VS Code
+  // has no chats, so the entry exists everywhere else.
+  const chatsAvailable = !isVSCodeRuntime();
 
-  const [selectedProjectID, setSelectedProjectID] = React.useState<string>('');
+  type ScheduledTaskListScope = { key: string; ownerId: string; kind: 'chats' | 'workspace' | 'folder' | 'legacyProject'; workspaceId?: string; folderId?: string; project?: ProjectEntry };
+  const scopes = React.useMemo<ScheduledTaskListScope[]>(() => [
+    ...(chatsAvailable ? [{ key: 'chats', ownerId: CHAT_DRAFT_PROJECT_ID, kind: 'chats' as const }] : []),
+    ...workspaces.flatMap((workspace) => [
+      { key: `workspace:${encodeURIComponent(workspace.id)}`, ownerId: CHAT_DRAFT_PROJECT_ID, kind: 'workspace' as const, workspaceId: workspace.id },
+      ...workspace.folders.map((folder) => ({ key: `folder:${encodeURIComponent(workspace.id)}:${encodeURIComponent(folder.id)}`, ownerId: CHAT_DRAFT_PROJECT_ID, kind: 'folder' as const, workspaceId: workspace.id, folderId: folder.id })),
+    ]),
+    ...projects.map((project) => ({ key: `legacy:${encodeURIComponent(project.id)}`, ownerId: project.id, kind: 'legacyProject' as const, project })),
+  ], [chatsAvailable, workspaces, projects]);
+  const [selectedScopeKey, setSelectedScopeKey] = React.useState<string>('chats');
   // Ownership of the task flow lives in refs, decided in one place:
   // - `selectedProjectRef` mirrors the selection the moment it changes, so an
   //   async continuation can compare against it without waiting for a render;
@@ -263,7 +290,8 @@ export function ScheduledTasksView({ layout, onLeave }: {
   //   actions name it instead of re-deriving the project from the selection;
   // - `taskRequestGate` numbers fetches per project, so a slow older response
   //   cannot overwrite a newer one (`scheduledTasksRequests.ts`).
-  const selectedProjectRef = React.useRef<string>('');
+  const selectedScopeRef = React.useRef<string>('chats');
+  const initializedScopeRef = React.useRef(false);
   const listOwnerRef = React.useRef<string>('');
   const [taskRequestGate] = React.useState(createTaskRequestGate);
   const editorOwnerRef = React.useRef<string>('');
@@ -274,84 +302,46 @@ export function ScheduledTasksView({ layout, onLeave }: {
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [editorTask, setEditorTask] = React.useState<ScheduledTask | null>(null);
   const [mutatingTaskID, setMutatingTaskID] = React.useState<string | null>(null);
-  // Chats are scheduled like a project; each run starts a new chat. VS Code
-  // has no chats, so the entry exists everywhere else.
-  const chatsAvailable = !isVSCodeRuntime();
-
-  const selectedProject = React.useMemo(
-    () => projects.find((project) => project.id === selectedProjectID) || null,
-    [projects, selectedProjectID],
-  );
-
-  const renderProjectLabel = React.useCallback((project: ProjectEntry) => {
-    const displayLabel = project.label?.trim() || formatDirectoryName(project.path, homeDirectory || undefined);
-    const projectIconName = project.icon ? PROJECT_ICON_MAP[project.icon] : null;
-    const iconColor = resolveProjectColor(project.color) ?? undefined;
-    const fallbackIcon = projectIconName ? (
-      <Icon name={projectIconName} className="h-3.5 w-3.5 shrink-0" style={iconColor ? { color: iconColor } : undefined} />
-    ) : (
-      <Icon name="folder" className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80"  style={iconColor ? { color: iconColor } : undefined}/>
-    );
-
-    return (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        {project.iconImage ? (
-          <span
-            className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden rounded-[3px]"
-            style={project.iconBackground ? { backgroundColor: project.iconBackground } : undefined}
-          >
-            <ProjectIconImage
-              project={{ id: project.id, iconImage: project.iconImage ?? null }}
-              options={{
-                themeVariant: currentTheme.metadata.variant,
-                iconColor: currentTheme.colors.surface.foreground,
-              }}
-              className="h-full w-full object-contain"
-              fallback={fallbackIcon}
-            />
-          </span>
-        ) : fallbackIcon}
-        <span className="truncate">{displayLabel}</span>
-      </span>
-    );
-  }, [homeDirectory, currentTheme.metadata.variant, currentTheme.colors.surface.foreground]);
-
-  // Every selection change routes through here once, so the mirror ref and
-  // the state can never disagree about which scope is on screen.
-  const selectProjectScope = React.useCallback((nextProjectID: string) => {
-    selectedProjectRef.current = nextProjectID;
-    setSelectedProjectID(nextProjectID);
+  const selectedScope = scopes.find((scope) => scope.key === selectedScopeKey) ?? scopes[0];
+  const selectScope = React.useCallback((nextKey: string) => {
+    selectedScopeRef.current = nextKey;
+    setSelectedScopeKey(nextKey);
   }, []);
 
   // The only writer of the task list. It refuses a list that does not belong
   // to the scope on screen: a project change is the selection's to answer,
   // and a slow fetch for an earlier project has no say over this view.
-  const commitTaskList = React.useCallback((projectID: string, nextTasks: ScheduledTask[]) => {
-    if (!mayCommitTaskList(projectID, selectedProjectRef.current)) {
+  const commitTaskList = React.useCallback((key: string, ownerId: string, nextTasks: ScheduledTask[]) => {
+    if (!mayCommitTaskList(key, selectedScopeRef.current)) {
       return;
     }
-    listOwnerRef.current = projectID;
+    listOwnerRef.current = ownerId;
     setTasks(nextTasks);
   }, []);
 
-  const reloadTasks = React.useCallback(async (projectID: string, options?: { silent?: boolean }) => {
+  const reloadTasks = React.useCallback(async (scope: ScheduledTaskListScope, options?: { silent?: boolean }) => {
     // A newer request for the same project supersedes an older one; a
     // request for another project is answered by the selection, since
     // commitTaskList refuses anything that is not on screen.
-    if (!projectID) {
-      commitTaskList('', []);
+    if (!scope) {
+      commitTaskList('', '', []);
       setLoading(false);
       return;
     }
-    const request = taskRequestGate.begin(projectID);
+    const request = taskRequestGate.begin(scope.key);
     if (!options?.silent) {
       setLoading(true);
     }
     try {
-      const nextTasks = await fetchScheduledTasks(projectID);
-      if (!taskRequestGate.isLatest(projectID, request)) {
+      const fetched = await fetchScheduledTasks(scope.ownerId);
+      if (!taskRequestGate.isLatest(scope.key, request)) {
         return; // A newer fetch for this project owns the list; drop this one.
       }
+      const nextTasks = fetched.filter((task) => scope.kind === 'chats'
+        ? task.target?.kind === 'chats' || task.target === undefined
+        : scope.kind === 'workspace' ? task.target?.kind === 'workspace' && task.target.workspaceId === scope.workspaceId
+          : scope.kind === 'folder' ? task.target?.kind === 'workspace' && task.target.workspaceId === scope.workspaceId && task.target.folderId === scope.folderId
+            : true);
       nextTasks.sort((a, b) => {
         if (a.enabled !== b.enabled) {
           return a.enabled ? -1 : 1;
@@ -362,20 +352,20 @@ export function ScheduledTasksView({ layout, onLeave }: {
         }
         return (a.state?.nextRunAt || Number.MAX_SAFE_INTEGER) - (b.state?.nextRunAt || Number.MAX_SAFE_INTEGER);
       });
-      commitTaskList(projectID, nextTasks);
+      commitTaskList(scope.key, scope.ownerId, nextTasks);
     } catch (error) {
-      if (!taskRequestGate.isLatest(projectID, request)) {
+      if (!taskRequestGate.isLatest(scope.key, request)) {
         return;
       }
       toast.error(error instanceof Error ? error.message : t('sessions.scheduledTasks.dialog.toast.loadFailed'));
       if (!options?.silent) {
-        commitTaskList(projectID, []);
+        commitTaskList(scope.key, scope.ownerId, []);
       }
     } finally {
       // The latest load for the scope on screen decides the spinner, silent
       // or not. A response for another scope is refused by commitTaskList
       // and must not clear the new selection's pending load either.
-      if (mayEndTaskLoad(taskRequestGate, projectID, request, selectedProjectRef.current)) {
+      if (mayEndTaskLoad(taskRequestGate, scope.key, request, selectedScopeRef.current)) {
         setLoading(false);
       }
     }
@@ -383,15 +373,20 @@ export function ScheduledTasksView({ layout, onLeave }: {
 
   // Keyed on the stored list: a "Recent" reorder must not reset the chosen scope.
   React.useEffect(() => {
-    const preferredProjectID = activeProject?.id || storedProjects[0]?.id || (chatsAvailable ? CHAT_DRAFT_PROJECT_ID : '');
-    selectProjectScope(preferredProjectID);
-    if (preferredProjectID) {
-      void reloadTasks(preferredProjectID);
-    } else {
-      commitTaskList('', []);
-      setLoading(false);
+    void useWorkspacesStore.getState().load();
+  }, []);
+  React.useEffect(() => {
+    if (!scopes.length) return;
+    const preferred = (selectedWorkspaceId && scopes.find((scope) => scope.kind === 'workspace' && scope.workspaceId === selectedWorkspaceId))
+      || scopes.find((scope) => scope.kind === 'workspace')
+      || scopes.find((scope) => scope.kind === 'chats')
+      || scopes[0];
+    if (!initializedScopeRef.current || !scopes.some((scope) => scope.key === selectedScopeRef.current)) {
+      initializedScopeRef.current = true;
+      selectScope(preferred.key);
+      void reloadTasks(preferred);
     }
-  }, [activeProject, storedProjects, chatsAvailable, reloadTasks, selectProjectScope, commitTaskList]);
+  }, [scopes, selectedWorkspaceId, reloadTasks, selectScope]);
 
   React.useEffect(() => {
     let timeoutID: ReturnType<typeof setTimeout> | null = null;
@@ -399,14 +394,15 @@ export function ScheduledTasksView({ layout, onLeave }: {
       if (event.type !== 'scheduled-task-ran') {
         return;
       }
-      if (event.projectId !== selectedProjectID) {
+      if (event.projectId !== listOwnerRef.current) {
         return;
       }
       if (timeoutID) {
         clearTimeout(timeoutID);
       }
       timeoutID = setTimeout(() => {
-        void reloadTasks(selectedProjectID, { silent: true });
+        const currentScope = scopes.find((scope) => scope.key === selectedScopeRef.current);
+        if (currentScope) void reloadTasks(currentScope, { silent: true });
       }, 400);
     });
     return () => {
@@ -415,14 +411,16 @@ export function ScheduledTasksView({ layout, onLeave }: {
       }
       unsubscribe();
     };
-  }, [selectedProjectID, reloadTasks]);
+  }, [scopes, reloadTasks]);
 
   const handleSaveTask = React.useCallback(async (taskDraft: Partial<ScheduledTask>) => {
     // An existing task belongs to the scope whose list displayed it; a draft
     // without an id is created in the selected scope. Acting on the owner
     // keeps a scope switch made while the editor was open from misfiling a
     // task into the other project.
-    const projectID = (taskDraft.id ? editorOwnerRef.current : '') || selectedProjectID;
+    const target = taskDraft.target;
+    const destinationProjectID = target ? CHAT_DRAFT_PROJECT_ID : '';
+    const projectID = (taskDraft.id ? editorOwnerRef.current : '') || destinationProjectID || selectedScope?.ownerId;
     if (!projectID) {
       throw new Error(t('sessions.scheduledTasks.dialog.error.chooseProjectFirst'));
     }
@@ -430,11 +428,18 @@ export function ScheduledTasksView({ layout, onLeave }: {
     // Refresh what is on screen: normally the scope that was just saved; if
     // the user switched while the editor was open, the newer scope's list is
     // what the view belongs to and it must stay consistent.
-    if (selectedProjectID) {
-      await reloadTasks(selectedProjectID);
+    const refreshScope = target
+      ? target.kind === 'chats'
+        ? scopes.find((scope) => scope.kind === 'chats')
+        : scopes.find((scope) => scope.kind === 'folder' && scope.workspaceId === target.workspaceId && scope.folderId === (target.kind === 'workspace' ? target.folderId : undefined))
+          ?? scopes.find((scope) => scope.kind === 'workspace' && scope.workspaceId === (target.kind === 'workspace' ? target.workspaceId : ''))
+      : scopes.find((scope) => scope.ownerId === projectID && scope.kind === 'legacyProject') ?? selectedScope;
+    if (refreshScope) {
+      selectScope(refreshScope.key);
+      await reloadTasks(refreshScope);
     }
     toast.success(t('sessions.scheduledTasks.dialog.toast.saved'));
-  }, [selectedProjectID, reloadTasks, t]);
+  }, [selectedScope, scopes, reloadTasks, selectScope, t]);
 
   const handleToggleEnabled = React.useCallback(async (task: ScheduledTask, enabled: boolean) => {
     // The row's own project decides where the mutation lands: a task shown
@@ -453,14 +458,16 @@ export function ScheduledTasksView({ layout, onLeave }: {
       } else {
         await upsertScheduledTask(projectID, { ...task, enabled });
       }
-      await reloadTasks(projectID, { silent: true });
+      const ownerScope = scopes.find((scope) => scope.key === selectedScopeRef.current);
+      if (ownerScope) await reloadTasks(ownerScope, { silent: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('sessions.scheduledTasks.dialog.toast.updateFailed'));
-      await reloadTasks(projectID, { silent: true });
+      const ownerScope = scopes.find((scope) => scope.key === selectedScopeRef.current);
+      if (ownerScope) await reloadTasks(ownerScope, { silent: true });
     } finally {
       setMutatingTaskID(null);
     }
-  }, [reloadTasks, t]);
+  }, [reloadTasks, scopes, t]);
 
   const handleDeleteTask = React.useCallback(async (task: ScheduledTask) => {
     const projectID = listOwnerRef.current;
@@ -481,14 +488,15 @@ export function ScheduledTasksView({ layout, onLeave }: {
       } else {
         await deleteScheduledTask(projectID, task.id);
       }
-      await reloadTasks(projectID, { silent: true });
+      const ownerScope = scopes.find((scope) => scope.key === selectedScopeRef.current);
+      if (ownerScope) await reloadTasks(ownerScope, { silent: true });
       toast.success(t('sessions.scheduledTasks.dialog.toast.deleted'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('sessions.scheduledTasks.dialog.toast.deleteFailed'));
     } finally {
       setMutatingTaskID(null);
     }
-  }, [reloadTasks, t]);
+  }, [reloadTasks, scopes, t]);
 
   const handleEditTask = React.useCallback((task: ScheduledTask) => {
     if (!task.loopFile) {
@@ -534,8 +542,9 @@ export function ScheduledTasksView({ layout, onLeave }: {
     setMutatingTaskID(task.id);
     try {
       const { sessionId, directory, persistError } = await runScheduledTaskNow(projectID, task.id);
+      const ownerScope = scopes.find((scope) => scope.ownerId === projectID && scope.key === selectedScopeRef.current);
       await Promise.all([
-        reloadTasks(projectID, { silent: true }),
+        ...(ownerScope ? [reloadTasks(ownerScope, { silent: true })] : []),
         refreshGlobalSessions(),
       ]);
       if (persistError) {
@@ -566,7 +575,7 @@ export function ScheduledTasksView({ layout, onLeave }: {
     } finally {
       setMutatingTaskID(null);
     }
-  }, [projects, reloadTasks, onLeave, t, timeFormatPreference, openLastRunSession]);
+  }, [projects, scopes, reloadTasks, onLeave, t, timeFormatPreference, openLastRunSession]);
 
   const chatsLabel = (
     <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -574,41 +583,38 @@ export function ScheduledTasksView({ layout, onLeave }: {
       <span className="truncate">{t('sessions.scheduledTasks.dialog.project.chats')}</span>
     </span>
   );
-  const hasScopes = chatsAvailable || projects.length > 0;
-
+  const scopeLabel = (scope: ScheduledTaskListScope) => {
+    if (scope.kind === 'chats') return chatsLabel;
+    if (scope.kind === 'legacyProject' && scope.project) return <span className="inline-flex min-w-0 items-center gap-1.5"><Icon name="folder" className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{scope.project.label?.trim() || formatDirectoryName(scope.project.path, homeDirectory || undefined)}</span></span>;
+    const workspace = workspaces.find((item) => item.id === scope.workspaceId);
+    if (!workspace) return null;
+    const folder = workspace.folders.find((item) => item.id === scope.folderId);
+    const text = scope.kind === 'folder' && folder
+      ? formatWorkspaceLabel(folder.path.replace(/\\+$/, '').split(/[\\/]/).at(-1) || folder.path)
+      : formatWorkspaceLabel(workspace.name);
+    return <span className="inline-flex min-w-0 items-center gap-1.5"><Icon name={scope.kind === 'folder' ? 'folder' : 'stack'} className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{text}</span></span>;
+  };
+  const selectScopeAndLoad = (scope: ScheduledTaskListScope) => {
+    selectScope(scope.key);
+    void reloadTasks(scope);
+  };
   const projectSelector = (
     <div className="flex flex-col items-start gap-1">
       <span className="typography-meta text-muted-foreground">{t('sessions.scheduledTasks.dialog.project.label')}</span>
       <Select
-        value={selectedProjectID || '__none'}
+        value={selectedScopeKey}
         onValueChange={(value) => {
-          const nextProjectID = value === '__none' ? '' : value;
-          selectProjectScope(nextProjectID);
-          if (nextProjectID) {
-            void reloadTasks(nextProjectID);
-          } else {
-            commitTaskList('', []);
-            setLoading(false);
-          }
+          const scope = scopes.find((item) => item.key === value);
+          if (scope) selectScopeAndLoad(scope);
         }}
       >
         <SelectTrigger className="w-full">
-          {selectedProjectID === CHAT_DRAFT_PROJECT_ID ? (
-            <SelectValue>{chatsLabel}</SelectValue>
-          ) : selectedProject ? (
-            <SelectValue>{renderProjectLabel(selectedProject)}</SelectValue>
-          ) : (
-            <SelectValue placeholder={t('sessions.scheduledTasks.dialog.project.placeholder')} />
-          )}
+          <SelectValue>{selectedScope ? scopeLabel(selectedScope) : t('sessions.scheduledTasks.dialog.project.placeholder')}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {!hasScopes ? <SelectItem value="__none">{t('sessions.scheduledTasks.dialog.project.empty')}</SelectItem> : null}
-          {chatsAvailable ? <SelectItem value={CHAT_DRAFT_PROJECT_ID}>{chatsLabel}</SelectItem> : null}
-          {projects.map((project) => (
-            <SelectItem key={project.id} value={project.id}>
-              {renderProjectLabel(project)}
-            </SelectItem>
-          ))}
+          {scopes.filter((scope) => scope.kind !== 'legacyProject').map((scope) => <SelectItem key={scope.key} value={scope.key} className={scope.kind === 'folder' ? 'ps-7' : undefined}>{scopeLabel(scope)}</SelectItem>)}
+          {projects.length ? <SelectItem value="__legacy_heading" disabled>{t('sessions.scheduledTasks.dialog.legacyProjects')}</SelectItem> : null}
+          {scopes.filter((scope) => scope.kind === 'legacyProject').map((scope) => <SelectItem key={scope.key} value={scope.key}>{scopeLabel(scope)}</SelectItem>)}
         </SelectContent>
       </Select>
     </div>
@@ -621,23 +627,20 @@ export function ScheduledTasksView({ layout, onLeave }: {
   };
 
   const selectProject = (nextProjectID: string) => {
-    selectProjectScope(nextProjectID);
-    if (nextProjectID) {
-      void reloadTasks(nextProjectID);
-    } else {
-      commitTaskList('', []);
-      setLoading(false);
-    }
+    const scope = scopes.find((item) => item.key === nextProjectID);
+    if (scope) selectScopeAndLoad(scope);
   };
 
-  const renderScopeButton = (scopeID: string, label: React.ReactNode) => (
+  const renderScopeButton = (scope: ScheduledTaskListScope, label: React.ReactNode) => (
     <button
-      key={scopeID}
+      key={scope.key}
       type="button"
-      onClick={() => selectProject(scopeID)}
+      onClick={() => selectProject(scope.key)}
+      aria-current={selectedScopeKey === scope.key ? 'page' : undefined}
       className={cn(
-        'flex w-full min-w-0 items-center rounded-md px-2 py-1.5 text-start typography-ui-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        selectedProjectID === scopeID
+        'flex w-full min-w-0 items-center rounded-md px-2 py-1.5 text-start typography-ui-label focus-visible:outline-none',
+        scope.kind === 'folder' && 'ps-7',
+        selectedScopeKey === scope.key
           ? 'bg-interactive-selection text-foreground'
           : 'text-muted-foreground hover:bg-interactive-hover/50 hover:text-foreground',
       )}
@@ -654,7 +657,7 @@ export function ScheduledTasksView({ layout, onLeave }: {
         </div>
       ) : tasks.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-4 typography-meta text-muted-foreground">
-          {selectedProjectID ? t('sessions.scheduledTasks.dialog.empty.noTasks') : t('sessions.scheduledTasks.dialog.empty.selectProject')}
+          {selectedScopeKey ? t('sessions.scheduledTasks.dialog.empty.noTasks') : t('sessions.scheduledTasks.dialog.empty.selectProject')}
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -695,6 +698,7 @@ export function ScheduledTasksView({ layout, onLeave }: {
                     <TaskModelLine task={task} />
                   </div>
                   {task.targetSessionId ? <TaskTargetLine sessionId={task.targetSessionId} /> : null}
+                  {task.target ? <TaskWorkspaceTargetLine target={task.target} /> : null}
                   {task.loopFile ? (
                     <div
                       className="typography-micro truncate text-muted-foreground/70"
@@ -829,8 +833,14 @@ export function ScheduledTasksView({ layout, onLeave }: {
       </div>
   );
 
+  const editorInitialTarget = React.useMemo(() => selectedScope?.kind === 'workspace'
+    ? { kind: 'workspace' as const, workspaceId: selectedScope.workspaceId || '' }
+    : selectedScope?.kind === 'folder'
+      ? { kind: 'workspace' as const, workspaceId: selectedScope.workspaceId || '', folderId: selectedScope.folderId }
+      : selectedScope?.kind === 'chats' ? { kind: 'chats' as const } : { kind: 'legacy' as const }, [selectedScope]);
+
   const newTaskButton = (className?: string) => (
-    <Button className={className} size={layout === 'page' ? 'sm' : 'default'} onClick={openNewTaskEditor} disabled={!selectedProjectID}>
+    <Button className={className} size={layout === 'page' ? 'sm' : 'default'} onClick={openNewTaskEditor} disabled={!selectedScope}>
       <Icon name="add" className="me-1 h-4 w-4" /> {t('sessions.scheduledTasks.dialog.actions.newTask')}
     </Button>
   );
@@ -860,13 +870,13 @@ export function ScheduledTasksView({ layout, onLeave }: {
           <div className="flex min-h-0 flex-1">
             <div className="flex w-60 flex-shrink-0 flex-col border-e border-border/50">
               <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
-                {!hasScopes ? (
+                {!scopes.length ? (
                   <div className="px-2 py-2 typography-meta text-muted-foreground">
                     {t('sessions.scheduledTasks.dialog.project.empty')}
                   </div>
                 ) : null}
-                {chatsAvailable ? renderScopeButton(CHAT_DRAFT_PROJECT_ID, chatsLabel) : null}
-                {projects.map((project) => renderScopeButton(project.id, renderProjectLabel(project)))}
+                {scopes.filter((scope) => scope.kind !== 'legacyProject').map((scope) => renderScopeButton(scope, scopeLabel(scope)))}
+                {projects.length ? <details className="pt-2"><summary className="cursor-pointer px-2 py-1.5 typography-meta text-muted-foreground">{t('sessions.scheduledTasks.dialog.legacyProjects')}</summary>{scopes.filter((scope) => scope.kind === 'legacyProject').map((scope) => renderScopeButton(scope, scopeLabel(scope)))}</details> : null}
               </div>
             </div>
             <div className="flex min-w-0 flex-1 flex-col">
@@ -890,7 +900,8 @@ export function ScheduledTasksView({ layout, onLeave }: {
         task={editorTask}
         // The editor works in the task's own scope: an existing task keeps
         // the project it was captured with even if the selection has moved.
-        projectId={editorOwnerRef.current || selectedProjectID}
+        projectId={editorOwnerRef.current || selectedScope?.ownerId || ''}
+        initialTarget={editorInitialTarget}
         onOpenChange={setEditorOpen}
         onSave={handleSaveTask}
       />

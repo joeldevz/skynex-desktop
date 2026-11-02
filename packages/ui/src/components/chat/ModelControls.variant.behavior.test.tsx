@@ -271,7 +271,13 @@ mock.module('@/stores/useConfigStore', () => ({
     state.agents.find((agent) => agent.name === name) ?? knownElsewhere.agents.find((agent) => agent.name === name),
 }));
 mock.module('@/sync/selection-store', () => ({ useSelectionStore }));
-mock.module('@/sync/session-ui-store', () => ({ useSessionUIStore }));
+mock.module('@/sync/session-ui-store', () => ({
+  useSessionUIStore,
+  resolveSendSelection: (_sessionId: string, _directory: string | undefined, desired: { providerID: string; modelID: string; variant?: string | null; agent?: string }) => ({
+    model: { providerID: desired.providerID, modelID: desired.modelID, variant: desired.variant },
+    agent: desired.agent,
+  }),
+}));
 mock.module('@/stores/useUIStore', () => ({ useUIStore }));
 mock.module('@/stores/contextStore', () => ({
   useContextStore: <T,>(selector: (state: { hasHydrated: boolean }) => T): T => selector({ hasHydrated: true }),

@@ -19,6 +19,17 @@ A scheduled task runs a prompt for you on a schedule — for example, a daily "s
 4. Set what it does: the prompt to send, and the provider, model, and agent to use. The prompt can be a slash command, like `/review`.
 5. Save, and make sure the task is enabled.
 
+Choose **Chat** to create a new unassociated chat for each run, or choose a
+workspace to run in all its currently linked folders. You can select one folder
+when the task should stay tied to a specific destination. If that folder is
+unlinked or its workspace is deleted, the task pauses until you retarget it.
+Workspace-target tasks stay available under Chats so deleting a workspace does
+not delete the task.
+
+Older project tasks keep their existing project folder unless you retarget them.
+You can also choose an existing conversation explicitly. Its saved session scope
+stays unchanged when the task runs.
+
 You can run any task immediately with **run now** to check it does what you expect.
 
 Check **Run as goal** to make the run pursue its prompt to completion instead of stopping after one reply — see [Session Goals](/session-goals/).

@@ -18,6 +18,8 @@ import { subscribeRuntimeEndpointChanged } from '@/lib/runtime-switch';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
+import { WorkspaceSurface } from '@/components/session/workspaces/WorkspaceSurface';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { SpaceActionsSheet, SpaceDeleteDialog } from '@/components/session/spaces/SpaceActions';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
 import { ProjectActionsProvider } from './ProjectActionsProvider';
@@ -120,6 +122,7 @@ export const MainLayout: React.FC = () => {
     const isUsageStatsPageOpen = useUIStore((state) => state.isUsageStatsPageOpen);
     const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
     const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
+    const selectedWorkspaceId = useWorkspacesStore((state) => state.selectedWorkspaceId);
     const worktreesPageProjectId = useUIStore((state) => state.worktreesPageProjectId);
     // The spaces page exists only while the feature's switch is on.
     const isSpacesPageOpen = useUIStore((state) => state.isolatedSpacesEnabled && state.spacesPageProjectId !== null);
@@ -141,7 +144,7 @@ export const MainLayout: React.FC = () => {
     // Any full-page surface replacing the chat area. While open, the chat is
     // fully hidden (not just covered) so none of its floating chrome bleeds
     // through, and selecting a session or draft anywhere closes the surface.
-    const isSurfacePageOpen = isScheduledTasksPageOpen || isArchivePageOpen || isIntegrationsCatalogOpen || isUsageStatsPageOpen || isSourceBoardOpen || isOverviewOpen || Boolean(worktreesPageProjectId) || isSpacesPageOpen || isRunOverviewOpen || Boolean(guestPage);
+    const isSurfacePageOpen = selectedWorkspaceId !== null || isScheduledTasksPageOpen || isArchivePageOpen || isIntegrationsCatalogOpen || isUsageStatsPageOpen || isSourceBoardOpen || isOverviewOpen || Boolean(worktreesPageProjectId) || isSpacesPageOpen || isRunOverviewOpen || Boolean(guestPage);
     // The work-status card sits in the right slot, outside the hidden chat,
     // so the slot is told to hide it with the chat.
     React.useLayoutEffect(() => {
@@ -222,6 +225,7 @@ export const MainLayout: React.FC = () => {
                                             <div className={cn('absolute inset-0', isSurfacePageOpen && 'invisible')}>
                                                 <ErrorBoundary><ChatView active={!isSettingsDialogOpen && !isSurfacePageOpen} /></ErrorBoundary>
                                             </div>
+                                            {selectedWorkspaceId !== null && <div className="absolute inset-0"><ErrorBoundary><WorkspaceSurface /></ErrorBoundary></div>}
                                             <ErrorBoundary><OnDemand needed={isRunOverviewOpen} load={loadRunOverview} onFailure={closeMainSurfaces} /></ErrorBoundary>
                                             <ErrorBoundary><OnDemand needed={isScheduledTasksPageOpen} load={loadScheduledTasksDialog} onFailure={closeMainSurfaces} /></ErrorBoundary>
                                             <ErrorBoundary><OnDemand needed={isArchivePageOpen} load={loadArchiveView} onFailure={closeMainSurfaces} /></ErrorBoundary>

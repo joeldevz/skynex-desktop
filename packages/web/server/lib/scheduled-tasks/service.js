@@ -21,6 +21,7 @@ export const createScheduledTaskService = (dependencies) => {
     // Git helper that maps a linked worktree back to the checkout it came from;
     // see resolveProjectID.
     resolvePrimaryWorktreeRoot = null,
+    resolveWorkspaceTarget = null,
   } = dependencies;
 
   const listProjects = async () => {
@@ -132,23 +133,52 @@ export const createScheduledTaskService = (dependencies) => {
     if (!taskInput || typeof taskInput !== 'object') {
       throw new OpenChamberControlError('task payload is required', 400);
     }
+    const targetOwner = taskInput.target?.kind === 'workspace' || taskInput.target?.kind === 'chats'
+      ? chatsScope?.id
+      : id;
+    if (!targetOwner) throw new OpenChamberControlError('Scheduled task target is unavailable', 503);
+    if (taskInput.target?.kind === 'workspace') {
+      if (!resolveWorkspaceTarget) throw new OpenChamberControlError('Workspace target resolution is unavailable', 503);
+      await resolveWorkspaceTarget(taskInput.target);
+    }
     let upserted;
-    const previous = taskInput.id ? (await projectConfigRuntime.listScheduledTasks(id)).find((task) => task.id === taskInput.id) : null;
+    const sourcePrevious = taskInput.id ? (await projectConfigRuntime.listScheduledTasks(id)).find((task) => task.id === taskInput.id) : null;
+    const targetPrevious = targetOwner === id ? sourcePrevious
+      : (await projectConfigRuntime.listScheduledTasks(targetOwner)).find((task) => task.id === taskInput.id) || null;
+    const previous = sourcePrevious || targetPrevious;
     if (taskInput.targetSessionId && (taskInput.enabled !== false || previous?.targetSessionId !== taskInput.targetSessionId)) {
-      await scheduledTasksRuntime.validateTarget(id, taskInput.targetSessionId);
+      await scheduledTasksRuntime.validateTarget(targetOwner, taskInput.targetSessionId, taskInput.target);
     }
     try {
-      upserted = await projectConfigRuntime.upsertScheduledTask(id, taskInput);
+      upserted = await projectConfigRuntime.upsertScheduledTask(targetOwner, taskInput);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save scheduled task';
       const invalid = message.toLowerCase().includes('required') || message.toLowerCase().includes('invalid');
       throw new OpenChamberControlError(message, invalid ? 400 : 500);
     }
-    if (previous?.targetSessionId && ((previous.enabled && upserted.task.enabled === false) || previous.targetSessionId !== upserted.task.targetSessionId)) {
-      await scheduledTasksRuntime.cancelWaitingPrompt(id, taskInput.id);
+    if (targetOwner !== id && sourcePrevious) {
+      try {
+        if (sourcePrevious.targetSessionId) await scheduledTasksRuntime.cancelWaitingPrompt(id, taskInput.id);
+        const removed = await projectConfigRuntime.deleteScheduledTask(id, taskInput.id);
+        if (!removed.deleted) throw new Error('Source scheduled task disappeared during retargeting');
+      } catch (error) {
+        try {
+          if (targetPrevious) await projectConfigRuntime.upsertScheduledTask(targetOwner, targetPrevious);
+          else await projectConfigRuntime.deleteScheduledTask(targetOwner, taskInput.id);
+          await scheduledTasksRuntime.syncProject(targetOwner);
+        } catch {
+          throw new OpenChamberControlError('Task destination was saved, but rollback failed; check the Chats task list before running it', 500);
+        }
+        throw error;
+      }
+      await scheduledTasksRuntime.syncProject(id);
     }
-    await scheduledTasksRuntime.syncProject(id);
-    const tasks = await projectConfigRuntime.listScheduledTasks(id);
+    if (previous?.targetSessionId && ((previous.enabled && upserted.task.enabled === false) || previous.targetSessionId !== upserted.task.targetSessionId)) {
+      await scheduledTasksRuntime.cancelWaitingPrompt(targetOwner, taskInput.id);
+      if (sourcePrevious && targetOwner !== id) await scheduledTasksRuntime.cancelWaitingPrompt(id, taskInput.id);
+    }
+    await scheduledTasksRuntime.syncProject(targetOwner);
+    const tasks = await projectConfigRuntime.listScheduledTasks(targetOwner);
     return {
       tasks,
       task: tasks.find((task) => task.id === upserted.task.id) || upserted.task,

@@ -163,9 +163,10 @@ describe('SidebarHeader', () => {
         </I18nProvider>,
       ));
       const button = (label: string) => document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
+      // Scheduled tasks open from the workspace navigation (workspaces DOCUMENTATION.md), not this header.
+      expect(document.querySelector('[aria-label="Scheduled tasks"]')).toBeNull();
       for (const [label, isOpen] of [
         ['Archive', () => useUIStore.getState().isArchivePageOpen],
-        ['Scheduled tasks', () => useUIStore.getState().isScheduledTasksDialogOpen],
         ['Issues and PRs', () => useUIStore.getState().isSourceBoardOpen],
         ['Overview', () => useUIStore.getState().isOverviewOpen],
       ] as const) {

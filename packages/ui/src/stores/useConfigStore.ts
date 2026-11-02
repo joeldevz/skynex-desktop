@@ -11,7 +11,7 @@ import { opencodeClient, type OpencodeHealthProbe } from "@/lib/opencode/client"
 import { isSameProjectConfigError, readProjectConfigError, type ProjectConfigError } from "@/lib/opencode/configError";
 import { scopeMatches, subscribeToConfigChanges } from "@/lib/configSync";
 import type { ModelMetadata } from "@/types";
-import { createDeferredSafeJSONStorage } from "./utils/safeStorage";
+import { createDeferredSafeJSONStorage, getSafeStorage } from "./utils/safeStorage";
 import { filterVisibleAgents, isAgentHidden } from "./useAgentsStore";
 import { isPrimaryMode } from "@/components/chat/mobileControlsUtils";
 import { useSessionUIStore } from "@/sync/session-ui-store";
@@ -32,6 +32,8 @@ import { normalizePath } from "@/lib/pathNormalization";
 import { getSyncConfig, subscribeToSyncConfigChanges } from "@/sync/sync-refs";
 import { getRuntimeKey, subscribeRuntimeEndpointChanged } from "@/lib/runtime-switch";
 import { readCachedCatalog, shouldHoldFirstLoadAgainstCache, writeCachedCatalogWhenSettled, type CachedCatalog } from "./configCatalogCache";
+
+const localStorage = getSafeStorage();
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
 const MODELS_DEV_PROXY_URL = "/api/openchamber/models-metadata";
@@ -839,8 +841,7 @@ const resolveInitialDirectoryKey = (): string => {
         return DIRECTORY_KEY_GLOBAL;
     }
 
-    const directory = opencodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory;
-    return toConfigDirectoryKey(directory);
+    return toConfigDirectoryKey(opencodeClient.getDirectory());
 };
 
 // Persisted worktree→project mapping for project-level defaults. Config catalogs
@@ -4510,16 +4511,22 @@ if (!unsubscribeConfigStoreSyncConfigChanges) {
 }
 
 if (typeof window !== "undefined" && !unsubscribeConfigStoreDirectoryChanges) {
-    unsubscribeConfigStoreDirectoryChanges = useDirectoryStore.subscribe((state, prevState) => {
-        const nextKey = toDirectoryKey(state.currentDirectory);
-        const prevKey = toDirectoryKey(prevState.currentDirectory);
-        if (nextKey === prevKey) {
-            return;
-        }
+    queueMicrotask(() => {
+        unsubscribeConfigStoreDirectoryChanges = useDirectoryStore.subscribe((state, prevState) => {
+            const nextKey = toDirectoryKey(state.currentDirectory);
+            const prevKey = toDirectoryKey(prevState.currentDirectory);
+            if (nextKey === prevKey) {
+                return;
+            }
 
-        markStartupTrace('directoryStore:changed', { previous: prevKey, next: nextKey });
-        void hydrateConfigCatalogFromCache(toConfigDirectoryKey(state.currentDirectory));
-        void useConfigStore.getState().activateDirectory(state.currentDirectory);
+            markStartupTrace('directoryStore:changed', { previous: prevKey, next: nextKey });
+            void hydrateConfigCatalogFromCache(toConfigDirectoryKey(state.currentDirectory));
+            void useConfigStore.getState().activateDirectory(state.currentDirectory);
+        });
+        const directory = useDirectoryStore.getState().currentDirectory;
+        if (toConfigDirectoryKey(directory) !== useConfigStore.getState().activeDirectoryKey) {
+            void useConfigStore.getState().activateDirectory(directory);
+        }
     });
 }
 

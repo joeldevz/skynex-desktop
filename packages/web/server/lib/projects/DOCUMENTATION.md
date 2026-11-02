@@ -94,6 +94,7 @@ UI (`packages/ui/src/lib/sharedTrustConfirmation.ts`).
 ## Invariants
 
 - **Every write is a locked read-modify-write of the whole document.** Keys the writer does not own, and keys from newer builds, come back out unchanged. A setup update and a scheduled-task update never clobber each other.
+- Scheduled tasks without a target remain in their existing project config. Explicit workspace and Chat targets are stored in the Chats config, so workspace deletion does not delete workspace-target task records.
 - **A wrongly shaped key is a 400, not a silent drop.** `projectSetupPatchToStored` throws; the file is untouched. Values inside a well-shaped key are sanitized (trimmed, capped, deduplicated) rather than rejected.
 - **The config file name is bounded.** `projectConfigFileStemOf` maps ids over 200 characters to `path_sha256_<digest>`, preventing ENAMETOOLONG for deeply nested checkouts. The web runtime and VS Code share this naming rule. An older long-name config remains readable when the bounded file is missing; malformed data is a read failure.
 - **Historical storage folders stay in place.** Settings startup never reads, combines, remaps or moves retired context, plan or memory files. Project-id migration and orphan recovery still copy active configuration into the canonical config, preserving unknown fields. Their original config document is renamed to `<original>.json.<uuid>.retired`, retaining its bytes without rediscovering it as an active orphan. Existing historical paths remain unchanged.

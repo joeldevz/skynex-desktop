@@ -2,8 +2,8 @@ import type { SettingsAPI, SettingsLoadResult, SettingsPayload } from '@opencham
 import { sendBridgeMessage } from './bridge';
 
 const sanitizePayload = (data: unknown): SettingsPayload => {
-  if (!data || typeof data !== 'object') {
-    return {};
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Invalid settings response');
   }
   return data as SettingsPayload;
 };

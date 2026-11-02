@@ -4,7 +4,7 @@ import { OpenChamberControlError } from '../openchamber-control/error.js';
 import { asNonEmptyString } from '../shared/guards.js';
 import { expandSnippets } from '../opencode/snippets.js';
 
-export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueRuntime, createClient, listProjects, chatsScope, resolvePrimaryWorktreeRoot, isSessionArchived, emitTaskRunEvent }) => {
+export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueRuntime, createClient, listProjects, chatsScope, resolvePrimaryWorktreeRoot, resolveWorkspaceTarget, isSessionArchived, emitTaskRunEvent }) => {
   const admissions = new Set();
 
   // The membership rule, in one place: a save or run and the picker's
@@ -19,7 +19,7 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
     return Boolean(owner?.root) && path.resolve(owner.root) === path.resolve(project.path);
   };
 
-  const validateTarget = async (projectId, targetSessionId) => {
+  const validateTarget = async (projectId, targetSessionId, taskTarget) => {
     if (!z.string().regex(/^[A-Za-z0-9_-]{4,128}$/).safeParse(targetSessionId).success) {
       throw new OpenChamberControlError('targetSessionId is invalid', 400);
     }
@@ -38,11 +38,15 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
     const project = projects.find((entry) => entry.id === projectId);
     const directory = session.location?.directory;
     if (!directory) throw new OpenChamberControlError('Scheduled target has no directory', 409);
-    if (projects.some((entry) => entry.id !== projectId && path.resolve(entry.path) === path.resolve(directory))) {
+    if (taskTarget?.kind !== 'workspace' && projects.some((entry) => entry.id !== projectId && path.resolve(entry.path) === path.resolve(directory))) {
       throw new OpenChamberControlError('Scheduled target belongs to another project', 409);
     }
     let belongs = false;
-    if (chatsScope && projectId === chatsScope.id) belongs = chatsScope.contains(directory);
+    if (taskTarget?.kind === 'workspace') {
+      if (!resolveWorkspaceTarget) throw new OpenChamberControlError('Workspace target resolution is unavailable', 503);
+      const workspaceScope = await resolveWorkspaceTarget(taskTarget);
+      belongs = workspaceScope.folders.some((folder) => path.resolve(folder.path) === path.resolve(directory));
+    } else if (chatsScope && projectId === chatsScope.id) belongs = chatsScope.contains(directory);
     else if (project && directory) belongs = await ownsDirectory(project, directory);
     if (!belongs) throw new OpenChamberControlError('Scheduled target is outside the task project', 409);
     return { session, directory };
@@ -55,10 +59,16 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
    * directory, or one that is archived or foreign, is never eligible. Whether
    * the session still exists is left to `validateTarget` on save.
    */
-  const listEligibleTargets = async (projectId, candidates) => {
+  const listEligibleTargets = async (projectId, candidates, taskTarget) => {
     const projects = await listProjects();
-    const scopeId = chatsScope ? chatsScope.toStorageID(projectId) : projectId;
+    const explicitChatsTarget = taskTarget?.kind === 'chats';
+    const scopeId = explicitChatsTarget && chatsScope
+      ? chatsScope.id
+      : chatsScope ? chatsScope.toStorageID(projectId) : projectId;
     const project = projects.find((entry) => entry.id === scopeId);
+    const workspaceScope = taskTarget?.kind === 'workspace'
+      ? (resolveWorkspaceTarget ? await resolveWorkspaceTarget(taskTarget) : null)
+      : null;
     // Many sessions share a few directories, so membership is resolved once
     // per directory: a Git lookup per session would run hundreds of processes.
     const membership = new Map();
@@ -66,6 +76,10 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
       const key = path.resolve(directory);
       if (!membership.has(key)) {
         membership.set(key, (async () => {
+          if (taskTarget?.kind === 'workspace') {
+            return Boolean(workspaceScope?.folders.some((folder) => path.resolve(folder.path) === key));
+          }
+          if (explicitChatsTarget) return Boolean(chatsScope?.contains(directory));
           if (projects.some((entry) => entry.id !== scopeId && path.resolve(entry.path) === key)) return false;
           if (chatsScope && scopeId === chatsScope.id) return chatsScope.contains(directory);
           return project ? ownsDirectory(project, directory) : false;
@@ -114,7 +128,7 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
           { lastScheduledFor: scheduledFor, nextRunAt: nextRunAt ?? undefined });
         if (!claim.updated) return { ok: false, skipped: true };
       }
-      const { directory } = await validateTarget(projectId, task.targetSessionId);
+      const { directory } = await validateTarget(projectId, task.targetSessionId, task.target);
       const sendConfig = task.execution.useDefaults ? {} : {
         providerID: task.execution.providerID, modelID: task.execution.modelID,
         agent: task.execution.agent, variant: task.execution.variant,
@@ -151,7 +165,7 @@ export const createExistingSessionTasks = ({ projectConfigRuntime, messageQueueR
     const { projectId, taskId } = item.scheduledTask;
     const task = (await projectConfigRuntime.listScheduledTasks(projectId)).find((entry) => entry.id === taskId);
     if (!task || task.targetSessionId !== sessionId) throw new OpenChamberControlError('Scheduled task target changed or was removed', 409);
-    const target = await validateTarget(projectId, sessionId);
+    const target = await validateTarget(projectId, sessionId, task.target);
     if (target.directory !== directory) throw new OpenChamberControlError('Scheduled target moved', 409);
   };
 

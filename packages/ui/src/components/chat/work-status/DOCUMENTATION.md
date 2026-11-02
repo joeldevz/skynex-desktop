@@ -44,7 +44,7 @@ suppress duplicate readouts.
 
 The section keeps session readouts and the notebook visible together in one
 column. Separate cards or mutually exclusive views hide information needed
-alongside the task steps. The independent Tasks rail panel remains available.
+alongside the task steps.
 
 ## What it is not
 

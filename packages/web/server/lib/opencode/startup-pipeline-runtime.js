@@ -34,6 +34,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       terminalRebindWindowMs,
       terminalMaxRebindsPerWindow,
       environmentRuntime = null,
+      registerBaseRoutes = null,
       setupProxy,
       scheduleOpenCodeApiDetection,
       bootstrapOpenCodeAtStartup,
@@ -104,6 +105,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       upstreamStallTimeoutMs,
     });
 
+    registerBaseRoutes?.(app);
     setupProxy(app);
 
     if (apiOnly) {

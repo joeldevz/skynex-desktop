@@ -4,6 +4,8 @@ This document describes backend runtime modules used by the VS Code extension br
 
 ## Purpose
 
+The webview settings adapter rejects successful bridge responses whose payload is null, a primitive, or an array. A valid empty object remains a successful settings document. Bridge and parsing failures must not masquerade as missing workspace settings, which would authorize a catalog migration.
+
 Keep `bridge.ts` as a thin orchestration layer that delegates message handling to cohesive domain runtimes while preserving API behavior.
 
 ## Runtime modules

@@ -30,6 +30,10 @@ import { listModelVariantIds, type ModelVariantSource } from '@/lib/modelVariant
 import { useGlobalSessionsStore, refreshGlobalSessions } from '@/stores/useGlobalSessionsStore';
 import { useAllLiveSessions } from '@/sync/sync-context';
 import { SettingsStackedField } from '@/components/sections/shared/SettingsSection';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { DraftWorkspaceFolderTargetSelector, DraftWorkspaceTargetSelector } from '@/components/chat/composer/ui/DraftTargetSelectors';
+import type { Workspace } from '@/lib/workspaces/model';
+import type { FolderSelection } from '@/lib/workspaces/session-scope';
 
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6] as const;
 
@@ -464,6 +468,9 @@ type ScheduledTaskDraft = {
   id?: string;
   sessionMode: 'new' | 'existing';
   targetSessionId: string;
+  targetMode: 'legacy' | 'chats' | 'workspace';
+  workspaceId: string;
+  folderId: string;
   name: string;
   enabled: boolean;
   schedule: {
@@ -514,6 +521,7 @@ const toDraft = (
     variant: string;
     agent: string;
   },
+  initialTarget?: { kind: 'chats' } | { kind: 'workspace'; workspaceId: string; folderId?: string } | { kind: 'legacy' },
 ): ScheduledTaskDraft => {
   const timezoneFallback = canonicalizeTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   if (!task) {
@@ -521,6 +529,9 @@ const toDraft = (
       name: '',
       sessionMode: 'new',
       targetSessionId: '',
+      targetMode: initialTarget?.kind === 'workspace' ? 'workspace' : initialTarget?.kind === 'legacy' ? 'legacy' : 'chats',
+      workspaceId: initialTarget?.kind === 'workspace' ? initialTarget.workspaceId : '',
+      folderId: initialTarget?.kind === 'workspace' ? initialTarget.folderId || '' : '',
       enabled: true,
       schedule: {
         kind: 'daily',
@@ -549,6 +560,9 @@ const toDraft = (
     id: task.id,
     sessionMode: task.targetSessionId ? 'existing' : 'new',
     targetSessionId: task.targetSessionId || '',
+    targetMode: task.target?.kind === 'workspace' ? 'workspace' : task.target?.kind === 'chats' ? 'chats' : 'legacy',
+    workspaceId: task.target?.kind === 'workspace' ? task.target.workspaceId : '',
+    folderId: task.target?.kind === 'workspace' ? task.target.folderId || '' : '',
     name: task.name,
     enabled: task.enabled,
     schedule: {
@@ -591,6 +605,7 @@ const toDraft = (
 
 const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>['t']): string | null => {
   if (draft.sessionMode === 'existing' && !draft.targetSessionId) return t('sessions.scheduledTasks.editor.targetRequired');
+  if (draft.targetMode === 'workspace' && !draft.workspaceId) return t('sessions.scheduledTasks.editor.destination.workspaceRequired');
   if (!draft.name.trim()) {
     return t('sessions.scheduledTasks.editor.validation.taskNameRequired');
   }
@@ -632,6 +647,39 @@ const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>[
   }
 
   return null;
+};
+
+const ScheduledWorkspaceFolderSelector: React.FC<{
+  workspace: Workspace;
+  folderId: string;
+  mobile: boolean;
+  onSelect: (selection: FolderSelection) => void;
+}> = ({ workspace, folderId, mobile, onSelect }) => {
+  const { t } = useI18n();
+  const missing = Boolean(folderId && !workspace.folders.some((folder) => folder.id === folderId));
+  const [replacing, setReplacing] = React.useState(!missing);
+  React.useEffect(() => setReplacing(!missing), [workspace.id, folderId, missing]);
+  if (missing && !replacing) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="typography-micro text-destructive">{t('sessions.scheduledTasks.editor.destination.missingFolder')}</p>
+        <Button type="button" variant="ghost" size="xs" onClick={() => setReplacing(true)}>
+          {t('sessions.scheduledTasks.editor.destination.chooseFolder')}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {missing ? <p className="typography-micro text-destructive">{t('sessions.scheduledTasks.editor.destination.missingFolder')}</p> : null}
+      <DraftWorkspaceFolderTargetSelector
+        workspace={workspace}
+        selectedFolderId={missing ? null : folderId || null}
+        mobile={mobile}
+        onSelect={(_workspaceId, selection) => onSelect(selection)}
+      />
+    </div>
+  );
 };
 
 const dedupeSortTimes = (times: string[]) => {
@@ -745,11 +793,14 @@ export function ScheduledTaskEditorDialog(props: {
   open: boolean;
   task: ScheduledTask | null;
   projectId: string;
+  initialTarget?: { kind: 'chats' } | { kind: 'workspace'; workspaceId: string; folderId?: string } | { kind: 'legacy' };
   onOpenChange: (open: boolean) => void;
   onSave: (draft: Partial<ScheduledTask>) => Promise<void>;
 }) {
   const { open, task, onOpenChange, onSave } = props;
   const { t, locale } = useI18n();
+  const workspaces = useWorkspacesStore((state) => state.catalog.workspaces);
+  const workspaceStoreStatus = useWorkspacesStore((state) => state.status);
   const globalSessions = useGlobalSessionsStore((state) => state.activeSessions);
   const liveSessions = useAllLiveSessions();
   // Candidates only. Whether one belongs to the task is the scheduler's own
@@ -772,27 +823,6 @@ export function ScheduledTaskEditorDialog(props: {
     { status: 'idle' | 'loading' | 'error' } | { status: 'ready'; ids: ReadonlySet<string> }
   >({ status: 'idle' });
   const [eligibilityAttempt, setEligibilityAttempt] = React.useState(0);
-  React.useEffect(() => {
-    if (!open || !props.projectId || !candidatesKey) {
-      setEligibility({ status: 'idle' });
-      return undefined;
-    }
-    const controller = new AbortController();
-    setEligibility((current) => (current.status === 'ready' ? current : { status: 'loading' }));
-    fetchEligibleScheduledTaskTargets(
-      props.projectId,
-      candidatesRef.current.map((session) => ({ sessionId: session.id, directory: session.directory ?? '' })),
-      controller.signal,
-    ).then(
-      (ids) => setEligibility({ status: 'ready', ids }),
-      () => {
-        // A failed read is an error, never an empty list: the picker would
-        // otherwise read as "this project has no sessions".
-        if (!controller.signal.aborted) setEligibility({ status: 'error' });
-      },
-    );
-    return () => controller.abort();
-  }, [open, props.projectId, candidatesKey, eligibilityAttempt]);
   const sessions = React.useMemo(
     () => (eligibility.status === 'ready' ? candidates.filter((session) => eligibility.ids.has(session.id)) : []),
     [candidates, eligibility],
@@ -817,7 +847,7 @@ export function ScheduledTaskEditorDialog(props: {
       modelID: currentModelID,
       variant: currentVariant,
       agent: currentAgentName,
-    })
+    }, props.initialTarget)
   );
   const [saving, setSaving] = React.useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
@@ -868,6 +898,7 @@ export function ScheduledTaskEditorDialog(props: {
     if (!open) {
       return;
     }
+    void useWorkspacesStore.getState().load();
     void loadProviders({ source: 'scheduledTaskEditor' });
     void loadAgents({ source: 'scheduledTaskEditor' });
   }, [open, loadProviders, loadAgents]);
@@ -882,7 +913,7 @@ export function ScheduledTaskEditorDialog(props: {
         modelID: currentModelID,
         variant: currentVariant,
         agent: currentAgentName,
-      })
+      }, props.initialTarget)
     );
     const sourceDate = parseISODateToLocal(task?.schedule?.date || '') || new Date();
     setCalendarMonth(new Date(sourceDate.getFullYear(), sourceDate.getMonth(), 1));
@@ -891,7 +922,44 @@ export function ScheduledTaskEditorDialog(props: {
     setShowFileMention(false);
     setCommandQuery('');
     setMentionQuery('');
-  }, [open, task, currentProviderID, currentModelID, currentVariant, currentAgentName]);
+  }, [open, task, currentProviderID, currentModelID, currentVariant, currentAgentName, props.initialTarget]);
+
+  const eligibilityTarget = React.useMemo(() => draft.targetMode === 'workspace'
+    ? (draft.folderId
+      ? { kind: 'workspace' as const, workspaceId: draft.workspaceId, folderId: draft.folderId }
+      : { kind: 'workspace' as const, workspaceId: draft.workspaceId })
+    : draft.targetMode === 'chats' ? { kind: 'chats' as const } : undefined,
+  [draft.targetMode, draft.workspaceId, draft.folderId]);
+  const eligibilityTargetKey = eligibilityTarget ? JSON.stringify(eligibilityTarget) : '';
+  React.useEffect(() => {
+    if (!open || !props.projectId || !candidatesKey) {
+      setEligibility({ status: 'idle' });
+      return undefined;
+    }
+    const controller = new AbortController();
+    setEligibility((current) => (current.status === 'ready' ? current : { status: 'loading' }));
+    fetchEligibleScheduledTaskTargets(
+      props.projectId,
+      candidatesRef.current.map((session) => ({ sessionId: session.id, directory: session.directory ?? '' })),
+      controller.signal,
+      eligibilityTarget,
+    ).then(
+      (ids) => setEligibility({ status: 'ready', ids }),
+      () => {
+        if (!controller.signal.aborted) setEligibility({ status: 'error' });
+      },
+    );
+    return () => controller.abort();
+  }, [open, props.projectId, candidatesKey, eligibilityAttempt, eligibilityTargetKey, eligibilityTarget]);
+
+  React.useEffect(() => {
+    if (draft.sessionMode === 'existing' && draft.targetSessionId && eligibility.status === 'ready'
+      && !eligibility.ids.has(draft.targetSessionId)) {
+      setDraft((current) => current.targetSessionId === draft.targetSessionId
+        ? { ...current, targetSessionId: '' }
+        : current);
+    }
+  }, [draft.sessionMode, draft.targetSessionId, eligibility]);
 
   React.useEffect(() => {
     if (!isDatePickerOpen) {
@@ -1217,7 +1285,6 @@ export function ScheduledTaskEditorDialog(props: {
     }
 
     const payload: Partial<ScheduledTask> = {
-      ...(draft.id ? { id: draft.id } : {}),
       name: draft.name.trim(),
       targetSessionId: draft.sessionMode === 'existing' ? draft.targetSessionId : '',
       enabled: draft.enabled,
@@ -1250,6 +1317,14 @@ export function ScheduledTaskEditorDialog(props: {
           : {}),
       },
     };
+    if (draft.id) payload.id = draft.id;
+    if (draft.targetMode === 'workspace') {
+      payload.target = draft.folderId
+        ? { kind: 'workspace', workspaceId: draft.workspaceId, folderId: draft.folderId }
+        : { kind: 'workspace', workspaceId: draft.workspaceId };
+    } else if (draft.targetMode === 'chats') {
+      payload.target = { kind: 'chats' };
+    }
     if (draft.state && draft.sessionMode === 'new') payload.state = draft.state;
 
     setSaving(true);
@@ -1275,9 +1350,64 @@ export function ScheduledTaskEditorDialog(props: {
 
   const title = task ? t('sessions.scheduledTasks.editor.title.edit') : t('sessions.scheduledTasks.editor.title.new');
   const description = t('sessions.scheduledTasks.editor.description');
+  const draftWorkspace = workspaces.find((workspace) => workspace.id === draft.workspaceId);
 
   const formBody = (
     <div className="flex flex-col gap-5">
+      <SettingsStackedField label={t('sessions.scheduledTasks.editor.destination')}>
+        {draft.targetMode === 'legacy' ? (
+          <Select value="legacy" onValueChange={(targetMode: 'legacy' | 'chats' | 'workspace') => setDraft((prev) => ({
+            ...prev,
+            targetMode,
+            targetSessionId: '',
+            workspaceId: targetMode === 'workspace' ? (workspaces[0]?.id || '') : '',
+            folderId: '',
+          }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="legacy">{t('sessions.scheduledTasks.editor.destination.legacy')}</SelectItem>
+              <SelectItem value="chats">{t('sessions.scheduledTasks.editor.destination.chats')}</SelectItem>
+              {workspaces.length > 0 ? <SelectItem value="workspace">{t('sessions.scheduledTasks.editor.destination.workspace')}</SelectItem> : null}
+            </SelectContent>
+          </Select>
+        ) : (
+          <DraftWorkspaceTargetSelector
+            workspaces={workspaces}
+            status={workspaceStoreStatus}
+            selectedWorkspaceId={draft.targetMode === 'workspace' ? draft.workspaceId || null : null}
+            isChatSelected={draft.targetMode === 'chats'}
+            mobile={isMobile}
+            onRetry={() => { void useWorkspacesStore.getState().load(); }}
+            onSelect={(workspaceId) => setDraft((prev) => ({
+              ...prev,
+              targetMode: workspaceId ? 'workspace' : 'chats',
+              targetSessionId: '',
+              workspaceId: workspaceId || '',
+              folderId: '',
+            }))}
+          />
+        )}
+        {draft.targetMode === 'workspace' ? (
+          <div className="flex flex-wrap gap-2">
+            {draftWorkspace
+              ? <ScheduledWorkspaceFolderSelector
+                  workspace={draftWorkspace}
+                  folderId={draft.folderId}
+                  mobile={isMobile}
+                  onSelect={(selection) => setDraft((prev) => ({
+                    ...prev,
+                    folderId: selection.kind === 'folder' ? selection.folderId : '',
+                    targetSessionId: '',
+                  }))}
+                />
+              : null}
+            {!workspaces.some((workspace) => workspace.id === draft.workspaceId)
+              ? <p className="typography-micro text-destructive">{t('sessions.scheduledTasks.editor.destination.missingWorkspace')}</p>
+              : null}
+          </div>
+        ) : null}
+        {workspaceStoreStatus === 'failed' ? <p className="typography-micro text-destructive">{t('sessions.scheduledTasks.editor.destination.loadFailed')}</p> : null}
+      </SettingsStackedField>
       <SettingsStackedField label={t('sessions.scheduledTasks.editor.sessionMode')}>
         <Select value={draft.sessionMode} onValueChange={(value: 'new' | 'existing') => setDraft((prev) => ({
           ...prev, sessionMode: value,

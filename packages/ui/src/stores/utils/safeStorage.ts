@@ -331,6 +331,17 @@ const createSafeStorage = (): Storage => {
     return baseStorage ? createSafeStorageAdapter(baseStorage) : createInMemoryStorage();
 };
 
+export const getDurableStorage = (): Pick<Storage, 'getItem' | 'setItem'> => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        throw new Error('Durable storage is unavailable');
+    }
+    const storage = window.localStorage;
+    return {
+        getItem: (key) => storage.getItem(key),
+        setItem: (key, value) => storage.setItem(key, value),
+    };
+};
+
 export const getSafeStorage = (): Storage => {
     if (!safeStorageInstance) {
         safeStorageInstance = createSafeStorage();

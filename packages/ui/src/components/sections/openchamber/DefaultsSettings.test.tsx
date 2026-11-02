@@ -68,6 +68,7 @@ mock.module('@/sync/selection-store', () => ({
 }));
 mock.module('@/sync/session-ui-store', () => ({
   useSessionUIStore: <T,>(selector: (state: typeof sessionState) => T): T => selector(sessionState),
+  resolveSendSelection: () => ({}),
 }));
 mock.module('@/stores/useDirectoryStore', () => ({
   useDirectoryStore: <T,>(selector: (state: { currentDirectory: string }) => T): T =>

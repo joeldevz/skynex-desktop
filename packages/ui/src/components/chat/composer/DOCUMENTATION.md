@@ -689,6 +689,15 @@ and the send path reading the same grammar.
   draft target UI is mounted.
   Keyboard selection returns focus to the current form's composer, including
   when the selected value is unchanged.
+- `state/useDraftWorkspaceTarget.ts` loads the saved workspace catalog while a
+  new-chat draft is open. The shared desktop popup and mobile sheet offer Chat
+  and saved workspaces; workspace selection snapshots all saved folders and
+  defaults synchronously onto the existing draft, preserving its identity and
+  content. Workspace-scoped drafts do not run project/worktree discovery or
+  expose those target controls. Failed catalog loads remain distinct from an
+  empty catalog and can be retried. A folder picker beside the workspace picker
+  offers All folders or one saved folder; its selection updates the same draft
+  scope synchronously, with that folder as the primary directory.
 - `ChatInput.tsx` maps Ctrl+N/P to the active command, skill, snippet, or
   mention picker after its IME guard.
 

@@ -47,6 +47,9 @@ import type { Theme } from '@/types/theme';
 import { normalizePath } from '../attachments/filePaths';
 import { getProjectDisplayLabel, type DraftTargetProject } from '../state/useDraftTarget';
 import { useProjectsInSidebarOrder } from '@/components/session/sidebar/list/useProjectsInSidebarOrder';
+import type { Workspace, WorkspaceFolder } from '@/lib/workspaces/model';
+import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
+import type { FolderSelection } from '@/lib/workspaces/session-scope';
 
 interface BranchOption {
     value: string;
@@ -77,7 +80,152 @@ export interface DraftTargetProps {
     onCreateSpace?: () => void;
     /** Opens the New Worktree dialog (name, branch, PR or issue) for the draft's project. */
     onCreateCustomWorktree?: () => void;
+    showProjectPicker?: boolean;
     theme: Theme;
+}
+
+export function DraftWorkspaceTargetSelector({
+    workspaces,
+    status,
+    selectedWorkspaceId,
+    onSelect,
+    onRetry,
+    mobile = false,
+    disabled = false,
+    isChatSelected = false,
+}: {
+    workspaces: readonly Workspace[];
+    status: 'unloaded' | 'loading' | 'ready' | 'failed';
+    selectedWorkspaceId: string | null;
+    onSelect: (workspaceId: string | null) => void;
+    onRetry: () => void;
+    mobile?: boolean;
+    disabled?: boolean;
+    isChatSelected?: boolean;
+}) {
+    const { t } = useI18n();
+    const [open, setOpen] = React.useState(false);
+    const [query, setQuery] = React.useState('');
+    const triggerRef = React.useRef<HTMLButtonElement>(null);
+    const searchRef = React.useRef<HTMLInputElement>(null);
+    const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+    const [collisionBoundary, setCollisionBoundary] = React.useState<Element | null>(null);
+    const syncPopupContainers = React.useCallback((target: EventTarget | null) => {
+        const element = target instanceof HTMLElement ? target : null;
+        const dialog = element?.closest('[data-slot="dialog-content"], [role="dialog"]');
+        setPortalContainer(dialog instanceof HTMLElement ? dialog : null);
+        setCollisionBoundary(element?.closest('main') ?? null);
+    }, []);
+    const popupSide = usePopupSideOnOpen(open, triggerRef);
+    React.useEffect(() => {
+        if (!open) setQuery('');
+    }, [open]);
+    useKeybind('open_draft_project_picker', () => {
+        if (disabled) return false;
+        setOpen(true);
+    });
+    const selected = workspaces.find((workspace) => workspace.id === selectedWorkspaceId);
+    const filtered = React.useMemo(() => rankByQuery(workspaces, query, (workspace) => [workspace.name, ...workspace.folders.map((folder) => folder.path)]), [query, workspaces]);
+    const content = (desktop: boolean) => (
+        <div className="flex flex-col gap-2 p-2">
+            {!desktop ? <Input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t('chat.chatInput.draftPicker.searchWorkspaces')} placeholder={t('chat.chatInput.draftPicker.searchWorkspaces')} className="h-9" /> : null}
+            <div className="flex flex-col">
+                {matchesRankQuery([t('layout.mainTab.chat')], query) ? (desktop ? <CommandItem value="chat" onSelect={() => { onSelect(null); setOpen(false); }} aria-current={isChatSelected || undefined} className={isChatSelected ? 'bg-interactive-selection text-interactive-selection-foreground' : undefined}><Icon name="chat-4" className="size-3.5 shrink-0" />{t('layout.mainTab.chat')}{isChatSelected ? <Icon name="check" className="ms-auto size-4 shrink-0 text-current" /> : null}</CommandItem> : <button type="button" className={cn('flex w-full items-center gap-2 rounded-md px-2 py-2 text-start typography-ui-label hover:bg-[var(--interactive-hover)]', isChatSelected && 'bg-interactive-selection text-interactive-selection-foreground')} onClick={() => { onSelect(null); setOpen(false); }}><Icon name="chat-4" className="size-3.5 shrink-0" />{t('layout.mainTab.chat')}{isChatSelected ? <Icon name="check" className="ms-auto size-4 shrink-0 text-current" /> : null}</button>) : null}
+                {status === 'loading' ? <div role="status" className="px-2 py-3 typography-meta text-muted-foreground">{t('chat.chatInput.draftPicker.loadingWorkspaces')}</div> : null}
+                {status === 'failed' ? <div className="flex items-center justify-between gap-2 px-2 py-3 typography-meta text-muted-foreground"><span>{t('chat.chatInput.draftPicker.workspaceLoadFailed')}</span><button type="button" className="text-foreground" onClick={onRetry}>{t('chat.container.sessionLoadError.retry')}</button></div> : null}
+                {status === 'ready' && filtered.length === 0 ? <div role="status" className="px-2 py-3 typography-meta text-muted-foreground">{t('chat.chatInput.draftPicker.noWorkspacesFound')}</div> : null}
+                {status === 'ready' ? filtered.map((workspace) => (
+                    desktop ? <CommandItem key={workspace.id} value={workspace.id} onSelect={() => { onSelect(workspace.id); setOpen(false); }} aria-current={workspace.id === selectedWorkspaceId || undefined} className={workspace.id === selectedWorkspaceId ? 'bg-interactive-selection text-interactive-selection-foreground' : undefined}><Icon name="stack" className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">{formatWorkspaceLabel(workspace.name)}</span>{workspace.id === selectedWorkspaceId ? <Icon name="check" className="size-4 shrink-0 text-current" /> : null}</CommandItem> : <button key={workspace.id} type="button" className={cn('flex w-full items-center gap-2 rounded-md px-2 py-2 text-start typography-ui-label hover:bg-[var(--interactive-hover)]', workspace.id === selectedWorkspaceId && 'bg-interactive-selection text-interactive-selection-foreground')} onClick={() => { onSelect(workspace.id); setOpen(false); }}><Icon name="stack" className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">{formatWorkspaceLabel(workspace.name)}</span>{workspace.id === selectedWorkspaceId ? <Icon name="check" className="size-4 shrink-0 text-current" /> : null}</button>
+                )) : null}
+            </div>
+        </div>
+    );
+    const label = formatWorkspaceLabel(selected?.name ?? t('workspaces.title'));
+    const triggerClassName = cn(
+        'inline-flex min-h-11 min-w-0 max-w-[70vw] items-center gap-1.5 rounded-lg px-2 typography-ui-label font-medium transition-colors',
+        selectedWorkspaceId
+            ? 'bg-interactive-selection text-interactive-selection-foreground'
+            : 'bg-[var(--surface-background)] text-foreground/80 oc-raised dark:bg-surface-elevated',
+        'hover:bg-interactive-hover disabled:opacity-50',
+    );
+    if (mobile) return <>
+        <button type="button" disabled={disabled} className={triggerClassName} onClick={() => setOpen(true)}>
+            <Icon name="stack" className="size-4 shrink-0" /><span className="truncate">{label}</span><Icon name="arrow-down-s" className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+        <MobileOverlayPanel open={open} title={t('chat.chatInput.draftPicker.workspaceTitle')} onClose={() => setOpen(false)}>{content(false)}</MobileOverlayPanel>
+    </>;
+    return <Popover.Root open={open} onOpenChange={setOpen} onOpenChangeComplete={(isOpen) => { if (isOpen) searchRef.current?.focus(); }}>
+        <Popover.Trigger disabled={disabled} render={<Button ref={triggerRef} variant="ghost" size="sm" aria-haspopup="dialog" onPointerDownCapture={(event) => syncPopupContainers(event.currentTarget)} onFocusCapture={(event) => syncPopupContainers(event.currentTarget)} className={cn(triggerClassName, 'h-8 min-h-8 w-fit max-w-[42vw] justify-start normal-case sm:max-w-[18rem]')} />}>
+            <Icon name="stack" className="size-4 shrink-0" /><span className="truncate">{label}</span><Icon name="arrow-down-s" className="size-4 shrink-0 opacity-70" />
+        </Popover.Trigger>
+        <Popover.Portal container={portalContainer ?? undefined}><Popover.Positioner side={popupSide} align="start" sideOffset={4} collisionAvoidance={{ side: 'none' }} collisionBoundary={collisionBoundary ?? undefined} className="app-region-no-drag z-50"><Popover.Popup role="dialog" aria-label={t('chat.chatInput.draftPicker.workspaceTitle')} className={cn(dropdownMenuPopupClass, 'flex w-72 max-w-[calc(100vw-2rem)] flex-col p-0')}>
+            <Command shouldFilter={false}><CommandInput ref={searchRef} value={query} onValueChange={setQuery} aria-label={t('chat.chatInput.draftPicker.searchWorkspaces')} placeholder={t('chat.chatInput.draftPicker.searchWorkspaces')} onKeyDown={(event) => {
+                if (isIMECompositionEvent(event)) { event.stopPropagation(); return; }
+                handleDropdownNavigationKey(event, (key) => event.currentTarget.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })));
+            }} /><CommandList label={t('chat.chatInput.draftPicker.workspaceTitle')}>{content(true)}</CommandList></Command>
+        </Popover.Popup></Popover.Positioner></Popover.Portal>
+    </Popover.Root>;
+}
+
+export function DraftWorkspaceFolderTargetSelector({
+    workspace,
+    selectedFolderId,
+    onSelect,
+    mobile = false,
+    disabled = false,
+}: {
+    workspace: Workspace | undefined;
+    selectedFolderId: string | null;
+    onSelect: (workspaceId: string, selection: FolderSelection) => void;
+    mobile?: boolean;
+    disabled?: boolean;
+}) {
+    const { t } = useI18n();
+    const [open, setOpen] = React.useState(false);
+    const [query, setQuery] = React.useState('');
+    const triggerRef = React.useRef<HTMLButtonElement>(null);
+    const searchRef = React.useRef<HTMLInputElement>(null);
+    const popupSide = usePopupSideOnOpen(open, triggerRef);
+    React.useEffect(() => { if (!open) setQuery(''); }, [open]);
+    if (!workspace) return null;
+    const selectedFolder = workspace.folders.find((folder) => folder.id === selectedFolderId);
+    const label = formatWorkspaceLabel(selectedFolder ? folderLabel(selectedFolder, workspace.folders) : t('chat.chatInput.draftPicker.allFolders'));
+    const triggerClassName = cn(
+        'inline-flex min-h-11 min-w-0 max-w-[70vw] items-center gap-1.5 rounded-lg px-2 typography-ui-label font-medium transition-colors',
+        selectedFolder
+            ? 'bg-interactive-selection text-interactive-selection-foreground'
+            : 'bg-[var(--surface-background)] text-foreground/80 oc-raised dark:bg-surface-elevated',
+        'hover:bg-interactive-hover disabled:opacity-50',
+    );
+    const folders = rankByQuery(workspace.folders, query, (folder) => [folderLabel(folder, workspace.folders), folder.path]);
+    const select = (selection: FolderSelection) => {
+        onSelect(workspace.id, selection);
+        setOpen(false);
+    };
+    const rows = (desktop: boolean) => <div className="flex flex-col gap-1 p-1">
+        {matchesRankQuery([t('chat.chatInput.draftPicker.allFolders')], query) ? desktop
+            ? <CommandItem value="all-folders" onSelect={() => select({ kind: 'workspace' })} aria-current={!selectedFolderId || undefined} className={!selectedFolderId ? 'bg-interactive-selection text-interactive-selection-foreground' : undefined}>{formatWorkspaceLabel(t('chat.chatInput.draftPicker.allFolders'))}{!selectedFolderId ? <Icon name="check" className="ms-auto size-4 text-current" /> : null}</CommandItem>
+            : <button type="button" className={cn('flex items-center gap-2 rounded-md px-2 py-2 text-start typography-ui-label hover:bg-[var(--interactive-hover)]', !selectedFolderId && 'bg-interactive-selection text-interactive-selection-foreground')} onClick={() => select({ kind: 'workspace' })}>{formatWorkspaceLabel(t('chat.chatInput.draftPicker.allFolders'))}{!selectedFolderId ? <Icon name="check" className="ms-auto size-4 text-current" /> : null}</button>
+            : null}
+        {folders.map((folder) => desktop
+            ? <CommandItem key={folder.id} value={folder.id} onSelect={() => select({ kind: 'folder', folderId: folder.id })} aria-current={folder.id === selectedFolderId || undefined} className={folder.id === selectedFolderId ? 'bg-interactive-selection text-interactive-selection-foreground' : undefined}><span className="min-w-0 flex-1 truncate" title={folder.path}>{formatWorkspaceLabel(folderLabel(folder, workspace.folders))}</span>{folder.id === selectedFolderId ? <Icon name="check" className="size-4 shrink-0 text-current" /> : null}</CommandItem>
+            : <button key={folder.id} type="button" title={folder.path} className={cn('flex items-center gap-2 rounded-md px-2 py-2 text-start typography-ui-label hover:bg-[var(--interactive-hover)]', folder.id === selectedFolderId && 'bg-interactive-selection text-interactive-selection-foreground')} onClick={() => select({ kind: 'folder', folderId: folder.id })}><span className="min-w-0 flex-1 truncate">{formatWorkspaceLabel(folderLabel(folder, workspace.folders))}</span>{folder.id === selectedFolderId ? <Icon name="check" className="size-4 shrink-0 text-current" /> : null}</button>)}
+    </div>;
+    if (mobile) return <>
+        <button type="button" disabled={disabled} title={selectedFolder?.path} aria-label={selectedFolder ? `${label}: ${selectedFolder.path}` : label} className={triggerClassName} onClick={() => setOpen(true)}><Icon name="folder" className="size-4 shrink-0" /><span className="truncate">{label}</span><Icon name="arrow-down-s" className="size-3.5 shrink-0 text-muted-foreground" /></button>
+        <MobileOverlayPanel open={open} title={t('chat.chatInput.draftPicker.folderTitle')} onClose={() => setOpen(false)}><Input value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t('chat.chatInput.draftPicker.searchFolders')} placeholder={t('chat.chatInput.draftPicker.searchFolders')} className="h-9" />{rows(false)}</MobileOverlayPanel>
+    </>;
+    return <Popover.Root open={open} onOpenChange={setOpen} onOpenChangeComplete={(isOpen) => { if (isOpen) searchRef.current?.focus(); }}>
+        <Popover.Trigger disabled={disabled} render={<Button ref={triggerRef} variant="ghost" size="sm" aria-haspopup="dialog" aria-label={selectedFolder ? `${label}: ${selectedFolder.path}` : label} title={selectedFolder?.path} className={cn(triggerClassName, 'h-8 min-h-8 w-fit max-w-[42vw] justify-start normal-case sm:max-w-[18rem]')} />}><Icon name="folder" className="size-4 shrink-0" /><span className="truncate">{label}</span><Icon name="arrow-down-s" className="size-4 shrink-0 opacity-70" /></Popover.Trigger>
+        <Popover.Portal><Popover.Positioner side={popupSide} align="start" sideOffset={4} className="app-region-no-drag z-50"><Popover.Popup role="dialog" aria-label={t('chat.chatInput.draftPicker.folderTitle')} className={cn(dropdownMenuPopupClass, 'flex w-72 max-w-[calc(100vw-2rem)] flex-col p-0')}><Command shouldFilter={false}><CommandInput ref={searchRef} value={query} onValueChange={setQuery} aria-label={t('chat.chatInput.draftPicker.searchFolders')} placeholder={t('chat.chatInput.draftPicker.searchFolders')} onKeyDown={(event) => { if (isIMECompositionEvent(event)) { event.stopPropagation(); return; } handleDropdownNavigationKey(event, (key) => event.currentTarget.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))); }} /><CommandList label={t('chat.chatInput.draftPicker.folderTitle')}>{rows(true)}</CommandList></Command></Popover.Popup></Popover.Positioner></Popover.Portal>
+    </Popover.Root>;
+}
+
+function folderLabel(folder: WorkspaceFolder, folders: readonly WorkspaceFolder[]): string {
+    const basename = folder.path.replace(/\\+$/, '').split(/[\\/]/).at(-1) || folder.path;
+    return folders.some((candidate) => candidate.id !== folder.id && (candidate.path.replace(/\\+$/, '').split(/[\\/]/).at(-1) || candidate.path) === basename)
+        ? `${basename} · ${folder.path}`
+        : basename;
 }
 
 /** The two ways to make a worktree from the draft: at once, or through the dialog. */
@@ -160,6 +308,7 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
         onRefreshTarget,
         onCreateSpace,
         onCreateCustomWorktree,
+        showProjectPicker = true,
         theme,
     } = props;
     const [openPicker, setOpenPicker] = React.useState<'project' | 'worktree' | null>(null);
@@ -207,6 +356,7 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
     };
 
     useKeybind('open_draft_project_picker', () => {
+        if (!showProjectPicker) return false;
         projectTriggerRef.current?.focus();
         setProjectFocusReturn(false);
         setProjectQuery('');
@@ -269,7 +419,7 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
         <div className="mb-1.5 flex min-w-0 items-center gap-1.5 px-0.5">
             {/* Plain popover (not a menu): the popup owns a combobox +
                 listbox, so menu/menuitem semantics would be wrong here. */}
-            <Popover.Root
+            {showProjectPicker ? <Popover.Root
                 open={openPicker === 'project'}
                 onOpenChange={(open, eventDetails) => {
                     if (open) {
@@ -420,7 +570,7 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
                         </Popover.Popup>
                     </Popover.Positioner>
                 </Popover.Portal>
-            </Popover.Root>
+            </Popover.Root> : null}
 
             {showBranchSelector ? (
                 <Select
@@ -515,15 +665,15 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
 
 /** Mobile: buttons that open the bottom sheets below. */
 export function MobileDraftTargetTriggers(
-    props: Pick<DraftTargetProps, 'selectedProject' | 'selectedBranchLabel' | 'showBranchSelector' | 'theme'>
+    props: Pick<DraftTargetProps, 'selectedProject' | 'selectedBranchLabel' | 'showBranchSelector' | 'theme' | 'showProjectPicker'>
         & { onOpenPicker: (picker: 'project' | 'branch') => void },
 ) {
     const { t } = useI18n();
-    const { selectedProject, selectedBranchLabel, showBranchSelector, theme, onOpenPicker } = props;
+    const { selectedProject, selectedBranchLabel, showBranchSelector, theme, onOpenPicker, showProjectPicker = true } = props;
 
     return (
         <div className="mb-1.5 flex min-w-0 items-center gap-x-2 px-0.5">
-            <button
+            {showProjectPicker ? <button
                 type="button"
                 className="inline-flex h-7 min-w-0 max-w-[42vw] flex-shrink cursor-pointer items-center gap-1 rounded-lg px-1.5 typography-micro font-medium text-foreground/80 hover:bg-[var(--interactive-hover)]"
                 onClick={() => onOpenPicker('project')}
@@ -532,7 +682,7 @@ export function MobileDraftTargetTriggers(
                     ? <span className="truncate typography-ui-label">{t('chat.chatInput.chooseProject')}</span>
                     : <ProjectLabel project={selectedProject} theme={theme} />}
                 <Icon name="arrow-down-s" className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-            </button>
+            </button> : null}
             {showBranchSelector ? (
                 <button
                     type="button"
@@ -640,6 +790,7 @@ export function MobileDraftTargetSheets(
         onCreateCustomWorktree,
         openPicker,
         onOpenPickerChange,
+        showProjectPicker = true,
         theme,
     } = props;
 
@@ -653,7 +804,7 @@ export function MobileDraftTargetSheets(
 
     return (
         <>
-            <ProjectPickerSheet
+            {showProjectPicker ? <ProjectPickerSheet
                 open={openPicker === 'project'}
                 onClose={() => onOpenPickerChange(null)}
                 projects={orderedProjects}
@@ -662,7 +813,7 @@ export function MobileDraftTargetSheets(
                 theme={theme}
                 title={t('chat.chatInput.draftPicker.projectTitle')}
                 searchPlaceholder={t('chat.chatInput.draftPicker.searchProjects')}
-            />
+            /> : null}
             <MobileOverlayPanel
                 open={openPicker === 'branch'}
                 title={t('chat.chatInput.branch')}

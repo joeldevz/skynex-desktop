@@ -6,6 +6,7 @@
 
 ## Invariants
 
+- `MobileApp` owns mobile app-level surfaces such as scheduled tasks. Shared surfaces use `MobileAppActions` to request those pages so they appear above mobile drawers; workspace selection remains in the shared store for scheduler preselection.
 - Chat-side Settings entry points request the native Settings tab through `RuntimeAPIs.vscode`. They preserve chat selection, drafts and the current layout. The source's in-page dialog flag is cleared so it cannot block chat shortcuts.
 - Only the Settings root receives page navigation. The bridge parses it before applying it to stores, and the mounted root signals readiness before the host consumes pending navigation.
 - The Settings root supplies no selected directory to the shared sync provider. It does not start global session polling, selected-directory session bootstrap or background queue delivery/cleanup, and seeing it never marks a chat as viewed. Settings pages resolve their own project through `useSettingsDirectory`; catalog updates still use the shared sync context.

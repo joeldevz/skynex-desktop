@@ -54,7 +54,8 @@ describe("confirmed session creation", () => {
   test("publishes the new transcript before navigation can issue a failing history read", async () => {
     opencodeClient.createSession = async () => session
 
-    expect(await createSession(undefined, "/requested")).toBe(session)
+    // createSession returns its own copy with the title and directory filled in.
+    expect(await createSession(undefined, "/requested")).toEqual(session)
     const target = { directory: session.directory, sessionID: session.id }
     await loader.ensure(target, { reason: "reactive" })
 

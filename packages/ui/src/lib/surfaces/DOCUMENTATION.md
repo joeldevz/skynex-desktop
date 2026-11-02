@@ -221,13 +221,12 @@ for the shortcut), never in VS Code, and in a build without workflows it is
 absent from the rail and from the rail's surfaces dialog, so the unreleased
 feature is not named anywhere.
 
-The `tasks` and `memory` surfaces (`components/tasks/SkynexTasksPanel.tsx`,
-`components/memory/SkynexMemoryPanel.tsx`) replace the removed Notes surface. Both
-are always shown, and both are keyed to the project directory of the request:
-Tasks reads and writes the project's `.skynex/tasks` notebook through the server,
-and Memory reads and writes Neurox under the project's directory-name namespace.
-Neither is shown in VS Code by a surface rule; they follow the same server routes
-there as in the web runtime, which has not been checked.
+The `memory` surface (`components/memory/SkynexMemoryPanel.tsx`) replaces the
+removed Notes surface. It is always shown and keyed to the project directory of
+the request. Tasks is a section of the chat's Work Status panel, not a rail
+surface; it reads and writes the project's `.skynex/tasks` notebook through the
+server. Memory reads and writes Neurox under the project's directory-name
+namespace.
 
 ## Panel header
 
@@ -271,6 +270,7 @@ chat/palette go through the `openContext*` actions in `useUIStore`.
   pass through its frame.
 - Runtime scope: desktop/web `MainLayout` only. VS Code and the dedicated
   mobile shell have their own layouts and do not consume this registry.
-  Trackers have no rail surface: their items list on the issues and PRs board
-  (`components/sourceBoard`). A Linear tab persisted by an older version is
-  dropped on load, like any unknown mode.
+Trackers have no rail surface: their items list on the issues and PRs board
+(`components/sourceBoard`). Tasks is owned by Work Status rather than the rail;
+a Tasks tab persisted by an older version is dropped on load, like any unknown
+mode. A Linear tab persisted by an older version is dropped the same way.

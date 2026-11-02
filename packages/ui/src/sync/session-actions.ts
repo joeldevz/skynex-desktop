@@ -15,6 +15,10 @@ import type { ChildStoreManager } from "./child-store"
 import { computeSubtreeIds } from "./scoped-blocking-requests"
 import { withUserWorkTitle } from "@/lib/sessionWorkTitle"
 import { opencodeClient, type SyntheticContextInput } from "@/lib/opencode/client"
+import { bindOpenSessionActivity, openSessionReference, openSessionsStore, type MembershipResult, type OpenSessionReference } from '@/stores/useOpenSessionsStore'
+import { bindWorkspaceScope, type WorkspaceSessionScope } from '@/lib/workspaces/session-scope'
+import { checkWorkspaceScopeAccess } from '@/lib/workspaces/runtime-policy'
+import { useProjectsStore } from '@/stores/useProjectsStore'
 import { findMessagePageItem } from "@/lib/opencode/messagePaging"
 import { toJsonRecord } from "@/lib/opencode/json"
 import { ascendingId } from "@/lib/opencode/ids"
@@ -968,7 +972,7 @@ function getRequestReplyDirectory(
  * what the first turn will run on pass it here, so the session is created on
  * that selection and the first prompt needs no switch at all.
  */
-export type SessionCreateSelection = { model?: ModelSelection; agent?: string }
+export type SessionCreateSelection = { model?: ModelSelection; agent?: string; workspaceScope?: WorkspaceSessionScope }
 
 export async function createSession(
   title?: string,
@@ -986,11 +990,18 @@ export async function createSession(
     // Without this, setCurrentSession would fall through to a stale
     // opencodeClient.getDirectory() value and group the session under the
     // wrong project (closes #1637, #2270).
-    const effectiveDirectory = directoryOverride ?? dir()
-    const session = await opencodeClient.createSession(
-      { title, metadata, model: selection?.model, agent: selection?.agent },
+    const scope = selection?.workspaceScope
+    if (scope) {
+      const access = await checkWorkspaceScopeAccess(scope, useProjectsStore.getState().projects.map((project) => project.path))
+      if (access.kind === 'unavailable') throw new Error(access.reason)
+      if (getRuntimeKey() !== runtimeKey) return null
+    }
+    const effectiveDirectory = scope?.primaryDirectory ?? directoryOverride ?? dir()
+    const created = await opencodeClient.createSession(
+      { title, metadata: scope ? bindWorkspaceScope(metadata, scope) : metadata, model: selection?.model, agent: selection?.agent },
       effectiveDirectory,
     )
+    const session = { ...created, title: created.title || title || created.id, directory: created.directory || effectiveDirectory || '' }
 
     if (getRuntimeKey() !== runtimeKey || opencodeClient.getSdkClient() !== runtimeClient) return null
     const sessionDirectory = session.directory || effectiveDirectory || null
@@ -1009,7 +1020,17 @@ export async function createSession(
       }
       getImperativeSessionMessageLoader()?.initializeCreatedSession({ directory: sessionDirectory, sessionID: session.id })
     }
-    if (navigation === "open") useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory, selectionTransition)
+    if (navigation === "open") {
+      // A session with no directory yet still opens; it joins the open list once
+      // a later view knows where it lives.
+      if (sessionDirectory) {
+        const reference = openSessionReference({ ...session, directory: sessionDirectory })
+        const result = await openSessionsStore.getState().openSession(reference)
+        if (getRuntimeKey() !== runtimeKey) return session
+        useSessionUIStore.setState({ openSessionFailure: result.kind === 'retained' ? { reference, result } : null })
+      }
+      useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory, selectionTransition, 'restore')
+    }
     useSessionUIStore.getState().markSessionAsOpenChamberCreated(session.id)
     useGlobalSessionsStore.getState().upsertSession(session)
     return session
@@ -1018,6 +1039,26 @@ export async function createSession(
     return null
   }
 }
+
+// A subagent's chat is reached through the card in its parent conversation, so
+// viewing it never adds it to the open sessions list.
+export async function rememberExplicitOpen(sessionId: string, directory?: string | null): Promise<MembershipResult | { kind: 'subagent' }> {
+  const key = getRuntimeKey()
+  const existing = useGlobalSessionsStore.getState().entityById.get(sessionId) ?? findLiveSession(sessionId)
+  let reference: OpenSessionReference
+  try {
+    const session = existing ?? await opencodeClient.getSession(sessionId, directory)
+    if (key !== getRuntimeKey()) return { kind: 'retained', reason: 'runtime-changed' }
+    if (session.parentID) return { kind: 'subagent' }
+    reference = openSessionReference(session)
+  } catch { return { kind: 'retained', reason: 'load-failed' } }
+  const result = await openSessionsStore.getState().openSession(reference)
+  if (key === getRuntimeKey()) useSessionUIStore.setState({ openSessionFailure: result.kind === 'retained' ? { reference, result } : null })
+  return result
+}
+
+bindOpenSessionActivity(getSessionLiveActivity)
+
 
 /**
  * True when a caller captured a runtime key before an asynchronous mutation and

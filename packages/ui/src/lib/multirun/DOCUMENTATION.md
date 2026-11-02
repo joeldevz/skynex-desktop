@@ -53,11 +53,10 @@ rebuilt on every session-list change. Lanes sort by variant then creation;
 fusions come first.
 
 Consumers: the sidebar row model and mobile sheet (see the sidebar
-DOCUMENTATION), the overview (`useMultiRun`), the header title
-(`useMultiRunTitle`) and the header tabs (`useMultiRunMemberIds`: the lanes of a
-run share one tab, `useSessionTabsStore.ensureTab` reuses the slot). The last
-two read the global cache through primitive selectors because they are always
-mounted.
+DOCUMENTATION), the overview (`useMultiRun`) and the header title
+(`useMultiRunTitle`). The title reads the global cache through a primitive
+selector because it is always mounted. Header tabs follow the open sessions
+list, so each lane of a run is its own entry there.
 
 ## Launching
 

@@ -425,7 +425,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
             />
           </div>
         ) : null}
-        {empty ? (
+        {empty && editingOrder ? (
           <div className="min-h-0 flex-1">
             <MobileSessionsEmpty
               title={t('mobile.sessions.empty.noProjectsTitle')}
@@ -458,7 +458,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
           </ScrollShadow>
         ) : null}
         {/* Mounted while reordering too, so the list comes back as it was. */}
-        <div className={cn('flex min-h-0 flex-1 flex-col', (editingOrder || empty) && 'hidden')}>
+        <div className={cn('flex min-h-0 flex-1 flex-col', editingOrder && 'hidden')}>
           <MobileSidebarActionsProvider value={sidebarActions}>
             <SessionSidebar mobileVariant isVisible={open} phone={phoneList} />
           </MobileSidebarActionsProvider>

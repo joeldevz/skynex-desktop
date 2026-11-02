@@ -21,7 +21,6 @@ const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView')
 import { areTitleMapsEqual, buildSessionTitleMap, EMPTY_SESSION_TITLE_MAP, getSessionIDFromDedupeKey } from './contextPanelSessionTitles';
 import { WorkflowsPanel } from '@/components/chat/workflows/WorkflowsPanel';
 import { SkynexMemoryPanel } from '@/components/memory/SkynexMemoryPanel';
-import { SkynexTasksPanel } from '@/components/tasks/SkynexTasksPanel';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useRepositoryReferenceProvider } from '@/components/references/referenceSources';
 import { useGuestSurfaces } from '@/hooks/useGuestSurfaces';
@@ -128,7 +127,6 @@ const getModeLabel = (
   if (mode === 'terminal') return t('layout.mainTab.terminal');
   if (mode === 'workflows') return t('contextPanel.mode.workflows');
   if (mode === 'memory') return t('contextRail.surface.memory');
-  if (mode === 'tasks') return t('contextRail.surface.tasks');
   if (isPluginContextPanelMode(mode)) {
     const guest = useGuestsStore.getState().guests.find((entry) => entry.id === pluginIdFromMode(mode));
     return guest?.name ?? t('contextRail.surface.plugin');
@@ -266,10 +264,6 @@ const getTabIcon = (
   if (tab.mode === 'memory') {
     return <Icon name="brain" className="h-3.5 w-3.5" />;
   }
-  if (tab.mode === 'tasks') {
-    return <Icon name="checkbox-circle" className="h-3.5 w-3.5" />;
-  }
-
   if (tab.mode === 'chat') {
     const sessionId = getSessionIDFromDedupeKey(tab.dedupeKey);
     return sessionId
@@ -349,7 +343,7 @@ const HEADER_DRAG_EXCLUDED = 'button, a, input, textarea, select, label, [role="
 // Surfaces rendered by the zone itself and remounted on every switch; the
 // rest stay alive in ContextSurfacePanes.
 const isRemountedSurface = (mode: ContextPanelMode): boolean => (
-  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'workflows' || mode === 'memory' || mode === 'tasks'
+  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'workflows' || mode === 'memory'
 );
 
 const CONTEXT_PANEL_DEFAULT_HEIGHT = 320;
@@ -833,8 +827,6 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
                 ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><WorkflowsPanel directory={effectiveDirectory || null} /></ContextPanelHeaderSlotProvider>
             : activeTab?.mode === 'memory'
                 ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><SkynexMemoryPanel directory={effectiveDirectory || null} /></ContextPanelHeaderSlotProvider>
-            : activeTab?.mode === 'tasks'
-                ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><SkynexTasksPanel directory={effectiveDirectory || null} /></ContextPanelHeaderSlotProvider>
         : null;
 
   const isFileTabActive = activeTab?.mode === 'file';

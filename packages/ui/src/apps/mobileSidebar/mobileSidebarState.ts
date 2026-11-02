@@ -68,8 +68,10 @@ const MobileSidebarActionsContext = React.createContext<MobileSidebarActions | n
 
 export const MobileSidebarActionsProvider = MobileSidebarActionsContext.Provider;
 
+export const useOptionalMobileSidebarActions = (): MobileSidebarActions | null => React.useContext(MobileSidebarActionsContext);
+
 export const useMobileSidebarActions = (): MobileSidebarActions => {
-  const actions = React.useContext(MobileSidebarActionsContext);
+  const actions = useOptionalMobileSidebarActions();
   if (!actions) throw new Error('useMobileSidebarActions outside MobileSidebarActionsProvider');
   return actions;
 };

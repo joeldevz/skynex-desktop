@@ -177,6 +177,9 @@ mock.module("@/stores/useConfigStore", () => ({
 
 // Mock useSessionUIStore
 mock.module("./session-ui-store", () => ({
+  materializeOpenDraftSession: async () => {
+    throw new Error("Unexpected draft materialization in session-actions harness")
+  },
   useSessionUIStore: {
     getState: () => ({
       getDirectoryForSession: (sessionId: string) => {
@@ -239,12 +242,17 @@ mock.module("@/stores/useInlineCommentDraftStore", () => ({
   },
 }))
 
+const realContextPartExports = { ...await import("@/lib/messages/contextParts") }
 mock.module("@/lib/messages/contextParts", () => ({
+  ...realContextPartExports,
   draftFromContextPayload: () => null,
   readContextPart: () => null,
 }))
 
 mock.module("@/stores/useGlobalSessionsStore", () => ({
+  refreshGlobalSessions: async () => {
+    throw new Error("Unexpected global refresh in session-actions harness")
+  },
   resolveGlobalSessionDirectory: (session: SessionWithDirectory) => session.directory ?? session.project?.worktree ?? null,
   mergeSessionDirectoryMetadata: (incoming: Session, existing?: SessionWithDirectory | null): SessionWithDirectory => {
     if (!existing) return incoming as SessionWithDirectory
@@ -313,6 +321,7 @@ mock.module("./session-message-loader", () => ({
 mock.module("../lib/runtime-switch", () => ({
   getRuntimeApiBaseUrl: () => "http://session-actions.test",
   getRuntimeKey: () => runtimeKey,
+  isTransientRuntimeKey: (key: string) => key === "" || key === "url:default" || key === "mobile-disconnected",
   switchRuntimeEndpoint: ({ runtimeKey: nextRuntimeKey }: { runtimeKey: string }) => {
     runtimeKey = nextRuntimeKey
   },
@@ -365,7 +374,9 @@ mock.module("./send-failure-classification", () => ({
   },
 }))
 
+const realChatDirectoryExports = { ...await import("@/lib/chatDirectories") }
 mock.module("@/lib/chatDirectories", () => ({
+  ...realChatDirectoryExports,
   deleteChatDirectory: async (directory: string) => {
     deletedChatDirectories.push(directory)
   },

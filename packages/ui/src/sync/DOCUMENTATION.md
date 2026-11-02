@@ -2,6 +2,24 @@
 
 ## Scope
 
+Workspace session creation accepts `SessionCreateSelection.workspaceScope`. It validates runtime folder support, writes the immutable namespaced binding at creation, and then requests durable explicit membership. A membership failure leaves the created conversation available through `SessionUIState.openSessionFailure`; retry that reference through `openSessionsStore.openSession`, without creating another conversation.
+
+`setCurrentSession` requests explicit membership by default. Its fourth argument, `restore`, selects an existing working-set entry without opening it again. `openWorkspaceDraft` snapshots all workspace folders, one folder, or an explicit selection and captures workspace defaults before ordinary composer overrides. Normal prompt and command routing attach the captured folder manifest; queued messages store their manifest as existing synthetic context.
+
+`last-session-restore` captures the viewed reference before migration and selects it only if the durable working set still contains it. An explicitly empty working set does not reopen history. Runtime reset activates the new membership namespace after restoring its viewed pointer. Completion and folder unlinking retain membership.
+
+The composer workspace and folder pickers retarget their current draft
+synchronously through `setNewSessionDraftWorkspaceTarget`. The default
+workspace selection captures every saved folder; selecting one folder captures
+only that saved folder as the primary directory. Both retain workspace defaults
+without replacing draft IDs or content. Workspace selection never writes a
+workspace ID into project state; session creation continues through the normal
+workspace-scope access check.
+
+### Why restore uses durable membership
+
+The last-viewed pointer may name a session that was explicitly closed. The membership snapshot decides whether that session remains open; missing global records never authorize removing saved membership.
+
 This document covers the current client-side session/data architecture in `packages/ui/src/sync` and the rules for updating stores safely.
 
 There are **two distinct session data scopes** in the UI:

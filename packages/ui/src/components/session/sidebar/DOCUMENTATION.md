@@ -1,5 +1,20 @@
 # Session Sidebar
 
+The explicit open-session row uses a local 5-by-5 dot helix for the session's
+own running turn. It advances on the shared four-step clock, pauses through
+`PauseClock`, and stays still for reduced motion. Other activity kinds retain
+their existing markers. The indicator unmounts when the running turn ends.
+Its round dots use SVG paths because button icon styles force `circle` and
+`rect` fills to `none !important`; ordinary circle elements become invisible.
+
+The default sidebar shows the settings-backed workspace catalog above the device-local explicit open-session references. Session history is opened explicitly and mounts the existing project/worktree browser only while requested. History selection uses the normal explicit-open transaction; list discovery never populates open membership.
+
+Workspace selection leaves the current session and directory unchanged. Web and Electron show the workspace editor in the main area. Mobile and VS Code currently present that same editor in a dialog from the shared sidebar because their main-content shells are separate owners. Saved references remain selectable even when global history has not loaded. Live activity subscribes per session row. Open-session rows place the workspace name below the title; both lines remain inside the selection control, with activity and a compact close action aligned to the title. A live session title takes precedence over the persisted label, and the saved folder selection still owns routing even though rows omit folder paths.
+
+The workspace label uses captured scope first, then the reference's optional organizational assignment. Assigned legacy conversations keep their original routing directory and context. Ordinary explicit opens reconstruct that label from session metadata, so closing local membership does not erase the association.
+
+Header and keyboard close requests use the durable close helper. Its transient confirmation queue names each exact reference and runtime; cancellation advances the queue without another close call. The sidebar's own collection keeps its local confirmation and opts out of the shared presenter to avoid duplicate dialogs. Failed closes retain owner membership.
+
 Sidebar code is organized by the business object it owns. Shared contracts are
 kept at this root in `types.ts` and `utils.tsx`.
 
@@ -620,9 +635,15 @@ is mounted only while open and keyed by its open count, so every open, including
 a handover while it is already on screen, starts with the query it was given
 (empty for a plain open) and no directory filter.
 
-The header's page buttons (Issues and PRs, Scheduled tasks, Archive, extension
-pages, Usage in the footer) are toggles: pressed while their page is open, and
-the next click closes it.
+The history header's page buttons (Issues and PRs, Archive, extension pages,
+Usage in the footer) are toggles: pressed while their page is open, and the
+next click closes it. Scheduled tasks is in the workspace navigation row above
+the workspace list and keeps the same toggle behavior.
+
+The scheduled-task list groups Chat-owned tasks by Chat, workspace, and folder
+target. Each view fetches and mutates through its single storage owner. Legacy
+project-owned tasks stay in a collapsed, labeled group and remain on their
+original project; opening a new task there preserves that owner.
 
 Sidebar queries beginning with `ses_` match only the full session ID,
 case-insensitively and ignoring surrounding whitespace. Partial IDs and typos

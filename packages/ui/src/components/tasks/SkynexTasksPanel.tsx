@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { dropdownTriggerVariants } from '@/components/ui/dropdown-trigger';
 import { Input } from '@/components/ui/input';
 import { Icon } from '@/components/icon/Icon';
-import { WorkStatusCollapsibleSection, WorkStatusMeter, WorkStatusRow, WorkStatusSection } from '@/components/chat/work-status/WorkStatusPrimitives';
+import { WorkStatusCollapsibleSection, WorkStatusMeter, WorkStatusRow } from '@/components/chat/work-status/WorkStatusPrimitives';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { skynexTasksApi, type SkynexTask } from '@/lib/skynexTasksApi';
@@ -25,13 +25,8 @@ const isSubtask = (step: Step, steps: Step[]) => Boolean(step.parent)
 const topLevelSteps = (steps: Step[]) => steps.filter((step) => !isSubtask(step, steps));
 const subtasksOf = (parent: Step, steps: Step[]) => steps.filter((step) => step.parent === parent.id && isSubtask(step, steps));
 
-/**
- * The notebook itself: picker, steps, add-step and create-task rows. The rail
- * surface and the work-status card's Tasks section both
- * render it, so the two never drift apart; each supplies its own chrome
- * through `className`, since a card inside a card would draw two edges.
- */
-export const SkynexTasksContent: React.FC<{ directory: string; className?: string; collapsible?: boolean }> = ({ directory, className, collapsible = false }) => {
+/** The shared notebook content rendered in the chat's Work Status Tasks section. */
+export const SkynexTasksContent: React.FC<{ directory: string; collapsible?: boolean }> = ({ directory }) => {
   const { t } = useI18n();
   const [tasks, setTasks] = React.useState<SkynexTask[]>([]);
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -143,23 +138,9 @@ export const SkynexTasksContent: React.FC<{ directory: string; className?: strin
         </form>}
     </div>
   );
-  return collapsible ? (
+  return (
     <WorkStatusCollapsibleSection id="tasks" title={t('skynex.tasks.title')} icon="list-check-2" defaultExpanded action={refresh}>
       {body}
     </WorkStatusCollapsibleSection>
-  ) : (
-    <div className={cn('flex flex-col', className)}>
-      <WorkStatusSection title={t('skynex.tasks.title')} summary={refresh}>{body}</WorkStatusSection>
-    </div>
-  );
-};
-
-export const SkynexTasksPanel: React.FC<{ directory: string | null }> = ({ directory }) => {
-  const { t } = useI18n();
-  if (!directory) return null;
-  return (
-    <section aria-label={t('skynex.tasks.title')} className="h-full overflow-auto p-2 text-[0.8125rem] text-foreground">
-      <SkynexTasksContent directory={directory} className="oc-panel-edge rounded-xl bg-background" />
-    </section>
   );
 };

@@ -104,6 +104,9 @@ describe('persisted global session seed', () => {
     useSessionUIStore.setState({ currentSessionId: null, setCurrentSession: () => undefined });
     const list = spyOn(opencodeClient, 'listSessionsPage').mockRejectedValue(new Error('OpenCode is starting'));
     try {
+      // Restore follows durable membership, not the global list (sync DOCUMENTATION.md),
+      // so the failed global load is requested on its own.
+      await useGlobalSessionsStore.getState().loadSessions();
       expect(await restoreLastActiveSession({ refresh: false })).toBe('failed');
       const state = useGlobalSessionsStore.getState();
       // Authoritative cleanup runs only on `ready`.

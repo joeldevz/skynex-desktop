@@ -160,8 +160,37 @@ or sets `execution.useDefaults: true`. Such a task reads the session defaults
 when each run starts (`session-defaults.js`: the project's `defaultModel` /
 `defaultVariant` / `defaultAgent`, then the global ones), so changing a default
 reaches it on its next run without editing it. With nothing set, the session is
-created without a model or agent and OpenCode applies its own. A pinned value
-stored next to `useDefaults` is kept only for when the task is pinned again.
+  created without a model or agent and OpenCode applies its own. A pinned value
+  stored next to `useDefaults` is kept only for when the task is pinned again.
+
+## Workspace targets
+
+New tasks can target unassociated Chat, every folder in a workspace, or one
+stable workspace folder ID. Workspace targets are stored in the durable Chats
+scheduled-task config so removing a workspace cannot remove its task record.
+Legacy project tasks without `target` keep their project owner and exact
+directory behavior. Retargeting a legacy project task to a workspace moves its
+record to Chats only after the destination write succeeds.
+
+The scheduler resolves the latest `workspaceCatalog` before save, schedule
+admission, and execution. An all-folder target resolves current folder membership
+on every run. A missing workspace, an unlinked selected folder, malformed
+catalog entry, or unavailable selected directory fails closed with an actionable
+error; sync pauses enabled tasks whose target no longer resolves. Retargeting or
+reenabling remains available from the task editor.
+
+A workspace run starts in the first selected folder as its sole OpenCode
+configuration context. Its session captures `metadata.openchamber.workspaceScope`
+and receives the same synthetic folder manifest as a normal workspace prompt.
+The manifest supplies authored reference context only. Normal OpenCode
+permissions remain authoritative, and scheduled tasks do not enable
+permission-auto-accept unless the task already explicitly requests it.
+Existing-session runs retain the session's captured metadata and scope; the
+workspace target only checks current directory eligibility.
+
+The task editor offers workspace and folder choices on server-backed web,
+Electron, hosted mobile, and Capacitor mobile. VS Code keeps its existing
+unsupported response for scheduled-task routes.
 
 ## Files
 

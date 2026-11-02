@@ -15,6 +15,7 @@ import type { ProjectEntry } from '@/lib/api/types';
 import { isCustomProviderIcon, type CustomProviderIcon } from '@/lib/customProviderIcons';
 import { createProjectIdFromPath } from '@/lib/projectId';
 import { normalizePath } from '@/lib/pathNormalization';
+import { workspaceCatalogSchema } from '@/lib/workspaces/schema';
 
 /**
  * `raw` is the whole untrusted document, for the few legacy keys whose value
@@ -62,6 +63,7 @@ const nonEmptyTrimmed = trimmed.pipe(z.string().min(1));
 const looseObject = z.record(z.string(), z.unknown());
 
 export const parseBoolean = fromSchema(z.boolean());
+export const parseWorkspaceCatalogValue = fromSchema(workspaceCatalogSchema);
 
 /** A non-empty string, kept verbatim. */
 export const parseNonEmptyString = fromSchema(z.string().min(1));

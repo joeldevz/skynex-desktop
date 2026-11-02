@@ -46,6 +46,8 @@ import { resetSessionOrdering } from '@/sync/session-ordering';
 import { resetSessionActivityTiming } from '@/sync/session-activity-timing';
 import { syncDesktopSettings } from '@/lib/persistence';
 import { useSessionMultiSelectStore } from '@/stores/useSessionMultiSelectStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { hydrateOpenSessionsForRestore } from '@/sync/last-session-restore';
 
 // Same-device transport switch (LAN⇄relay for one paired device): rebind the SDK
 // to the new transport WITHOUT tearing down connection/session state or remounting
@@ -136,6 +138,9 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useSkillsStore.getState().resetForRuntimeSwitch();
   useWorkflowRunsStore.getState().reset();
   useSessionUIStore.getState().restoreForRuntimeSwitch(detail.runtimeKey, detail.previousRuntimeKey);
+  useSessionUIStore.setState({ openSessionFailure: null });
+  useWorkspacesStore.getState().resetForRuntimeSwitch();
+  void hydrateOpenSessionsForRestore();
   useSessionUIStore.setState({ worktreeDiscoveryByProject: new Map() });
   useUIStore.getState().setOpenGuestPage(null);
   resetStreamingState();

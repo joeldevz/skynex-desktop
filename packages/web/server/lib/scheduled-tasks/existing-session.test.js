@@ -448,7 +448,7 @@ describe('eligible targets route', () => {
     const response = makeResponse();
     await handler({ params: { projectId: 'project-1' }, body: { candidates } }, response);
 
-    expect(listEligibleTargets).toHaveBeenCalledWith('project-1', candidates);
+    expect(listEligibleTargets).toHaveBeenCalledWith('project-1', candidates, undefined);
     expect(response.body).toEqual({ eligible: [{ sessionId: 'ses_ok', directory: '/repo' }] });
   });
 

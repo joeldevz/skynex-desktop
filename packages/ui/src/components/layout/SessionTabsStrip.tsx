@@ -35,11 +35,12 @@ import { cn } from '@/lib/utils';
 import { isRightToLeft, useI18n } from '@/lib/i18n';
 import { useSessionTabsStore } from '@/stores/useSessionTabsStore';
 import { closeSessionTabAndActivateNeighbour } from '@/lib/sessionTabs';
-import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
+import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSessionUnread } from '@/sync/session-unread';
 import { useIsSessionAiRenamePending } from '@/sync/use-session-ai-rename';
-import { useMultiRunMemberIds } from '@/lib/multirun/useMultiRuns';
+import { useOpenSessionsStore, type OpenSessionReference } from '@/stores/useOpenSessionsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { SessionProjectIcon } from './SessionProjectIcon';
 import { SESSION_TAB_EDGE_FADE_PX, sessionTabRevealDelta } from './sessionTabReveal';
 
@@ -61,7 +62,7 @@ const scrollTabsWithWheel = (event: React.WheelEvent<HTMLDivElement>) => {
   event.currentTarget.scrollLeft += isRightToLeft(event.currentTarget) ? -delta : delta;
 };
 
-type SessionTab = { id: string; session: Session };
+type SessionTab = { id: string; session: Session | null; reference: OpenSessionReference };
 
 export type SessionTabMenuComponents = {
   Item: React.ComponentType<{
@@ -128,25 +129,30 @@ const SessionTabItem: React.FC<{
   const [contextMenuOpen, setContextMenuOpen] = React.useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
 
-  const title = tab.session.title?.trim() || t('sessions.sidebar.session.untitled');
+  const title = tab.reference.title.trim() || t('sessions.sidebar.session.untitled');
   const overlayVisible = !suppressControls && (menuOpen || menuVisible);
 
   // Session state for the dot and the hover tooltip.
-  const isAiRenaming = useIsSessionAiRenamePending(tab.id, resolveGlobalSessionDirectory(tab.session));
+  const isAiRenaming = useIsSessionAiRenamePending(tab.id, tab.reference.primaryDirectory);
   const turnActivity = useSessionTurnActivity(tab.id);
   const isStreaming = turnActivity !== null;
   const isUnread = useSessionUnread(tab.id);
   const showUnread = isUnread && !isActive && !isStreaming;
   const showDot = isStreaming || showUnread;
 
-  const menuArgsFor = (components: SessionTabMenuComponents): SessionTabMenuArgs => ({
+  const menuArgsFor = (components: SessionTabMenuComponents): SessionTabMenuArgs | null => tab.session ? ({
     session: tab.session,
     open: menuOpen || contextMenuOpen,
     isActive,
     select: () => onSelect(tab),
     closeOtherTabs: () => closeOtherTabs(tab.id),
     components,
-  });
+  }) : null;
+
+  const menuFor = (components: SessionTabMenuComponents) => {
+    const args = menuArgsFor(components);
+    return args ? renderMenu(args) : null;
+  };
 
   return (
     <div
@@ -207,7 +213,7 @@ const SessionTabItem: React.FC<{
                   >
                     {/* Which project the session belongs to, so a strip of
                         tabs from several projects stays readable. */}
-                    <SessionProjectIcon directory={resolveGlobalSessionDirectory(tab.session)} className="me-1.5" />
+                    <SessionProjectIcon directory={tab.reference.primaryDirectory} className="me-1.5" />
                     <div className={cn(
                       'min-w-0 flex-1 overflow-hidden whitespace-nowrap',
                       !suppressControls && 'session-tab-title',
@@ -267,7 +273,7 @@ const SessionTabItem: React.FC<{
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="min-w-[190px]">
-                          {renderMenu(menuArgsFor(dropdownComponents))}
+                          {menuFor(dropdownComponents)}
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <button
@@ -290,7 +296,7 @@ const SessionTabItem: React.FC<{
               style={{ color: 'var(--surface-elevated-foreground)' }}
               className={cn(dropdownMenuPopupClass, 'min-w-[190px]')}
             >
-              {renderMenu(menuArgsFor(contextComponents))}
+              {menuFor(contextComponents)}
             </ContextMenu.Popup>
           </ContextMenu.Positioner>
         </ContextMenu.Portal>
@@ -302,12 +308,9 @@ const SessionTabItem: React.FC<{
 /**
  * The header's horizontal working set of sessions (web/desktop only).
  *
- * A session the user opens shows in the italic preview tab until pinned (see
- * `useSessionTabsStore`); the tab whose session is current renders `children` — the header's title/rename block — inside a
- * selected pill. Closing a tab only removes it from the strip; closing the
- * active one activates its neighbour. Ids whose session has not loaded (or
- * was archived/deleted) stay in the store but do not render, so a partial
- * session list never destroys the working set.
+ * Saved references keep unloaded sessions selectable. The current session
+ * renders the header's title and rename controls inside its tab. Close uses
+ * durable membership and activates a neighbour only after acknowledgment.
  */
 export const SessionTabsStrip: React.FC<{
   /** Menu items for one tab's session, supplied by the header. */
@@ -321,24 +324,14 @@ export const SessionTabsStrip: React.FC<{
   const { t, direction } = useI18n();
   // The horizontal strategy assumes later tabs sit further right; RTL uses real rects.
   const isRtl = direction === 'rtl';
-  const tabIds = useSessionTabsStore((state) => state.tabIds);
-  const previewTabId = useSessionTabsStore((state) => state.previewTabId);
-  const ensureTab = useSessionTabsStore((state) => state.ensureTab);
+  const references = useOpenSessionsStore((state) => state.sessions);
   const pinTab = useSessionTabsStore((state) => state.pinTab);
-  const closeOtherTabs = useSessionTabsStore((state) => state.closeOtherTabs);
   const reorderTabs = useSessionTabsStore((state) => state.reorderTabs);
 
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
+  const workspaceSelected = useWorkspacesStore((state) => state.selectedWorkspaceId !== null);
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession);
   const activeSessions = useGlobalSessionsStore((state) => state.activeSessions);
-
-  // Opening a session anywhere (sidebar, palette, deep link) shows it in the
-  // preview tab. The lanes of one multi-run share a tab: opening another lane
-  // reuses it.
-  const currentRunMemberIds = useMultiRunMemberIds(currentSessionId);
-  React.useEffect(() => {
-    if (currentSessionId) ensureTab(currentSessionId, currentRunMemberIds);
-  }, [currentSessionId, currentRunMemberIds, ensureTab]);
 
   const sessionsById = React.useMemo(() => {
     const map = new Map<string, Session>();
@@ -349,28 +342,30 @@ export const SessionTabsStrip: React.FC<{
   // Only tabs with a known live session render; unknown ids stay stored.
   const tabs = React.useMemo<SessionTab[]>(() => {
     const list: SessionTab[] = [];
-    for (const id of tabIds) {
-      const session = sessionsById.get(id);
-      if (session) list.push({ id, session });
+    for (const reference of references) {
+      list.push({ id: reference.sessionId, session: sessionsById.get(reference.sessionId) ?? null, reference });
     }
     return list;
-  }, [tabIds, sessionsById]);
+  }, [references, sessionsById]);
 
   const handleSelect = React.useCallback((tab: SessionTab) => {
-    setCurrentSession(tab.id, resolveGlobalSessionDirectory(tab.session));
+    useWorkspacesStore.getState().selectWorkspace(null);
+    setCurrentSession(tab.id, tab.reference.primaryDirectory, undefined, 'restore');
   }, [setCurrentSession]);
 
   const handleClose = React.useCallback((id: string) => {
-    closeSessionTabAndActivateNeighbour(id);
+    void closeSessionTabAndActivateNeighbour(id);
   }, []);
 
   const handleCloseOthers = React.useCallback((id: string) => {
-    closeOtherTabs(id);
+    void (async () => {
+      for (const tab of tabs) if (tab.id !== id) await closeSessionTabAndActivateNeighbour(tab.id);
+    })();
     if (currentSessionId && currentSessionId !== id) {
       const kept = tabs.find((tab) => tab.id === id);
       if (kept) handleSelect(kept);
     }
-  }, [closeOtherTabs, currentSessionId, handleSelect, tabs]);
+  }, [currentSessionId, handleSelect, tabs]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -454,8 +449,8 @@ export const SessionTabsStrip: React.FC<{
               <SessionTabItem
                 key={tab.id}
                 tab={tab}
-                isActive={tab.id === currentSessionId}
-                isPreview={tab.id === previewTabId}
+                isActive={!workspaceSelected && tab.id === currentSessionId}
+                isPreview={false}
                 suppressControls={tab.id === currentSessionId && suppressActiveTabControls}
                 onSelect={handleSelect}
                 onPin={pinTab}

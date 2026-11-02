@@ -13,6 +13,10 @@ import { runtimeFetch, type RuntimeFetchOptions } from '@/lib/runtime-fetch';
 import { spaceIdOfDirectory } from '@/lib/spaces/space-route';
 import { normalizePath } from '@/lib/pathNormalization';
 import { getQueuedMessagePreview } from '@/lib/messages/queuedMessagePreview';
+import { openSessionsStore } from './useOpenSessionsStore';
+import { useWorkspacesStore } from './useWorkspacesStore';
+import { useGlobalSessionsStore } from './useGlobalSessionsStore';
+import { buildWorkspaceContext, readWorkspaceScope, WORKSPACE_CONTEXT_PREFIX } from '@/lib/workspaces/session-scope';
 
 export type FollowUpBehavior = 'steer' | 'queue';
 
@@ -635,6 +639,14 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                     sendingIds: {},
 
                     addToQueue: async (target, message) => {
+                        const session = target.runtimeKey === getRuntimeKey() ? useGlobalSessionsStore.getState().entityById.get(target.sessionId) : undefined;
+                        const scope = readWorkspaceScope(session?.metadata)
+                            ?? (openSessionsStore.getState().runtimeKey === target.runtimeKey
+                                ? openSessionsStore.getState().sessions.find((entry) => entry.sessionId === target.sessionId)?.scope : null);
+                        if (scope && !message.context?.some((part) => part.text.startsWith(WORKSPACE_CONTEXT_PREFIX))) {
+                            const workspace = useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === scope.workspaceId);
+                            message = { ...message, context: [...(message.context ?? []), { kind: 'synthetic', ...buildWorkspaceContext(scope, workspace) }] };
+                        }
                         const key = getMessageQueueKey(target);
                         const id = `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
                         const queuedMessage: QueuedMessage = {

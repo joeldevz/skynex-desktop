@@ -34,6 +34,7 @@ import { sanitizeWorkStatusHiddenSections, sanitizeWorkStatusSectionOrder } from
 import { useInputHistoryStore } from '@/stores/useInputHistoryStore';
 import { useMessageQueueStore } from '@/stores/messageQueueStore';
 import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useUIStore, type FileEditorKeymap, type LargeTextPasteBehavior } from '@/stores/useUIStore';
 import { isSessionGoalMaxAutoTurns } from '@/lib/sessionGoalTurnLimit';
 import { z } from 'zod';
@@ -61,6 +62,7 @@ import {
   parseOneOf,
   parsePositiveInteger,
   parseProjects,
+  parseWorkspaceCatalogValue,
   parsePwaAppName,
   parseRecentEfforts,
   parseShortcutOverrides,
@@ -237,6 +239,11 @@ export const SETTINGS_REGISTRY = {
   homeDirectory: field({ scope: 'instance', parse: parseNonEmptyString }),
   opencodeBinary: field({ scope: 'instance', parse: parseTrimmedString }),
   projects: field<ProjectEntry[]>({ scope: 'instance', parse: parseProjects }),
+  workspaceCatalog: field({ scope: 'instance', parse: parseWorkspaceCatalogValue, ui: {
+    read: () => useWorkspacesStore.getState().catalog,
+    write: (value) => useWorkspacesStore.getState().adopt(value),
+    autoSave: false,
+  } }),
   activeProjectId: field({ scope: 'instance', adopt: 'bootstrap-only', parse: parseNonEmptyString }),
   securityScopedBookmarks: field({ scope: 'instance', surfaces: ['desktop'], parse: parseStringList }),
   pinnedDirectories: field({ scope: 'instance', parse: parseStringSet }),
@@ -729,6 +736,7 @@ export const parseSettingsDocument = (payload: unknown): DesktopSettings | null 
     return null;
   }
   const raw = document.data;
+  if (raw.workspaceCatalog !== undefined && parseWorkspaceCatalogValue(raw.workspaceCatalog, raw) === undefined) return null;
   const result: DesktopSettings = {};
   for (const key of SETTINGS_KEYS) {
     const spec = specOf(key);

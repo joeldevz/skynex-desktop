@@ -8,6 +8,7 @@ export type ScheduledTask = {
   name: string;
   enabled: boolean;
   targetSessionId?: string;
+  target?: { kind: 'workspace'; workspaceId: string; folderId?: string } | { kind: 'chats' };
   /** Absolute path of the `.agents/loops/*.md` file driving this task, when
    *  any. Present only for loop-sourced tasks; unknown to older clients. */
   loopFile?: string;
@@ -118,14 +119,17 @@ export const fetchEligibleScheduledTaskTargets = async (
   projectID: string,
   candidates: Array<{ sessionId: string; directory: string }>,
   signal?: AbortSignal,
+  target?: ScheduledTask['target'],
 ): Promise<Set<string>> => {
   const safeProjectID = ensureProjectID(projectID);
   const eligible = new Set<string>();
   for (let start = 0; start < candidates.length; start += ELIGIBLE_TARGETS_BATCH) {
+    const batch = candidates.slice(start, start + ELIGIBLE_TARGETS_BATCH);
+    const body = target ? { candidates: batch, target } : { candidates: batch };
     const response = await runtimeFetch(`/api/projects/${encodeURIComponent(safeProjectID)}/scheduled-tasks/targets/eligible`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ candidates: candidates.slice(start, start + ELIGIBLE_TARGETS_BATCH) }),
+      body: JSON.stringify(body),
       signal,
     });
     if (!response.ok) {

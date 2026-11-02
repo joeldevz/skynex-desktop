@@ -101,11 +101,18 @@ import { sourceControlProviderDescriptors } from './lib/source-control/provider-
 import { createSessionKnowledgeRuntime } from './lib/session-knowledge/runtime.js';
 import { createMessageSearchRuntime } from './lib/message-search/runtime.js';
 import { createScheduledTasksRuntime } from './lib/scheduled-tasks/runtime.js';
+import { resolveScheduledWorkspaceTarget } from './lib/scheduled-tasks/workspace-target.js';
 import { resolveSessionDefaults } from './lib/scheduled-tasks/session-defaults.js';
 import { createChatsScope } from './lib/scheduled-tasks/chats-scope.js';
 import { createServerStartupRuntime } from './lib/opencode/server-startup-runtime.js';
 import { createTunnelWiringRuntime } from './lib/opencode/tunnel-wiring-runtime.js';
 import { createStartupPipelineRuntime } from './lib/opencode/startup-pipeline-runtime.js';
+import { writeFileAtomic } from './lib/opencode/atomic-write.js';
+import {
+  createSharedOpenSessionsFileStore,
+  createSharedOpenSessionsRuntime,
+  registerSharedOpenSessionsRoutes,
+} from './lib/opencode/shared-open-sessions.js';
 import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
@@ -376,6 +383,7 @@ const OPENCHAMBER_DATA_DIR = OPENCHAMBER_USER_CONFIG_ROOT;
 const SETTINGS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'settings.json');
 const PUSH_SUBSCRIPTIONS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'push-subscriptions.json');
 const APNS_TOKENS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'apns-tokens.json');
+const OPEN_SESSIONS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'open-sessions.json');
 const openCodeTrust = createOpenCodeTrust({
   storePath: path.join(OPENCHAMBER_DATA_DIR, 'opencode-trust.json'),
   // Declared further down; first read on the first check, after startup.
@@ -1726,8 +1734,12 @@ const refreshOpenCodeAfterConfigChange = (...args) => openCodeLifecycleRuntime.r
 const startHealthMonitoring = () => openCodeLifecycleRuntime.startHealthMonitoring(HEALTH_CHECK_INTERVAL);
 const triggerHealthCheck = () => openCodeLifecycleRuntime.triggerHealthCheck();
 const scheduledChatsScope = createChatsScope(OPENCHAMBER_CHATS_DIR);
+const resolveScheduledTaskWorkspaceTarget = async (target) =>
+  resolveScheduledWorkspaceTarget(target, await readSettingsFromDiskMigrated());
 const scheduledTasksRuntime = createScheduledTasksRuntime({
   projectConfigRuntime,
+  readSettingsFromDiskMigrated,
+  resolveWorkspaceTarget: resolveScheduledTaskWorkspaceTarget,
   chatsScope: scheduledChatsScope,
   messageQueueRuntime,
   resolvePrimaryWorktreeRoot,
@@ -1795,6 +1807,7 @@ const scheduledTaskService = createScheduledTaskService({
   scheduledTasksRuntime,
   chatsScope: scheduledChatsScope,
   resolvePrimaryWorktreeRoot,
+  resolveWorkspaceTarget: resolveScheduledTaskWorkspaceTarget,
 });
 const openChamberSessionService = createOpenChamberSessionService({
   readSettingsFromDiskMigrated,
@@ -2745,6 +2758,15 @@ async function main(options = {}) {
     terminalRebindWindowMs: TERMINAL_INPUT_WS_REBIND_WINDOW_MS,
     terminalMaxRebindsPerWindow: TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW,
     environmentRuntime,
+    registerBaseRoutes: (routeApp) => registerSharedOpenSessionsRoutes(routeApp, {
+      membership: createSharedOpenSessionsRuntime(createSharedOpenSessionsFileStore({
+        fsPromises,
+        filePath: OPEN_SESSIONS_FILE_PATH,
+        writeFileAtomic,
+      })),
+      tunnelAuthController,
+      uiAuthController,
+    }),
     setupProxy,
     scheduleOpenCodeApiDetection,
     bootstrapOpenCodeAtStartup,

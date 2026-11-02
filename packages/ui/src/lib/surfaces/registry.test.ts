@@ -17,12 +17,9 @@ const baseOptions = {
 } as const;
 
 describe('getVisibleContextRailSurfaces', () => {
-  test('keeps the Skynex Tasks notebook reachable from the rail and accepts saved task tabs', () => {
-    const tasks = getVisibleContextRailSurfaces(baseOptions).find((surface) => surface.id === 'tasks');
-    expect(tasks?.mode).toBe('tasks');
-    expect(tasks?.availability).toBe('always');
-    expect(isContextPanelMode('tasks')).toBe(true);
-    expect(getVisibleContextRailSurfaces({ ...baseOptions, hiddenSurfaces: ['tasks'] }).some((surface) => surface.id === 'tasks')).toBe(false);
+  test('offers no Tasks panel in the rail, and a saved tasks tab is not a panel mode', () => {
+    expect(getVisibleContextRailSurfaces(baseOptions).map((surface) => String(surface.id))).not.toContain('tasks');
+    expect(isContextPanelMode('tasks')).toBe(false);
   });
 
   test('hides the walkthrough on VS Code and below the min width', () => {

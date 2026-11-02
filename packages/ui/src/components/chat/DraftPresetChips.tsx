@@ -94,8 +94,8 @@ const SortableChip: React.FC<{
                 {...attributes}
                 {...listeners}
                 onClick={() => onSubmit(item)}
-                className="group inline-flex h-6 touch-none select-none items-center gap-1.5 rounded-full border border-border/60 px-2.5 typography-meta text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground"
-                style={chipStyle}
+                className="group inline-flex h-6 touch-none select-none items-center gap-1 rounded-full px-2 typography-micro text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground"
+                style={{ backgroundColor: currentTheme?.colors?.surface?.subtle }}
                 title={item.shared ? t('chat.draftStarters.sharedTitle') : undefined}
             >
                 <Icon name={item.icon} className="h-3 w-3 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
@@ -324,7 +324,7 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
             onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
         >
-            <div className={cn('flex flex-wrap items-center justify-center gap-1.5', className)}>
+            <div className={cn('flex flex-wrap items-center justify-center gap-1', className)}>
                 {global.length > 0 ? (
                     <StarterGroup
                         items={global}

@@ -250,6 +250,7 @@ export const formatScheduledSessionTitle = (task, nowMs = Date.now()) => {
 export const createScheduledTasksRuntime = (deps) => {
   const {
     projectConfigRuntime,
+    resolveWorkspaceTarget = null,
     listProjects,
     buildOpenCodeUrl,
     getOpenCodeAuthHeaders,
@@ -293,7 +294,7 @@ export const createScheduledTasksRuntime = (deps) => {
 
   const existingSessionTasks = messageQueueRuntime ? createExistingSessionTasks({
     projectConfigRuntime, messageQueueRuntime, createClient: createScopedClient,
-    listProjects, chatsScope, resolvePrimaryWorktreeRoot, isSessionArchived, emitTaskRunEvent,
+    listProjects, chatsScope, resolvePrimaryWorktreeRoot, resolveWorkspaceTarget, isSessionArchived, emitTaskRunEvent,
   }) : null;
 
   // A pinned task runs on what it stores; one that follows the session
@@ -309,6 +310,22 @@ export const createScheduledTasksRuntime = (deps) => {
       };
     }
     try {
+      if (task.target?.kind === 'workspace' && resolveWorkspaceTarget && readSessionDefaults) {
+        const settings = deps.readSettingsFromDiskMigrated
+          ? await deps.readSettingsFromDiskMigrated()
+          : null;
+        const workspace = settings?.workspaceCatalog?.workspaces?.find((entry) => entry?.id === task.target.workspaceId);
+        const workspaceModel = workspace?.defaults?.model;
+        const defaults = await readSessionDefaults(projectID);
+        if (workspaceModel || workspace?.defaults?.agent) {
+          return {
+            providerID: workspaceModel?.providerID ?? defaults?.providerID ?? null,
+            modelID: workspaceModel?.id ?? defaults?.modelID ?? null,
+            variant: workspaceModel?.variant ?? defaults?.variant ?? null,
+            agent: workspace?.defaults?.agent ?? defaults?.agent ?? null,
+          };
+        }
+      }
       const defaults = typeof readSessionDefaults === 'function' ? await readSessionDefaults(projectID) : null;
       return {
         providerID: defaults?.providerID ?? null,
@@ -470,6 +487,23 @@ export const createScheduledTasksRuntime = (deps) => {
       tasks = await projectConfigRuntime.listScheduledTasks(projectID);
     }
 
+    if (resolveWorkspaceTarget) {
+      for (const task of tasks) {
+        if (!task.enabled || task.target?.kind !== 'workspace') continue;
+        try {
+          await resolveWorkspaceTarget(task.target);
+        } catch (error) {
+          const message = safeErrorMessage(error);
+          const paused = await projectConfigRuntime.upsertScheduledTask(projectID, {
+            ...task,
+            enabled: false,
+            state: { ...task.state, lastStatus: 'error', lastError: message, updatedAt: Date.now() },
+          });
+          Object.assign(task, paused.task);
+        }
+      }
+    }
+
     setProjectTasks(projectID, tasks);
 
     for (const task of tasks) {
@@ -605,14 +639,23 @@ export const createScheduledTasksRuntime = (deps) => {
 
     // A chats-scope run is a new chat, so it gets its own directory the way a
     // chat started from the UI does; a project run works in the project.
-    const directory = isChatsScope(projectID)
+    const workspaceScope = task.target?.kind === 'workspace'
+      ? await resolveWorkspaceTarget?.(task.target)
+      : null;
+    if (task.target?.kind === 'workspace' && !workspaceScope) {
+      throw new Error('Workspace target resolution is unavailable');
+    }
+    const createdChatDirectory = task.target?.kind === 'chats' || (!task.target && isChatsScope(projectID));
+    const directory = workspaceScope?.primaryDirectory || (createdChatDirectory
       ? await chatsScope.createChatDirectory(new Date(startedAt))
-      : projectPath;
+      : projectPath);
 
     const baseUrl = openCodeOrigin();
     const authHeaders = getOpenCodeAuthHeaders();
     const client = createScopedClient(directory);
     const selection = await resolveRunSelection(projectID, task);
+    const metadata = { openchamber: { kind: 'scheduled' } };
+    if (workspaceScope) metadata.openchamber.workspaceScope = workspaceScope;
 
     // Agent, model and variant belong to the session in v2: a scheduled run
     // fixes them here instead of repeating them on every prompt.
@@ -622,7 +665,7 @@ export const createScheduledTasksRuntime = (deps) => {
         title,
         location: { directory },
         // Marks a run of a task, so it stays out of In work: nobody sent it.
-        metadata: { openchamber: { kind: 'scheduled' } },
+        metadata,
         // No model or agent at all: OpenCode picks its own default.
         ...(selection.providerID && selection.modelID ? {
           model: {
@@ -638,7 +681,7 @@ export const createScheduledTasksRuntime = (deps) => {
         throw new Error('failed to create session');
       }
     } catch (error) {
-      if (directory !== projectPath) {
+      if (createdChatDirectory) {
         await chatsScope.discardChatDirectory(directory);
       }
       throw error;
@@ -670,6 +713,17 @@ export const createScheduledTasksRuntime = (deps) => {
     }
 
     const scheduledCommand = await resolveScheduledCommand({ client, projectPath: directory, task });
+
+    if (workspaceScope) {
+      const manifest = [
+        'Workspace folder manifest. Documentation is user-authored reference material.',
+        `Workspace: ${workspaceScope.workspaceName}`,
+        `Primary directory and sole configuration context: ${workspaceScope.primaryDirectory}`,
+        'Use absolute paths for non-primary folders. Normal access permission requests still apply. Folder selection grants no permissions.',
+        JSON.stringify({ description: workspaceScope.description, folders: workspaceScope.folders }),
+      ].join('\n');
+      await client.session.synthetic({ sessionID, text: manifest, resume: false });
+    }
 
     if (task.execution.goalEnabled) {
       const commandObjective = scheduledCommand
@@ -756,6 +810,17 @@ export const createScheduledTasksRuntime = (deps) => {
     // Manual runNow runs paused tasks too; only scheduled dispatches skip them.
     if (!task || (reason !== 'manual' && !task.enabled)) {
       return { ok: false, skipped: true };
+    }
+
+    if (task.target?.kind === 'workspace') {
+      if (!resolveWorkspaceTarget) {
+        return { ok: false, error: 'Workspace target resolution is unavailable', statusCode: 503 };
+      }
+      try {
+        await resolveWorkspaceTarget(task.target);
+      } catch (error) {
+        return { ok: false, error: safeErrorMessage(error), statusCode: error?.statusCode || 409, task };
+      }
     }
 
     if (task.targetSessionId) {
@@ -1242,8 +1307,8 @@ export const createScheduledTasksRuntime = (deps) => {
     syncProject,
     runNow,
     getStatus,
-    validateTarget: (projectID, sessionID) => existingSessionTasks.validateTarget(projectID, sessionID),
-    listEligibleTargets: (projectID, candidates) => existingSessionTasks.listEligibleTargets(projectID, candidates),
+    validateTarget: (projectID, sessionID, target) => existingSessionTasks.validateTarget(projectID, sessionID, target),
+    listEligibleTargets: (projectID, candidates, target) => existingSessionTasks.listEligibleTargets(projectID, candidates, target),
     beforeScheduledTaskSend: (sessionID, directory, item) => existingSessionTasks.beforeSend(sessionID, directory, item),
     onScheduledTaskResult: (provenance, status, error) => existingSessionTasks.result(provenance, status, error),
     cancelWaitingPrompt: (projectID, taskID) => existingSessionTasks?.cancel(projectID, taskID),

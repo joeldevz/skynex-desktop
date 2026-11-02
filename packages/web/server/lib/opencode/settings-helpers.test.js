@@ -828,6 +828,7 @@ describe('settings registry gate', () => {
   // stops accepting a key the registry still lists — that is the drift the
   // registry exists to end.
   const validValues = {
+    workspaceCatalog: { version: 1, workspaces: [] },
     themeId: 'openchamber-dark', locale: 'zh-CN', useSystemTheme: true, themeVariant: 'dark', lightThemeId: 'openchamber-light', darkThemeId: 'openchamber-dark',
     splashBgLight: '#fff', splashFgLight: '#000', splashBgDark: '#000', splashFgDark: '#fff',
     lastDirectory: '/home/testuser/project', homeDirectory: '/home/testuser', opencodeBinary: '/usr/local/bin/opencode',

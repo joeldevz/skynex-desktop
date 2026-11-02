@@ -1,5 +1,6 @@
 import { DateTime, IANAZone } from 'luxon';
 import { CronExpressionParser } from 'cron-parser';
+import { z } from 'zod';
 
 import { projectConfigFileStemOf, projectPathFromId } from './project-id.js';
 import {
@@ -22,6 +23,14 @@ export const MAX_TASK_NAME_LENGTH = 80;
 const MAX_TASK_PROMPT_LENGTH = 20_000;
 const MAX_CRON_LENGTH = 200;
 const MAX_LAST_ERROR_LENGTH = 2_000;
+const scheduledTaskTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('chats') }).strict(),
+  z.object({
+    kind: z.literal('workspace'),
+    workspaceId: z.string(),
+    folderId: z.string().optional(),
+  }).strict(),
+]);
 
 const asNonEmptyString = (value) => {
   if (typeof value !== 'string') {
@@ -263,6 +272,17 @@ const normalizeExecution = (value, targetSessionId) => {
   };
 };
 
+const normalizeScheduledTaskTarget = (value) => {
+  if (value === undefined) return undefined;
+  const parsed = scheduledTaskTargetSchema.safeParse(value);
+  if (!parsed.success) throw new Error('target is invalid');
+  if (parsed.data.kind === 'chats') return parsed.data;
+  const workspaceId = asNonEmptyString(parsed.data.workspaceId);
+  const folderId = parsed.data.folderId === undefined ? undefined : asNonEmptyString(parsed.data.folderId);
+  if (!workspaceId || (parsed.data.folderId !== undefined && !folderId)) throw new Error('target is invalid');
+  return folderId ? { kind: 'workspace', workspaceId, folderId } : { kind: 'workspace', workspaceId };
+};
+
 const normalizeState = (value, fallback) => {
   const source = value && typeof value === 'object' ? value : fallback || {};
   const lastRunAt = typeof source.lastRunAt === 'number' && Number.isFinite(source.lastRunAt)
@@ -342,6 +362,7 @@ const normalizeTaskForStorage = (value, options) => {
   if (value.targetSessionId != null && value.targetSessionId !== '' && !targetSessionId) throw new Error('targetSessionId is invalid');
   if (targetSessionId && !/^[A-Za-z0-9_-]{4,128}$/.test(targetSessionId)) throw new Error('targetSessionId is invalid');
   const execution = normalizeExecution(value.execution, targetSessionId);
+  const target = normalizeScheduledTaskTarget(value.target);
 
   // Loop provenance: absolute path of the `.agents/loops/*.md` file driving
   // this task, when any. Preserved on every write so the scheduler can detect
@@ -366,6 +387,7 @@ const normalizeTaskForStorage = (value, options) => {
     ...(loopFile ? { loopFile } : {}),
   };
   if (targetSessionId) storedTask.targetSessionId = targetSessionId;
+  if (target) storedTask.target = target;
   return storedTask;
 };
 

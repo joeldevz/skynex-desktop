@@ -426,7 +426,7 @@ describe('updateDesktopSettings', () => {
     const saves: Partial<SettingsPayload>[] = [];
     registerSettingsApi(async (changes) => {
       saves.push(changes);
-      return {};
+      return changes;
     }, async () => ({
       settings: { locale: 'uk', draftStartersCraftGoalAdded: true, draftStartersScheduleTaskAdded: true },
       source: 'web',
@@ -439,7 +439,7 @@ describe('updateDesktopSettings', () => {
       // The next launch paints in the restored language before the server answers.
       expect(JSON.parse(localStorage.getItem(LOCALE_STORAGE_KEY) ?? '{}')).toEqual({ locale: 'uk' });
       await delay(400);
-      expect(saves).toEqual([]);
+      expect(saves).toEqual([{ workspaceCatalog: { version: 1, workspaces: [] } }]);
     } finally {
       useI18nStore.getState().setLocale('en');
       if (!hadWindowStorage) delete testWindow.localStorage;
@@ -595,7 +595,7 @@ describe('updateDesktopSettings', () => {
     });
   });
 
-  test('keeps hydrated sidebar preferences the server omits and writes nothing back', async () => {
+  test('keeps omitted sidebar preferences and only migrates the missing workspace catalog', async () => {
     getWindow();
     const saves: Array<Partial<SettingsPayload>> = [];
     useSessionDisplayStore.setState({
@@ -619,7 +619,7 @@ describe('updateDesktopSettings', () => {
     await syncDesktopSettings();
     await delay(300);
 
-    expect(saves).toEqual([]);
+    expect(saves).toEqual([{ workspaceCatalog: { version: 1, workspaces: [] } }]);
     const state = useSessionDisplayStore.getState();
     expect({
       projectDisplayMode: state.projectDisplayMode,
@@ -1152,7 +1152,7 @@ describe('updateDesktopSettings', () => {
     expect(saveCalls.some((changes) => changes.autoSaveEnabled === false)).toBe(true);
   });
 
-  test('keeps the hydrated autoSaveEnabled when the server omits it and writes nothing', async () => {
+  test('keeps omitted autoSaveEnabled and only migrates the missing workspace catalog', async () => {
     getWindow();
     invalidateSettingsCache();
     useUIStore.getState().setAutoSaveEnabled(false);
@@ -1169,10 +1169,10 @@ describe('updateDesktopSettings', () => {
     await delay(500);
 
     expect(useUIStore.getState().autoSaveEnabled).toBe(false);
-    expect(saveCalls).toEqual([]);
+    expect(saveCalls).toEqual([{ workspaceCatalog: { version: 1, workspaces: [] } }]);
   });
 
-  test('a bootstrap that adopts server values produces zero writes even with the auto-savers running', async () => {
+  test('bootstrap adoption with auto-savers writes only the missing workspace catalog migration', async () => {
     getWindow();
     invalidateSettingsCache();
     // The setup below is itself "a person changing things" as far as the
@@ -1211,7 +1211,7 @@ describe('updateDesktopSettings', () => {
       expect(useUIStore.getState().terminalShell).toBe('fish');
       expect(useUIStore.getState().favoriteModels).toHaveLength(1);
       expect(useUIStore.getState().workStatusHiddenSections).toEqual(['mcp']);
-      expect(saveCalls).toEqual([]);
+      expect(saveCalls).toEqual([{ workspaceCatalog: { version: 1, workspaces: [] } }]);
     } finally {
       stopModelPrefs();
     }
@@ -1225,7 +1225,7 @@ describe('updateDesktopSettings', () => {
       saveCalls.push(changes);
       return { ...changes } as SettingsPayload;
     }, async () => ({
-      settings: { fontSize: 15, draftStartersCraftGoalAdded: true, draftStartersScheduleTaskAdded: true },
+      settings: { fontSize: 15, workspaceCatalog: { version: 1, workspaces: [] }, draftStartersCraftGoalAdded: true, draftStartersScheduleTaskAdded: true },
       source: 'web',
     }));
     await syncDesktopSettings();
@@ -1309,7 +1309,7 @@ describe('updateDesktopSettings', () => {
     void updateDesktopSettings({ showDeletionDialog: false, fontSize: 17 });
     await updateDesktopSettings({ showDeletionDialog: true });
 
-    expect(saveCalls).toEqual([{ fontSize: 17 }]);
+    expect(saveCalls).toEqual([{ workspaceCatalog: { version: 1, workspaces: [] } }, { fontSize: 17 }]);
   });
 
   test('a failed save forgets its optimistic value so the retry is sent', async () => {

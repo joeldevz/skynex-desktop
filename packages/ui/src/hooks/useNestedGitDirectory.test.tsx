@@ -120,8 +120,8 @@ test('a root with no commits keeps its nested repositories reachable (#4886)', a
     expect(current().gitDirectory).toBe(app);
     expect(current().repositoryOptions).toEqual([app]);
 
-    // App bootstrap asks for the home folder on its own; no git reads happened.
-    expect(requested.filter((path) => path !== '/api/fs/home')).toEqual([]);
+    // App bootstrap asks for the home folder and the session folders on its own; no git reads happened.
+    expect(requested.filter((path) => path !== '/api/fs/home' && path !== '/api/session-folders')).toEqual([]);
   } finally {
     await act(async () => { reactRoot.unmount(); });
     globalThis.fetch = originalFetch;

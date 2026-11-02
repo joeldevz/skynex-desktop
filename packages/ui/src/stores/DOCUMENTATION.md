@@ -17,6 +17,48 @@ Do not put high-frequency local component state here just because it is convenie
 
 ## Architecture
 
+### Config and directory startup
+
+`useConfigStore` initializes its directory key from the client without reading
+`useDirectoryStore` during module evaluation. It installs the directory
+subscription in a microtask after the module graph has initialized, then activates
+the current directory if its key differs. Subsequent directory changes keep using
+the same cache hydration and activation path.
+
+### Why directory binding waits for module initialization
+
+Directory and settings modules depend on each other through persistence and
+session state. Reading or subscribing to the directory store while constructing
+the config store can access an uninitialized export and prevent the UI from
+mounting. The deferred binding also reads the initial directory so changes before
+subscription are retained.
+
+### Workspace catalog and explicit membership
+
+`useWorkspacesStore` owns the acknowledged instance catalog. Its actions serialize edits per captured runtime through the settings persistence owner. Missing catalogs migrate singleton workspaces from existing projects; valid empty catalogs remain empty. Failed loads and saves preserve acknowledged data. Folder unlinking performs no project cleanup.
+
+Edits require a successful baseline for their captured runtime inside the write queue. An initial failed load grants no write authority. A failed save retains the acknowledged baseline so the same edit can be retried. Runtime reset clears that authority.
+
+Workspace removal uses that same queue and publishes only the acknowledged catalog. After acknowledgment it clears the overview selection only when the captured runtime remains current and the deleted workspace is still selected. A settings adapter may adopt the acknowledged catalog before the save promise resolves, so selection cleanup belongs to the completing edit. Restoration accepts only IDs still present in the catalog.
+
+### Why overview-pointer cleanup cannot roll back catalog deletion
+
+The settings acknowledgment commits catalog removal independently of the device-local overview pointer. A local pointer write failure leaves the confirmed removal and in-memory selection intact; catalog membership validation prevents a stale pointer from restoring a deleted workspace.
+
+`useOpenSessionsStore` exports the vanilla factory and exactly one production `openSessionsStore`. On web, desktop and both mobile surfaces its list lives on the OpenChamber server (`lib/workspaces/shared-open-sessions.ts`, server route documented in `packages/web/server/lib/opencode/DOCUMENTATION.md`), so every client of one server shows the same open sessions. Each change is sent as one operation and the server's answer becomes the list, other clients' changes included; the list is read again when the window becomes visible. The first read on each client unions the list it kept in `getDurableStorage` into the server's, once per runtime key. VS Code has no OpenChamber server and keeps the list in `getDurableStorage`, which propagates storage failures and never substitutes ephemeral success. Closing a session no live source covers (a chat not opened since launch) asks OpenCode's global active-session list first: absent means idle and the close goes ahead, a failed read keeps the session open. A subagent's chat (a session with `parentID`) never joins the list: viewing it from its parent's card skips `rememberExplicitOpen`, and `sync/subagent-membership.ts`, started by `WorkspaceNavigation`, drops entries earlier builds added once the global list shows their parent. `forgetSessions` only removes entries; it never stops the subagent. Runtime namespaces retain ordered references independently of history coverage. Hydration, reads, writes, and mutations serialize per namespace; failed baselines preserve queued intents for explicit hydration retry. Successful mutations persist before publishing.
+
+Hydration also accepts a lazy viewed-reference seed captured by the first pending call. It reads durable membership before resolving that seed and invokes it only for missing storage. Valid empty, populated, malformed, and failed reads never trigger a seed lookup. A failed lookup retains state without writing a migration marker. Titleless live records use their session ID as a durable label; stored references still require a string title.
+
+Open references derive the optional validated `workspaceAssignment` from session metadata whenever an explicit open reconstructs them. Version 1 snapshots without that field remain valid. Closing removes membership only; the server-backed assignment remains available on reopen. Assignment never overrides `primaryDirectory` or captured scope.
+
+Active close first requires confirmation. Confirmed interruption checks the captured session directory and boolean acknowledgment. False interruption needs authoritative idle proof; unknown activity retains membership. Acknowledged interruption permits closing despite cached active status. The activity enum cannot distinguish a genuinely new execution run.
+
+`useSessionTabsStore` is a compatibility projection of explicit membership. Mount-driven ensure, pin, and cleanup calls do not create or remove membership. It has no persistence, preview replacement, or tab cap. Completion leaves sessions open. Close navigation belongs to `lib/sessionTabs.ts` and runs only after a durable close.
+
+### Why membership is independent of history
+
+Global lists can be partial or unavailable. Their omissions cannot remove a manually opened session. Persisted references retain labels, scope, and routing while records are unresolved, and token events perform no membership writes.
+
 There are multiple store categories in this directory.
 
 ### Catalog refresh

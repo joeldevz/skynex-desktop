@@ -37,6 +37,9 @@
     "projects": {
       "scope": "instance"
     },
+    "workspaceCatalog": {
+      "scope": "instance"
+    },
     "activeProjectId": {
       "scope": "instance",
       "adopt": "bootstrap-only"

@@ -97,6 +97,11 @@ import { setSessionOpener } from "./session-navigation"
 import { getRuntimeKey, isTransientRuntimeKey } from "@/lib/runtime-switch"
 import { clearLastActiveSession, persistLastActiveSession, readLastActiveSession } from "./last-session-cache"
 import { createSessionDraftId, useSessionDraftsStore } from "@/stores/useSessionDraftsStore"
+import { rememberExplicitOpen } from './session-actions'
+import { openSessionsStore, type OpenSessionReference, type MembershipResult } from '@/stores/useOpenSessionsStore'
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore'
+import { buildWorkspaceContext, readWorkspaceScope, snapshotWorkspaceScope, resolveWorkspaceDefaults, workspaceSessionScopeSchema, WORKSPACE_CONTEXT_PREFIX, type FolderSelection, type WorkspaceSessionScope } from '@/lib/workspaces/session-scope'
+import type { WorkspaceDefaults } from '@/lib/workspaces/model'
 import { persistWorktreeTopology, readPersistedWorktreeTopology } from "./worktree-topology-cache"
 import { rememberRuntimeLiveStatus } from "./runtime-live-memory"
 import {
@@ -193,6 +198,7 @@ export async function routeMessage(params: {
    * appears without waiting for it; only the request does. Never rejects.
    */
   knowledgeSync?: Promise<void>
+  workspaceContext?: { text: string }
 }): Promise<'command' | 'prompt' | 'shell'> {
   const requestDirectory = params.directory ?? undefined
   // The session carries its own model and agent server-side. Sending them on
@@ -209,6 +215,9 @@ export async function routeMessage(params: {
   const contextItems = (params.additionalParts ?? [])
     .filter((part) => part.text.trim().length > 0)
     .map((part) => ({ text: part.text, metadata: part.metadata }))
+  if (params.workspaceContext && !contextItems.some((part) => part.text.startsWith(WORKSPACE_CONTEXT_PREFIX))) {
+    contextItems.unshift({ ...params.workspaceContext, metadata: undefined })
+  }
   // The command route takes no skill attachments, so the skills named in a
   // command's arguments are named in an instruction as before.
   const skillInstructionContext = (): Array<{ text: string }> => {
@@ -407,6 +416,8 @@ function notifyMessageSent(sessionId: string): void {
 type NewSessionDraftTarget = "chat" | "project"
 
 export type NewSessionDraftState = {
+  workspaceScope?: WorkspaceSessionScope
+  workspaceDefaults?: WorkspaceDefaults
   draftId: number
   open: boolean
   selectedProjectId?: string | null
@@ -432,6 +443,7 @@ export type NewSessionDraftState = {
 }
 
 export type SessionUIState = {
+  openSessionFailure: { reference: OpenSessionReference; result: MembershipResult } | null
   currentSessionId: string | null
   currentSessionDirectory: string | null
   materializedDraftSessionId: string | null
@@ -455,11 +467,14 @@ export type SessionUIState = {
     id: string | null,
     directoryHint?: string | null,
     transition?: "submitted-draft",
+    intent?: 'explicit' | 'restore',
   ) => void
   clearMaterializedDraftSession: (sessionId: string) => void
   prepareForRuntimeSwitch: (apiBaseUrl?: string | null) => void
   restoreForRuntimeSwitch: (apiBaseUrl?: string | null, previousRuntimeKey?: string | null) => void
   openNewSessionDraft: (options?: Partial<NewSessionDraftState> & { automatic?: boolean }) => void
+  openWorkspaceDraft: (workspaceId: string, selection: FolderSelection, overrides?: WorkspaceDefaults) => void
+  setNewSessionDraftWorkspaceTarget: (workspaceId: string | null, selection?: FolderSelection) => void
   prepareChatDraftDirectory: () => Promise<string | null>
   closeNewSessionDraft: () => void
   setNewSessionDraftTarget: (target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null }, options?: { force?: boolean }) => void
@@ -760,9 +775,9 @@ const applyDraftTargetSelectionDefaults = (
       ? useProjectsStore.getState().projects.find((project) => normalizePath(project.path) === normalizePath(selectedProject.path))
       : undefined
     useConfigStore.getState().applyDefaultModelAgentSelection({
-      projectDefaultAgent: currentProject?.defaultAgent,
-      projectDefaultModel: currentProject?.defaultModel,
-      projectDefaultVariant: currentProject?.defaultVariant,
+      projectDefaultAgent: draft.workspaceDefaults?.agent ?? currentProject?.defaultAgent,
+      projectDefaultModel: draft.workspaceDefaults?.model ? `${draft.workspaceDefaults.model.providerID}/${draft.workspaceDefaults.model.id}` : currentProject?.defaultModel,
+      projectDefaultVariant: draft.workspaceDefaults?.model?.variant ?? currentProject?.defaultVariant,
     })
   }
   const activationOptions = { preserveManualModel: !projectChanged && draft.target === 'project' }
@@ -996,10 +1011,12 @@ const createSessionWithDraftLifecycle = async (
   const targetFolderId = draft.targetFolderId
 
   try {
-    const resolved = await resolveCreatableDraftDirectory(draft, directoryOverride)
+    const resolved = draft.workspaceScope ? { status: 'ok' as const, directory: draft.workspaceScope.primaryDirectory }
+      : await resolveCreatableDraftDirectory(draft, directoryOverride)
     if (resolved.status === "aborted") return null
     const directory = resolved.directory
-    const session = await createSessionAction(title, directory, metadata, selectionTransition, selection)
+    const session = await createSessionAction(title, directory, metadata, selectionTransition,
+      { ...draft.workspaceDefaults, ...selection, workspaceScope: selection?.workspaceScope ?? draft.workspaceScope })
     if (!session) return null
 
     useSessionUIStore.getState().closeNewSessionDraft()
@@ -1098,6 +1115,7 @@ export async function materializeOpenDraftSession(selection: {
     {
       model: { providerID: selection.providerID, id: selection.modelID, variant: selection.variant },
       agent: trimmedAgent,
+      workspaceScope: draft.workspaceScope,
     },
   )
   if (!created?.id) {
@@ -1199,6 +1217,7 @@ const flattenWorktreeMap = (map: Map<string, WorktreeMetadata[]>): WorktreeMetad
 const PERSISTED_WORKTREE_MAP = readPersistedWorktreeTopology(runtimeMemoryKey())
 
 export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
+  openSessionFailure: null,
   currentSessionId: null,
   currentSessionDirectory: null,
   materializedDraftSessionId: null,
@@ -1219,7 +1238,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // ---------------------------------------------------------------------------
   // setCurrentSession
   // ---------------------------------------------------------------------------
-  setCurrentSession: (id, directoryHint?: string | null, transition?: "submitted-draft") => {
+  setCurrentSession: (id, directoryHint?: string | null, transition?: "submitted-draft", intent = 'explicit') => {
+    if (intent === 'explicit' && useWorkspacesStore.getState().selectedWorkspaceId !== null) useWorkspacesStore.getState().selectWorkspace(null)
+    if (id && intent === 'explicit') void rememberExplicitOpen(id, directoryHint)
     const materializedDraftSessionId = id && transition === "submitted-draft" ? id : null
     // Publish the transition identity before closing the draft. Those are two
     // separate store updates, and ChatContainer must never observe a closed
@@ -1405,6 +1426,21 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
 
   openNewSessionDraft: (options) => {
+    if (!options?.automatic && useWorkspacesStore.getState().selectedWorkspaceId !== null) useWorkspacesStore.getState().selectWorkspace(null)
+    if (options?.workspaceScope) {
+      const scope = workspaceSessionScopeSchema.parse(options.workspaceScope)
+      const nextDraft: NewSessionDraftState = {
+        ...DEFAULT_DRAFT, ...options, draftId: nextDraftId++, workDraftId: options.workDraftId ?? createSessionDraftId(),
+        open: true, target: 'project', preserveDirectoryOverride: true, directoryOverride: scope.primaryDirectory,
+        workspaceScope: scope, workspaceDefaults: structuredClone(options.workspaceDefaults ?? {}),
+      }
+      clearLastActiveSession(runtimeMemoryKey())
+      set({ newSessionDraft: nextDraft, currentSessionId: null, currentSessionDirectory: null, error: null })
+      writeRuntimeSessionMemory(runtimeMemoryKey(), { sessionId: null, directory: scope.primaryDirectory, draft: nextDraft })
+      useDirectoryStore.getState().setDirectory(scope.primaryDirectory)
+      applyDraftTargetSelectionDefaults(nextDraft, get().availableWorktreesByProject)
+      return
+    }
     // A USER-initiated draft open is a navigation choice: the next cold launch
     // should land on the draft, not re-open the session left behind — drop the
     // persisted last-session pointer for this runtime. `automatic: true` marks
@@ -1561,6 +1597,55 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     void recoverStaleDraftDirectory(nextDraft)
+  },
+
+  openWorkspaceDraft: (workspaceId, selection, overrides = {}) => {
+    const workspace = useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === workspaceId)
+    if (!workspace) throw new Error('Unknown workspace')
+    const result = snapshotWorkspaceScope(workspace, selection)
+    if (result.kind === 'invalid') throw new Error(result.reason)
+    get().openNewSessionDraft({ workspaceScope: result.value, workspaceDefaults: resolveWorkspaceDefaults(workspace, overrides) })
+  },
+
+  setNewSessionDraftWorkspaceTarget: (workspaceId, selection = { kind: 'workspace' }) => {
+    const previousDraft = get().newSessionDraft
+    if (!previousDraft.open || previousDraft.pendingWorktreeRequestId || previousDraft.bootstrapPendingDirectory) return
+    const workspace = workspaceId === null ? null
+      : useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === workspaceId) ?? null
+    const workspacesState = useWorkspacesStore.getState()
+    if (workspaceId !== null && (
+      !workspace
+      || workspacesState.status !== 'ready'
+      || workspacesState.runtimeKey !== getRuntimeKey()
+    )) return
+    const scopeResult = workspace ? snapshotWorkspaceScope(workspace, selection) : null
+    if (scopeResult?.kind === 'invalid') return
+    const scope = scopeResult?.value
+    const primaryProject = scope
+      ? useProjectsStore.getState().projects.find((project) => normalizePath(project.path) === normalizePath(scope.primaryDirectory)) ?? null
+      : null
+    const nextDraft: NewSessionDraftState = {
+      ...previousDraft,
+      target: scope ? 'project' : 'chat',
+      selectedProjectId: scope ? primaryProject?.id ?? null : CHAT_DRAFT_PROJECT_ID,
+      directoryOverride: scope?.primaryDirectory ?? null,
+      preparedChatDirectory: scope ? null : previousDraft.preparedChatDirectory,
+      preserveDirectoryOverride: Boolean(scope),
+      pendingWorktreeRequestId: null,
+      bootstrapPendingDirectory: null,
+      workspaceScope: scope,
+      workspaceDefaults: workspace ? resolveWorkspaceDefaults(workspace, {}) : undefined,
+    }
+    if (scope && previousDraft.preparedChatDirectory) {
+      void deleteChatDirectory(previousDraft.preparedChatDirectory).catch(() => undefined)
+    }
+    set({ newSessionDraft: nextDraft })
+    applyDraftTargetSelectionDefaults(nextDraft, get().availableWorktreesByProject, primaryProject, previousDraft)
+    const directory = scope?.primaryDirectory ?? null
+    if (directory && directory !== useDirectoryStore.getState().currentDirectory) {
+      useDirectoryStore.getState().setDirectory(directory)
+    }
+    writeRuntimeSessionMemory(runtimeMemoryKey(), { sessionId: null, directory, draft: nextDraft })
   },
 
   prepareChatDraftDirectory: async () => {
@@ -1812,6 +1897,13 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   ) => {
     const capturedTarget = options?.target
     const capturedRuntimeKey = capturedTarget?.runtimeKey ?? getRuntimeKey()
+    const capturedSessionId = capturedTarget?.sessionId ?? options?.sessionId ?? get().currentSessionId
+    const capturedSession = capturedSessionId ? useGlobalSessionsStore.getState().entityById.get(capturedSessionId) : undefined
+    const capturedScope = capturedSessionId
+      ? readWorkspaceScope(capturedSession?.metadata) ?? openSessionsStore.getState().sessions.find((entry) => entry.sessionId === capturedSessionId)?.scope
+      : (options?.draftSnapshot ?? get().newSessionDraft).workspaceScope
+    const workspaceContext = capturedScope ? buildWorkspaceContext(capturedScope,
+      useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === capturedScope.workspaceId)) : undefined
     if (capturedTarget && capturedTarget.runtimeKey !== getRuntimeKey()) {
       throw new Error("Message was not sent because the runtime changed.")
     }
@@ -2042,6 +2134,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         delivery: options?.delivery,
         skills: options?.skills,
         knowledgeSync,
+        workspaceContext,
         additionalParts: additionalParts?.map((p) => ({
           text: p.text,
           synthetic: p.synthetic,

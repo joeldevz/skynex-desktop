@@ -1,4 +1,6 @@
 import type { DesktopSettings } from '@/lib/desktop';
+import type { WorkspaceCatalog } from '@/lib/workspaces/model';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { loadAppearancePreferences, applyAppearancePreferences } from '@/lib/appearancePersistence';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
@@ -698,6 +700,7 @@ export const syncDesktopSettings = async (options?: { bootstrap?: boolean; adopt
     }
 
     dispatchSettingsSynced(settings, bootstrap, adoptTheme);
+    if (bootstrap && settings.workspaceCatalog === undefined) await useWorkspacesStore.getState().load();
   };
 
   try {
@@ -827,6 +830,25 @@ async function _flushSettingsUpdate({ keepalive = false }: { keepalive?: boolean
  * failure, never an empty document.
  */
 export const loadDesktopSettings = (): Promise<DesktopSettings | null> => fetchWebSettings();
+
+export const saveWorkspaceCatalog = async (catalog: WorkspaceCatalog): Promise<WorkspaceCatalog> => {
+  const api = getRuntimeSettingsAPI();
+  if (!api) throw new Error('Settings API is unavailable');
+  const context = captureSettingsRuntimeContext();
+  const changes = { workspaceCatalog: catalog };
+  const operation = _settingsMutationTracker.begin();
+  try {
+    const updated = sanitizeWebSettings(await api.save(changes));
+    if (!isSettingsRuntimeContextCurrent(context)) throw new Error('runtime-changed');
+    if (!updated?.workspaceCatalog) throw new Error('Workspace catalog was not acknowledged');
+    _settingsMutationTracker.record({ workspaceCatalog: updated.workspaceCatalog });
+    rememberServerSettings(updated);
+    _settingsCache = null;
+    return updated.workspaceCatalog;
+  } finally {
+    _settingsMutationTracker.finish(operation);
+  }
+};
 
 /**
  * Queue a change a person made in this window for the debounced write. Keys

@@ -229,6 +229,7 @@ import { useComposerDraft } from './composer/state/useComposerDraft';
 import { useSessionDraftPublishing } from './composer/state/useSessionDraftPublishing';
 import { useDictationOrigin } from './composer/state/useDictationOrigin';
 import { useDraftTarget } from './composer/state/useDraftTarget';
+import { useDraftWorkspaceTarget } from './composer/state/useDraftWorkspaceTarget';
 import { useMobileComposerShell } from './composer/state/useMobileComposerShell';
 import { useMobileViewportPin } from './composer/state/useMobileViewportPin';
 import { MobileCommentComposer } from './composer/comment/MobileCommentComposer';
@@ -236,6 +237,8 @@ import { useMobileCommentComposerController } from './composer/comment/MobileCom
 import { useMobileCommentComposerMode } from './composer/comment/useMobileCommentComposerMode';
 import {
     DraftTargetSelectors,
+    DraftWorkspaceTargetSelector,
+    DraftWorkspaceFolderTargetSelector,
     MobileDraftTargetSheets,
     MobileDraftTargetTriggers,
 } from './composer/ui/DraftTargetSelectors';
@@ -4004,6 +4007,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             : []
     ), [isVSCode, t, trackerSources]);
     const showDraftTargetSelectors = newSessionDraftOpen && !isVSCode;
+    const draftWorkspaceTarget = useDraftWorkspaceTarget(showDraftTargetSelectors);
+    const workspaceDraftTitle = newSessionDraft?.workspaceScope
+        ? newSessionDraft.workspaceScope.folders.length === 1
+            ? newSessionDraft.workspaceScope.primaryDirectory.replace(/\\+$/, '').split(/[\\/]/).at(-1) || newSessionDraft.workspaceScope.workspaceName
+            : newSessionDraft.workspaceScope.workspaceName
+        : null;
 
     // Which project and directory a new session will target.
     const {
@@ -4021,14 +4030,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         handleDraftProjectChange,
         handleDraftDirectoryChange,
         refreshDraftTarget,
-    } = useDraftTarget(showDraftTargetSelectors);
+    } = useDraftTarget(showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope);
+    const draftTitleLabel = workspaceDraftTitle ?? draftProjectLabel;
 
     const handleMobileDraftPickerChange = React.useCallback((picker: 'project' | 'branch' | null) => {
+        if (picker === 'project' && (newSessionDraft?.target === 'chat' || newSessionDraft?.workspaceScope || !selectedDraftProject)) return;
         if (picker === 'branch') {
             refreshDraftTarget();
         }
         setMobileDraftPicker(picker);
-    }, [refreshDraftTarget]);
+    }, [newSessionDraft?.target, newSessionDraft?.workspaceScope, refreshDraftTarget, selectedDraftProject]);
 
     // The one entry to an isolated space: while the feature's switch is on, for a project the
     // branch selector serves, never in VS Code (decision 16). The dialog keeps the project it
@@ -4092,7 +4103,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     );
 
     React.useEffect(() => {
-        if (!showDraftTargetSelectors || !selectedDraftProject || selectedDraftProject.kind === 'chat' || !selectedDraftDirectory) {
+        if (!showDraftTargetSelectors || newSessionDraft?.workspaceScope || !selectedDraftProject || selectedDraftProject.kind === 'chat' || !selectedDraftDirectory) {
             return;
         }
         if (newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory || newSessionDraft?.preserveDirectoryOverride) {
@@ -4106,7 +4117,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             projectId: selectedDraftProject.id,
             directoryOverride: selectedDraftProject.path,
         });
-    }, [draftBranchItems, newSessionDraft?.bootstrapPendingDirectory, newSessionDraft?.pendingWorktreeRequestId, newSessionDraft?.preserveDirectoryOverride, selectedDraftDirectory, selectedDraftProject, setNewSessionDraftTarget, showDraftTargetSelectors]);
+    }, [draftBranchItems, newSessionDraft?.bootstrapPendingDirectory, newSessionDraft?.pendingWorktreeRequestId, newSessionDraft?.preserveDirectoryOverride, newSessionDraft?.workspaceScope, selectedDraftDirectory, selectedDraftProject, setNewSessionDraftTarget, showDraftTargetSelectors]);
 
 
     // The record-and-send overlay holds the composer open until its submit
@@ -4521,13 +4532,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             style={isMobile && inputBarOffset > 0 ? { marginBottom: `${inputBarOffset}px` } : undefined}
         >
             {showDesktopDraftPresentation ? (
-                <div className={cn('chat-input-column mb-7 text-center', draftPresentationClassName)}>
+                <div className={cn('chat-input-column mb-4 text-center', draftPresentationClassName)}>
                     <h1 className="text-balance text-2xl font-normal tracking-tight text-foreground md:text-3xl">
                         {renderDraftTitle(
-                            draftProjectLabel
-                                ? t('chat.emptyState.draftTitleWithProject', { project: draftProjectLabel })
+                            draftTitleLabel
+                                ? t('chat.emptyState.draftTitleWithProject', { project: draftTitleLabel })
                                 : t('chat.emptyState.draftTitle'),
-                            draftProjectLabel,
+                            draftTitleLabel,
                         )}
                     </h1>
                 </div>
@@ -4537,7 +4548,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                     furniture (chips, banners, draft selectors) stays in state
                     and returns unchanged when the comment exits. */}
                 {!mobileCommentActive ? (<>
-                {!isMobile && (showDraftTargetSelectors || draftPresentationExiting) && selectedDraftProject ? (
+                {!isMobile && showDraftTargetSelectors ? <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"><DraftWorkspaceTargetSelector workspaces={draftWorkspaceTarget.workspaces} status={draftWorkspaceTarget.status} selectedWorkspaceId={draftWorkspaceTarget.selectedWorkspaceId} isChatSelected={newSessionDraft?.target === 'chat'} onSelect={draftWorkspaceTarget.selectTarget} onRetry={() => { void draftWorkspaceTarget.retry(); }} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /><DraftWorkspaceFolderTargetSelector workspace={draftWorkspaceTarget.workspaces.find((workspace) => workspace.id === draftWorkspaceTarget.selectedWorkspaceId)} selectedFolderId={draftWorkspaceTarget.selectedFolderId} onSelect={draftWorkspaceTarget.selectTarget} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /></div> : null}
+                {!isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && (showDraftTargetSelectors || draftPresentationExiting) && selectedDraftProject ? (
                     <div className={draftPresentationClassName}>
                         <DraftTargetSelectors
                             projects={draftProjects}
@@ -4555,15 +4567,18 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                             onRefreshTarget={refreshDraftTarget}
                             onCreateSpace={handleCreateSpace}
                             onCreateCustomWorktree={handleCreateCustomWorktree}
+                            showProjectPicker={false}
                             theme={currentTheme}
                         />
                     </div>
                 ) : null}
-                {isMobile && showDraftTargetSelectors && selectedDraftProject ? (
+                {isMobile && showDraftTargetSelectors ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><DraftWorkspaceTargetSelector mobile workspaces={draftWorkspaceTarget.workspaces} status={draftWorkspaceTarget.status} selectedWorkspaceId={draftWorkspaceTarget.selectedWorkspaceId} isChatSelected={newSessionDraft?.target === 'chat'} onSelect={draftWorkspaceTarget.selectTarget} onRetry={() => { void draftWorkspaceTarget.retry(); }} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /><DraftWorkspaceFolderTargetSelector mobile workspace={draftWorkspaceTarget.workspaces.find((workspace) => workspace.id === draftWorkspaceTarget.selectedWorkspaceId)} selectedFolderId={draftWorkspaceTarget.selectedFolderId} onSelect={draftWorkspaceTarget.selectTarget} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /></div> : null}
+                {isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && showDraftTargetSelectors && selectedDraftProject ? (
                     <MobileDraftTargetTriggers
                         selectedProject={selectedDraftProject}
                         selectedBranchLabel={selectedDraftBranchLabel}
                         showBranchSelector={shouldShowDraftBranchSelector}
+                        showProjectPicker={false}
                         theme={currentTheme}
                         onOpenPicker={handleMobileDraftPickerChange}
                     />
@@ -4898,7 +4913,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             {showDesktopDraftPresentation ? (
                 <DraftPresetChips
                     onSubmit={handlePresetChipSubmit}
-                    className={cn('chat-input-column mt-4', draftPresentationClassName)}
+                    className={cn('chat-input-column mt-3', draftPresentationClassName)}
                 />
             ) : null}
             {/* One floating panel at a time: an open BTW, then a permission,
@@ -5027,7 +5042,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
 
         {/* Mobile draft target pickers: bottom sheets replacing the inline
             project/branch Selects (which desktop keeps). */}
-        {isMobile && showDraftTargetSelectors && selectedDraftProject ? (
+        {isMobile && showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && selectedDraftProject ? (
             <MobileDraftTargetSheets
                 projects={draftProjects}
                 selectedProject={selectedDraftProject}
@@ -5043,6 +5058,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 onDirectoryChange={handleDraftDirectoryChange}
                 onCreateSpace={handleCreateSpace}
                 onCreateCustomWorktree={handleCreateCustomWorktree}
+                showProjectPicker={false}
                 theme={currentTheme}
                 openPicker={mobileDraftPicker}
                 onOpenPickerChange={handleMobileDraftPickerChange}

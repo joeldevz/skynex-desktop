@@ -295,6 +295,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       },
       openFiles: () => openFilesSurface(),
       openSettings: () => openSettingsSurface('nav'),
+      openScheduledTasks: () => openSurface('scheduled'),
       openSourceBoard: () => openSurface('board'),
     }),
     [openChangesSurface, openFilesSurface, openSettingsSurface, openSurface],

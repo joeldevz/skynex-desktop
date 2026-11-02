@@ -1,0 +1,151 @@
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/icon/Icon';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useI18n } from '@/lib/i18n';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { openSessionsStore, useOpenSessionsStore } from '@/stores/useOpenSessionsStore';
+import { useConfigStore } from '@/stores/useConfigStore';
+import { useSessionUIStore } from '@/sync/session-ui-store';
+import { useUIStore } from '@/stores/useUIStore';
+import { closeSessionTabAndActivateNeighbour } from '@/lib/sessionTabs';
+import { OpenSessionCollection } from '../sidebar/list/OpenSessionCollection';
+import { WorkspaceSurface } from './WorkspaceSurface';
+import { getRuntimeKey, isTransientRuntimeKey } from '@/lib/runtime-switch';
+import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
+import { startSubagentMembershipCleanup } from '@/sync/subagent-membership';
+
+const INITIAL_COLORS = ['bg-primary', 'bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4', 'bg-chart-5'] as const;
+
+// The first character of the name, whole even when it is an emoji or another surrogate pair.
+// Colors follow list order, so neighbouring workspaces never share one until the palette runs out.
+function WorkspaceInitial({ index, name }: { index: number; name: string }) {
+  const initial = Array.from(name.trim())[0]?.toLocaleUpperCase() ?? '?';
+  return (
+    <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-primary-foreground ${INITIAL_COLORS[index % INITIAL_COLORS.length]}`}>
+      {initial}
+    </span>
+  );
+}
+
+export function WorkspaceNavigation({ renderHistory, onSelected, footer, inlineOverview = false }: {
+  renderHistory(onSelected: (id: string) => void): React.ReactNode;
+  onSelected?: (id: string) => void;
+  footer?: React.ReactNode;
+  inlineOverview?: boolean;
+}) {
+  const { t } = useI18n();
+  const catalog = useWorkspacesStore((state) => state.catalog);
+  const status = useWorkspacesStore((state) => state.status);
+  const selected = useWorkspacesStore((state) => state.selectedWorkspaceId);
+  const sessions = useOpenSessionsStore((state) => state.sessions);
+  const hydration = useOpenSessionsStore((state) => state.hydration);
+  const runtimeKey = useOpenSessionsStore((state) => state.runtimeKey);
+  const connected = useConfigStore((state) => state.isConnected);
+  const currentId = useSessionUIStore((state) => state.currentSessionId);
+  const openFailure = useSessionUIStore((state) => state.openSessionFailure);
+  const scheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
+  const [history, setHistory] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+  const [name, setName] = React.useState('');
+  const [pending, setPending] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    if (connected && !isTransientRuntimeKey(getRuntimeKey())) void useWorkspacesStore.getState().load();
+  }, [connected, runtimeKey]);
+  React.useEffect(() => { setHistory(false); setCreating(false); setFailed(false); }, [runtimeKey]);
+  React.useEffect(() => startSubagentMembershipCleanup(), []);
+  function selectSession(id: string) {
+    const row = openSessionsStore.getState().sessions.find((entry) => entry.sessionId === id);
+    if (!row) return;
+    try {
+      useWorkspacesStore.getState().selectWorkspace(null);
+      useUIStore.getState().closeMainSurfaces();
+      useSessionUIStore.getState().setCurrentSession(id, row.primaryDirectory, undefined, 'restore');
+      window.dispatchEvent(new CustomEvent('openchamber:navigate', { detail: { view: 'chat' } }));
+      onSelected?.(id);
+    } catch { setFailed(true); }
+  }
+  return <div className="flex h-full min-h-0 flex-col text-foreground">
+    <div className="flex shrink-0 items-center justify-between gap-2 p-2">
+      <Button variant="ghost" aria-pressed={history} onClick={() => setHistory(!history)}>{t('workspaces.history')}</Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t('sessions.sidebar.header.actions.scheduledTasks')}
+        title={t('sessions.sidebar.header.actions.scheduledTasks')}
+        aria-pressed={scheduledTasksOpen}
+        className={scheduledTasksOpen ? 'bg-interactive-selection text-interactive-selection-foreground hover:bg-interactive-selection hover:text-interactive-selection-foreground' : 'text-muted-foreground'}
+        onClick={() => useUIStore.getState().setScheduledTasksDialogOpen(!scheduledTasksOpen)}
+      >
+        <Icon name="calendar-schedule" className="size-4" />
+      </Button>
+    </div>
+    <div className="min-h-0 flex-1 overflow-hidden">
+    {history ? renderHistory((id) => { setHistory(false); onSelected?.(id); }) : <div className="h-full min-h-0 overflow-y-auto p-2">
+      <section className="space-y-1 pb-5" aria-label={t('workspaces.title')}>
+        <div className="flex items-center justify-between gap-2 ps-2">
+          <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.title')}</h2>
+          <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setName(''); setFailed(false); setCreating(true); }}>
+            <Icon name="add" className="size-4" />
+          </Button>
+        </div>
+        {catalog.workspaces.map((workspace, index) => <Button key={workspace.id} variant="ghost" aria-label={formatWorkspaceLabel(workspace.name)} aria-pressed={selected === workspace.id} className={`w-full min-w-0 justify-start gap-2 ${selected === workspace.id ? 'bg-interactive-selection text-interactive-selection-foreground' : ''}`} onClick={() => {
+          try { useUIStore.getState().closeMainSurfaces(); useWorkspacesStore.getState().selectWorkspace(workspace.id); }
+          catch { setFailed(true); }
+        }}><WorkspaceInitial index={index} name={formatWorkspaceLabel(workspace.name)} /><span dir="auto" className="truncate oc-ui-start-align" title={workspace.name}>{formatWorkspaceLabel(workspace.name)}</span></Button>)}
+        {status === 'failed' && <Button variant="outline" onClick={() => void useWorkspacesStore.getState().load()}>{t('workspaces.actionFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
+      </section>
+      <section className="space-y-1" aria-label={t('workspaces.openSessions')}>
+        <h2 className="px-2 py-1 typography-ui-label text-muted-foreground">{t('workspaces.openSessions')}</h2>
+        <OpenSessionCollection sessions={sessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} />
+        {hydration === 'failed' && <Button variant="outline" onClick={() => void openSessionsStore.getState().hydrate(null)}>{t('workspaces.closeFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
+      </section>
+      {openFailure && <div role="alert" className="space-y-2 typography-meta text-[var(--status-error-text)]">
+        <span dir="auto">{openFailure.reference.title}</span>
+        <p>{t('workspaces.openFailed')}</p>
+        <Button variant="outline" disabled={pending} onClick={() => {
+          setPending(true);
+          const captured = getRuntimeKey();
+          void openSessionsStore.getState().openSession(openFailure.reference).then((result) => {
+            if (getRuntimeKey() !== captured) return;
+            if (result.kind === 'saved') {
+              useSessionUIStore.setState({ openSessionFailure: null });
+              selectSession(openFailure.reference.sessionId);
+            }
+          }).finally(() => setPending(false));
+        }}>{t('directoryExplorerDialog.browse.retry')}</Button>
+      </div>}
+    </div>}
+    </div>
+    {footer}
+    <div role="alert" className="min-h-6 px-2 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>
+    <Dialog open={creating} onOpenChange={(open) => { if (!pending) setCreating(open); }}>
+      <DialogContent>
+        <DialogTitle>{t('workspaces.newWorkspace')}</DialogTitle>
+        <Input aria-label={t('workspaces.name')} dir="auto" value={name} disabled={pending} onChange={(event) => setName(event.currentTarget.value)} />
+        <DialogFooter>
+          <Button variant="outline" disabled={pending} onClick={() => setCreating(false)}>{t('dialog.common.actions.cancel')}</Button>
+          <Button disabled={pending || !name.trim()} onClick={() => {
+            setPending(true);
+            setFailed(false);
+            const captured = getRuntimeKey();
+            void useWorkspacesStore.getState().create({ name: name.trim(), description: '', folders: [], defaults: {} }).then((result) => {
+              if (captured !== getRuntimeKey()) return;
+              if (result.kind === 'saved') {
+                const created = useWorkspacesStore.getState().catalog.workspaces.at(-1);
+                if (created) useWorkspacesStore.getState().selectWorkspace(created.id);
+                setCreating(false);
+              } else setFailed(true);
+            }).catch(() => setFailed(true)).finally(() => setPending(false));
+          }}>{t('projectEditDialog.actions.save')}</Button>
+        </DialogFooter>
+        <div role="alert" className="min-h-6 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>
+      </DialogContent>
+    </Dialog>
+    {inlineOverview && <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) useWorkspacesStore.getState().selectWorkspace(null); }}>
+      <DialogContent className="max-w-3xl"><DialogTitle>{catalog.workspaces.find((workspace) => workspace.id === selected)?.name}</DialogTitle><WorkspaceSurface /></DialogContent>
+    </Dialog>}
+  </div>;
+}

@@ -74,7 +74,7 @@ export const registerScheduledTaskRoutes = (app, dependencies) => {
     }
 
     try {
-      const eligible = await scheduledTasksRuntime.listEligibleTargets(projectID, candidates);
+      const eligible = await scheduledTasksRuntime.listEligibleTargets(projectID, candidates, req.body?.target);
       return res.json({ eligible });
     } catch (error) {
       if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });

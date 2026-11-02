@@ -69,6 +69,29 @@ describe('VS Code webview settings API', () => {
       const result = await successfulLoad;
       assert.equal(result.settings.defaultModel, 'provider/model');
       assert.equal(result.settings.lastDirectory, '/workspace');
+
+      for (const data of [null, 'invalid settings', []]) {
+        const load = api.load();
+        const request = messages.shift();
+        assert.ok(request);
+        assert.equal(request.type, 'api:config/settings:get');
+        testWindow.dispatchEvent(new MessageEvent('message', {
+          data: { id: request.id, type: request.type, success: true, data },
+        }));
+        await assert.rejects(load, `rejects malformed successful settings data ${JSON.stringify(data)}`);
+      }
+
+      const emptyLoad = api.load();
+      const emptyRequest = messages.shift();
+      assert.ok(emptyRequest);
+      assert.equal(emptyRequest.type, 'api:config/settings:get');
+      testWindow.dispatchEvent(new MessageEvent('message', {
+        data: { id: emptyRequest.id, type: emptyRequest.type, success: true, data: {} },
+      }));
+      assert.deepEqual(await emptyLoad, {
+        settings: { lastDirectory: '/workspace' },
+        source: 'web',
+      });
     } finally {
       Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
       Object.defineProperty(globalThis, 'acquireVsCodeApi', { configurable: true, value: originalAcquire });

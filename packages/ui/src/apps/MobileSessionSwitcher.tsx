@@ -1,45 +1,34 @@
 import React from 'react';
 import { useSessionTurnActivity } from '@/sync/global-session-status';
-import { getSessionActivityTime } from '@/sync/session-ordering';
 import { SessionActivityIndicator } from '@/components/session/SessionActivityIndicator';
-import type { Session } from '@/lib/opencode/model';
-
-import { SessionActivityDuration } from '@/components/session/SessionActivityDuration';
-import { formatSessionCompactDateLabel } from '@/components/session/sidebar/utils';
-import { useSwitcherItems } from '@/components/session/sidebar/shell/useSwitcherItems';
+import { useOpenSessionsStore, type OpenSessionReference } from '@/stores/useOpenSessionsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useTabletLayout } from '@/lib/device';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { refreshGlobalSessions, resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
-import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useSessionUnread } from '@/sync/session-unread';
-import { useHasSessionTurnDuration } from '@/sync/session-turn-duration';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 
-const RECENT_SESSIONS_LIMIT = 10;
 /** Matches the metadata popover's width so both header dropdowns read as a pair. */
 const TABLET_POPOVER_WIDTH = 380;
 
-const getSessionTitle = (session: Session, fallback: string): string =>
+const getSessionTitle = (session: OpenSessionReference, fallback: string): string =>
   session.title?.trim() || fallback;
 
 /** One switcher row: live status (busy spinner / attention dot), title,
     "project · branch", compact time. Mirrors the desktop SessionSwitcherDropdown
     indicator conventions; no subsession chevrons on mobile by design. */
 const SwitcherRow: React.FC<{
-  session: Session;
+  session: OpenSessionReference;
   meta: string;
   active: boolean;
   onSelect: () => void;
 }> = ({ session, meta, active, onSelect }) => {
   const { t } = useI18n();
-  const isUnread = useSessionUnread(session.id);
-  const turnActivity = useSessionTurnActivity(session.id);
+  const isUnread = useSessionUnread(session.sessionId);
+  const turnActivity = useSessionTurnActivity(session.sessionId);
   const isStreaming = turnActivity !== null;
   const showUnreadDot = !isStreaming && isUnread && !active;
-  const hasActivityDuration = useHasSessionTurnDuration(session.id, isStreaming);
-  const showActivityDuration = (isStreaming || showUnreadDot) && hasActivityDuration;
-  const timeLabel = formatSessionCompactDateLabel(getSessionActivityTime(session));
 
   return (
     <button
@@ -67,15 +56,6 @@ const SwitcherRow: React.FC<{
       ) : null}
       {/* The elapsed turn takes the time slot while it matters, then hands it
           back to the relative timestamp. */}
-      {showActivityDuration ? (
-        <SessionActivityDuration
-          sessionId={session.id}
-          running={isStreaming}
-          className="typography-micro"
-        />
-      ) : timeLabel ? (
-        <span className="shrink-0 typography-micro text-muted-foreground tabular-nums">{timeLabel}</span>
-      ) : null}
     </button>
   );
 };
@@ -129,15 +109,12 @@ export const MobileSessionSwitcher: React.FC<{
   const isPopover = isTabletLayout && anchorLeft !== null;
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession);
-  const setActiveProjectIdOnly = useProjectsStore((state) => state.setActiveProjectIdOnly);
-
-  const items = useSwitcherItems(open || shouldRender, { maxParents: RECENT_SESSIONS_LIMIT });
+  const items = useOpenSessionsStore((state) => state.sessions);
 
   React.useEffect(() => {
     if (open) {
       // Fresh authoritative snapshot on open — updated stamps re-sort recents
       // (see raiseSessionOrderingBaselines) while the cached list shows first.
-      void refreshGlobalSessions();
       setShouldRender(true);
       setIsExiting(false);
       return;
@@ -175,8 +152,9 @@ export const MobileSessionSwitcher: React.FC<{
     return () => document.removeEventListener('pointerdown', closeIfOutside, true);
   }, [anchorRef, onClose, open]);
 
-  const handleSelect = React.useCallback((session: Session) => {
-    void setCurrentSession(session.id, resolveGlobalSessionDirectory(session));
+  const handleSelect = React.useCallback((session: OpenSessionReference) => {
+    useWorkspacesStore.getState().selectWorkspace(null);
+    setCurrentSession(session.sessionId, session.primaryDirectory, undefined, 'restore');
     onClose();
   }, [onClose, setCurrentSession]);
 
@@ -211,19 +189,17 @@ export const MobileSessionSwitcher: React.FC<{
               {t('sessions.switcher.empty')}
             </p>
           ) : (
-            items.map((item) => {
-              const session = item.node.session;
-              const meta = [item.secondaryMeta?.projectLabel, item.secondaryMeta?.branchLabel]
+            items.map((session) => {
+              const meta = [session.scope?.workspaceName, ...(session.scope?.folders.map((folder) => folder.path) ?? [session.primaryDirectory])]
                 .filter(Boolean)
                 .join(' · ');
               return (
                 <SwitcherRow
-                  key={session.id}
+                  key={session.sessionId}
                   session={session}
                   meta={meta}
-                  active={session.id === currentSessionId}
+                  active={session.sessionId === currentSessionId}
                   onSelect={() => {
-                    if (item.projectId) setActiveProjectIdOnly(item.projectId);
                     handleSelect(session);
                   }}
                 />

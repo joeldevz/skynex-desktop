@@ -68,7 +68,7 @@ Thumbs.db
 
 # Local runtime state (docker/dev)
 data/
-workspaces/
+/workspaces/
 *.pid
 .worktrees/
 

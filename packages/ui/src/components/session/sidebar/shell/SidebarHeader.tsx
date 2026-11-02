@@ -153,7 +153,6 @@ export function SidebarHeader(props: Props): React.ReactNode {
   const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
   const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
-  const isScheduledOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
   const isArchiveOpen = useUIStore((state) => state.isArchivePageOpen);
   const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
   // The bundled catalog offers outside services; enterprise mode waits for
@@ -353,15 +352,6 @@ export function SidebarHeader(props: Props): React.ReactNode {
                   <Icon name="git-pull-request" className={headerActionIconClass} />
                 </SidebarPageButton>
               ) : null}
-
-              <SidebarPageButton
-                label={t('sessions.sidebar.header.actions.scheduledTasks')}
-                pressed={isScheduledOpen}
-                onClick={() => useUIStore.getState().setScheduledTasksDialogOpen(!isScheduledOpen)}
-                className={headerActionButtonClass}
-              >
-                <Icon name="calendar-schedule" className={headerActionIconClass} />
-              </SidebarPageButton>
 
               <SidebarPageButton
                 label={t('sessions.sidebar.nav.archive')}

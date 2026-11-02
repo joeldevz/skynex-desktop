@@ -50,6 +50,24 @@ const CUSTOM_PROVIDER_ICONS_MAX = 256;
 // `provider/model` last picked in a chat composer.
 const lastSelectedModelSchema = z.string().trim().min(1).max(512);
 
+const workspacePathSchema = z.string().trim().transform((value) => {
+  const path = value.replace(/\\/g, '/').replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
+  if (path === '/') return path;
+  if (/^[A-Z]:\/+$/u.test(path)) return path.replace(/\/+$/u, '/');
+  return path.replace(/\/+$/u, '');
+}).refine((path) => path === '/' || /^(?:\/(?!\/)|\/\/[^/]+\/[^/]+|[A-Z]:\/)/u.test(path));
+const workspaceCatalogSchema = z.object({
+  version: z.literal(1),
+  workspaces: z.array(z.object({
+    id: z.string().min(1), name: z.string().min(1), description: z.string(),
+    folders: z.array(z.object({ id: z.string().min(1), path: workspacePathSchema, role: z.string() }))
+      .refine((folders) => new Set(folders.map((folder) => folder.id)).size === folders.length),
+    defaults: z.object({ agent: z.string().min(1).optional(), model: z.object({
+      providerID: z.string().min(1), id: z.string().min(1), variant: z.string().nullable().optional(),
+    }).optional() }),
+  })).refine((workspaces) => new Set(workspaces.map((workspace) => workspace.id)).size === workspaces.length),
+});
+
 /** Provider id -> icon id; unknown icons and malformed entries are dropped one by one. */
 const sanitizeCustomProviderIcons = (value) => {
   const record = z.record(z.string(), z.unknown()).safeParse(value);
@@ -198,6 +216,9 @@ export const createSettingsHelpers = (dependencies) => {
 
     const candidate = payload;
     const result = {};
+    if (Object.hasOwn(candidate, 'workspaceCatalog')) {
+      result.workspaceCatalog = workspaceCatalogSchema.parse(candidate.workspaceCatalog);
+    }
 
     if (typeof candidate.themeId === 'string' && candidate.themeId.length > 0) {
       result.themeId = candidate.themeId;

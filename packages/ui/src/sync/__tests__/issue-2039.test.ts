@@ -45,6 +45,7 @@ const projectsState = {
 
 const getMockCalls = (fn: unknown): unknown[][] => ((fn as { mock?: { calls: unknown[][] } }).mock?.calls ?? [])
 
+const actualZustand = await import("zustand")
 mock.module("zustand", () => {
   // Both forms: `create(initializer)` and the curried `create<State>()(initializer)`.
   const build = (initializer: (
@@ -80,7 +81,11 @@ mock.module("zustand", () => {
 
     return store
   }
-  return { create: (initializer?: Parameters<typeof build>[0]) => (initializer ? build(initializer) : build) }
+  return {
+    create: (initializer?: Parameters<typeof build>[0]) => (initializer ? build(initializer) : build),
+    // Stores built with zustand/vanilla are read through the real useStore.
+    useStore: actualZustand.useStore,
+  }
 })
 
 const deferredStorage: Storage = {
@@ -103,6 +108,8 @@ const deferredStorage: Storage = {
 mock.module("@/stores/utils/safeStorage", () => ({
   getDeferredSafeStorage: () => deferredStorage,
   getSafeSessionStorage: () => deferredStorage,
+  getSafeStorage: () => deferredStorage,
+  getDurableStorage: () => deferredStorage,
   createDeferredSafeJSONStorage: () => ({
     getItem: async () => null,
     setItem: async () => undefined,
@@ -361,6 +368,7 @@ mock.module("../session-actions", () => ({
   getSessionLastAssistantModel: () => null,
   patchSessionMetadata: mock(async () => undefined),
   abortCurrentOperation: mock(async () => undefined),
+  rememberExplicitOpen: mock(async () => ({ kind: "saved" })),
 }))
 
 mock.module("@/lib/git/branchNameGenerator", () => ({

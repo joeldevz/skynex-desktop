@@ -35,6 +35,7 @@ mock.module("@/lib/opencode/client", () => ({
 
 mock.module("../session-ui-store", () => ({
   useSessionUIStore: {
+    setState: () => undefined,
     getState: () => ({
       setCurrentSession: (id: string | null, directoryHint?: string | null) => {
         setCurrentSessionCalls.push({ id, directoryHint })
