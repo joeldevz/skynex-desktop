@@ -193,6 +193,13 @@ export const createBrowserControlRouter = ({
         await resetToBuiltin({ guestId: providerId, guestName: guest?.name ?? providerId });
         return broker.request(action, parameters, options);
       }
+      if (action === 'browser.press' || action === 'browser.hover' || action === 'browser.wait'
+        || (action === 'browser.capture' && (parameters.selector !== undefined || parameters.fullPage === true))) {
+        throw new BrowserControlError(
+          `The browser extension selected in Settings does not support ${action}${action === 'browser.capture' ? ' with selector or fullPage' : ''}. Use the built-in browser.`,
+          400,
+        );
+      }
       return requestFromProvider(guest, action, parameters, options);
     },
 

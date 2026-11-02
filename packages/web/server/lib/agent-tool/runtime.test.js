@@ -173,6 +173,10 @@ describe('managed agent tool runtime', () => {
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('url');
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('label');
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('value');
+    const webParameters = tool.openchamber_web.input.properties.parameters.properties;
+    expect(webParameters.key.type).toBe('string');
+    expect(webParameters.timeoutMs).toMatchObject({ type: 'integer', minimum: 100, maximum: 15000 });
+    expect(webParameters.fullPage.type).toBe('boolean');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).not.toContain('url');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).toContain('sessionId');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).toContain('path');

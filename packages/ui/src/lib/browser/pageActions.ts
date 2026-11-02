@@ -10,6 +10,8 @@
  * comes back as an explainable result rather than an opaque evaluation error.
  */
 
+import { z } from 'zod';
+
 /**
  * Budget caps. The snapshot cost is bounded by these, not by the size of the
  * page: a document with ten thousand nodes returns the same shape as one with
@@ -521,3 +523,74 @@ export const buildInspectScript = ({ selector }: { selector: string }): string =
     styles: styles
   };
 `);
+
+export const buildWaitScript = ({ selector, text, timeoutMs }: { selector?: string; text?: string; timeoutMs: number }): string => wrap(`
+  var selector = ${JSON.stringify(selector ?? '')};
+  var text = ${JSON.stringify(text ?? '')};
+  var timeoutMs = ${JSON.stringify(Math.min(15_000, Math.max(100, Math.round(timeoutMs) || 5_000)))};
+  if (Boolean(selector) === Boolean(text)) return { ok: false, error: 'browser.wait requires exactly one of selector or text' };
+  return new Promise(function (resolve) {
+    var startedAt = Date.now();
+    var check = function () {
+      if (selector) {
+        var target = null;
+        try { target = document.querySelector(selector); }
+        catch (error) { resolve({ ok: false, error: 'Invalid selector: ' + selector }); return; }
+        if (target && visible(target)) { resolve({ ok: true, waitedMs: Date.now() - startedAt }); return; }
+      } else {
+        var bodyText = document.body ? (document.body.innerText || '') : '';
+        if (bodyText.indexOf(text) !== -1) { resolve({ ok: true, waitedMs: Date.now() - startedAt }); return; }
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        resolve({ ok: false, error: 'Nothing matched ' + (selector ? selector : text) + ' within ' + timeoutMs + 'ms' });
+        return;
+      }
+      setTimeout(check, 100);
+    };
+    check();
+  });
+`);
+
+export const buildElementPointScript = ({ selector }: { selector: string }): string => wrap(`
+  var selector = ${JSON.stringify(selector)};
+  var target = null;
+  try { target = document.querySelector(selector); }
+  catch (error) { return { ok: false, error: 'Invalid selector: ' + selector }; }
+  if (!target) return { ok: false, error: 'No element matches ' + selector };
+  target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+  var rect = target.getBoundingClientRect();
+  return { ok: true, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+`);
+
+export const buildElementClipScript = ({ selector }: { selector: string }): string => wrap(`
+  var selector = ${JSON.stringify(selector)};
+  var target = null;
+  try { target = document.querySelector(selector); }
+  catch (error) { return { ok: false, error: 'Invalid selector: ' + selector }; }
+  if (!target) return { ok: false, error: 'No element matches ' + selector };
+  var rect = target.getBoundingClientRect();
+  return { ok: true, clip: { x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height } };
+`);
+
+export const buildFocusScript = ({ selector }: { selector: string }): string => wrap(`
+  var selector = ${JSON.stringify(selector)};
+  if (!selector) return { ok: true };
+  var target = null;
+  try { target = document.querySelector(selector); }
+  catch (error) { return { ok: false, error: 'Invalid selector: ' + selector }; }
+  if (!target) return { ok: false, error: 'No element matches ' + selector };
+  target.focus();
+  return { ok: true };
+`);
+
+/** What a failed script resolves to; the page's own words reach the agent as the error. */
+const pageFailureSchema = z.object({ ok: z.literal(false), error: z.string() });
+
+/** The replies of the scripts above whose results the panel acts on, parsed where they leave the page. */
+export const pageStatusResultSchema = z.union([z.object({ ok: z.literal(true) }), pageFailureSchema]);
+export const pageWaitResultSchema = z.union([z.object({ ok: z.literal(true), waitedMs: z.number() }), pageFailureSchema]);
+export const pagePointResultSchema = z.union([z.object({ ok: z.literal(true), x: z.number(), y: z.number() }), pageFailureSchema]);
+export const pageClipResultSchema = z.union([
+  z.object({ ok: z.literal(true), clip: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }) }),
+  pageFailureSchema,
+]);

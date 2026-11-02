@@ -42,8 +42,11 @@ itself; it can only ask and wait.
   remove, or withdraw approval from the selected extension.
   When the extension also shows a shared surface (`../guests/surface.js`),
   an action is refused with 409 while the user holds the surface, and every
-  action that runs is reported as agent activity so the panel says "Agent is
-  working".
+   action that runs is reported as agent activity so the panel says "Agent is
+   working". Extensions do not implement `browser.press`, `browser.hover`, or
+   `browser.wait`, and cannot capture a selected element or full page. The
+   provider rejects those requests before contacting the extension; use the
+   built-in browser for them.
 - `../openchamber-control/service.js` is the only caller. It maps the
   `browser.*` actions of the `openchamber_web` tool onto the router's
   `request()` (same signature as the broker) and owns their parameter

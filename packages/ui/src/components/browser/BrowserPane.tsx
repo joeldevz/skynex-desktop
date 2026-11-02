@@ -43,6 +43,14 @@ import { useSpaceMarkLabel } from '@/lib/spaces/space-mark';
 import { Icon } from '@/components/icon/Icon';
 import {
   buildClickScript,
+  buildElementClipScript,
+  buildElementPointScript,
+  buildFocusScript,
+  buildWaitScript,
+  pageClipResultSchema,
+  pagePointResultSchema,
+  pageStatusResultSchema,
+  pageWaitResultSchema,
   buildInspectScript,
   buildScrollScript,
   buildSelectScript,
@@ -475,6 +483,7 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
     }
 
     if (action === 'browser.capture') {
+      if (parameters.selector && parameters.fullPage === true) throw new Error('browser.capture cannot combine selector and fullPage');
       // Agents work the browser in the background, but Chromium keeps no
       // composited surface for a webview that is hidden, clipped away by a
       // closed panel, or outside the window, so capturePage() fails with
@@ -489,7 +498,16 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
         // Wait for a settled page first: a screenshot of a half-painted layout is
         // worse than none, because it looks like a finished one.
         await waitForIdle();
-        const capture = await annotationHost.capturePage();
+        let capture: (PageCapture & { truncated?: boolean }) | null;
+        if (typeof parameters.selector === 'string' && parameters.selector) {
+          const clipResult = pageClipResultSchema.parse(await webview.executeJavaScript(buildElementClipScript({ selector: parameters.selector }), true));
+          if (!clipResult.ok) throw new Error(clipResult.error);
+          capture = await invokeDesktopCommand<PageCapture & { truncated?: boolean }>('desktop_browser_capture_page', { webContentsId: webview.getWebContentsId(), clip: clipResult.clip });
+        } else if (parameters.fullPage === true) {
+          capture = await invokeDesktopCommand<PageCapture & { truncated?: boolean }>('desktop_browser_capture_page', { webContentsId: webview.getWebContentsId(), fullPage: true });
+        } else {
+          capture = await annotationHost.capturePage();
+        }
         if (!capture) throw new Error('The page could not be captured');
         let title = '';
         try { title = webview.getTitle() || ''; } catch { title = ''; }
@@ -538,11 +556,61 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
       };
     }
 
-    await waitForIdle();
+    // A wait polls the page itself, so it starts at once rather than after the load settles.
+    if (action !== 'browser.wait') await waitForIdle();
 
     const asOptionalString = (value: unknown): string | undefined => (
       typeof value === 'string' && value ? value : undefined
     );
+    const pageIdentity = () => {
+      let title = '';
+      try { title = webview.getTitle() || ''; } catch { title = ''; }
+      return { url: toDisplayUrl(webview.getURL()), title };
+    };
+
+    if (action === 'browser.wait') {
+      const outcome = pageWaitResultSchema.parse(await webview.executeJavaScript(buildWaitScript({
+        selector: asOptionalString(parameters.selector),
+        text: asOptionalString(parameters.text),
+        timeoutMs: typeof parameters.timeoutMs === 'number' ? parameters.timeoutMs : 5_000,
+      }), true));
+      if (!outcome.ok) throw new Error(outcome.error);
+      return { found: true, waitedMs: outcome.waitedMs, ...pageIdentity() };
+    }
+
+    // Hover and keys go through Chromium's input pipeline in the desktop shell:
+    // a scripted event would not trigger :hover, move focus on Tab, or count as
+    // the user's key for the page's own handlers.
+    if (action === 'browser.hover') {
+      const selector = String(parameters.selector ?? '');
+      const point = pagePointResultSchema.parse(await webview.executeJavaScript(buildElementPointScript({ selector }), true));
+      if (!point.ok) throw new Error(point.error);
+      await invokeDesktopCommand('desktop_browser_dispatch_input', { webContentsId: webview.getWebContentsId(), kind: 'mouseMove', x: point.x, y: point.y });
+      return { hovered: selector, x: point.x, y: point.y };
+    }
+
+    if (action === 'browser.press') {
+      const key = String(parameters.key ?? '');
+      const emulated = await invokeDesktopCommand<{ focused: boolean }>('desktop_browser_keep_page_focused', {
+        webContentsId: webview.getWebContentsId(),
+      }).then((reply) => reply.focused === true).catch(() => false);
+      const releaseFocus = emulated ? () => {} : holdPageFocus();
+      if (!emulated) webview.focus({ preventScroll: true });
+      try {
+        const selector = asOptionalString(parameters.selector);
+        if (selector) {
+          const focused = pageStatusResultSchema.parse(await webview.executeJavaScript(buildFocusScript({ selector }), true));
+          if (!focused.ok) throw new Error(focused.error);
+        }
+        await invokeDesktopCommand('desktop_browser_dispatch_input', { webContentsId: webview.getWebContentsId(), kind: 'key', key });
+      } finally {
+        releaseFocus();
+      }
+      // A key often submits or navigates; report the page it led to.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitForIdle();
+      return { pressed: key, ...pageIdentity() };
+    }
 
     const buildScript = (): string | null => {
       switch (action) {

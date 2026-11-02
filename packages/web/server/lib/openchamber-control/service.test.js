@@ -921,6 +921,15 @@ describe('browser capture', () => {
     expect(request).toHaveBeenCalledWith('browser.capture', { label: 'before' }, expect.anything());
   });
 
+  it('forwards element capture and reports full-page truncation', async () => {
+    const { service, directory, request } = await createBrowserService({ base64: pixel, mime: 'image/png', truncated: true });
+    const result = await service.execute('browser.capture', { selector: '#card' }, directory);
+    expect(request).toHaveBeenCalledWith('browser.capture', { selector: '#card' }, expect.anything());
+    expect(result.truncated).toBe(true);
+    await expect(service.execute('browser.capture', { selector: '#card', fullPage: true }, directory))
+      .rejects.toThrow('cannot combine selector and fullPage');
+  });
+
   it('tells the browser which project and chat the action came from', async () => {
     const { service, directory, request } = await createBrowserService({ base64: pixel, mime: 'image/png' });
     await service.execute('browser.capture', {}, directory, { contextSessionId: 'ses_1' });
@@ -931,6 +940,34 @@ describe('browser capture', () => {
     expect(request).toHaveBeenLastCalledWith('browser.capture', {}, expect.objectContaining({
       context: { directory, sessionId: null },
     }));
+  });
+});
+
+describe('browser input actions', () => {
+  it('validates and forwards press, hover, and wait parameters', async () => {
+    const request = vi.fn(async () => ({ found: true }));
+    const { service } = createService({ browserControl: { request } });
+    await service.execute('browser.press', { key: 'Shift+Tab', selector: '#field' }, '/repo');
+    expect(request).toHaveBeenLastCalledWith('browser.press', { key: 'Shift+Tab', selector: '#field' }, expect.anything());
+    await service.execute('browser.hover', { selector: '#button' }, '/repo');
+    expect(request).toHaveBeenLastCalledWith('browser.hover', { selector: '#button' }, expect.anything());
+    await service.execute('browser.wait', { text: 'Ready', timeoutMs: 250 }, '/repo');
+    expect(request).toHaveBeenLastCalledWith('browser.wait', { text: 'Ready', timeoutMs: 250 }, expect.objectContaining({ timeoutMs: 5250 }));
+  });
+
+  it.each([
+    ['browser.press', { key: 'Control+Nope' }, 'key must be'],
+    ['browser.press', { key: 'x'.repeat(33) }, 'key must be'],
+    ['browser.press', { key: 'é' }, 'key must be'],
+    ['browser.hover', {}, 'selector is required'],
+    ['browser.wait', {}, 'exactly one'],
+    ['browser.wait', { selector: '#x', text: 'x' }, 'exactly one'],
+    ['browser.wait', { text: 'Ready', timeoutMs: 99 }, 'timeoutMs must'],
+  ])('rejects invalid %s inputs before contacting the browser', async (action, input, message) => {
+    const request = vi.fn(async () => ({}));
+    const { service } = createService({ browserControl: { request } });
+    await expect(service.execute(action, input, '/repo')).rejects.toThrow(message);
+    expect(request).not.toHaveBeenCalled();
   });
 });
 

@@ -698,6 +698,42 @@ export const createOpenChamberControlService = (dependencies) => {
     if (action === 'browser.capture') {
       const label = asNonEmptyString(input.label);
       if (label) parameters.label = label;
+      const selector = asNonEmptyString(input.selector);
+      if (selector) parameters.selector = selector;
+      if (input.fullPage !== undefined && typeof input.fullPage !== 'boolean') throw new OpenChamberControlError('fullPage must be a boolean', 400);
+      if (input.fullPage === true) parameters.fullPage = true;
+      if (selector && input.fullPage === true) throw new OpenChamberControlError('browser.capture cannot combine selector and fullPage', 400);
+    }
+
+    if (action === 'browser.press') {
+      const key = asNonEmptyString(input.key);
+      if (!key) throw new OpenChamberControlError('key is required for browser.press', 400);
+      // The desktop shell types on a US layout, so a character key is printable ASCII; `+` itself is `Control++`.
+      const keyPattern = /^(?:(?:Control|Shift|Alt|Meta)\+)*(?:Enter|Escape|Tab|Backspace|Delete|Space|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown|F(?:[1-9]|1[0-2])|[!-~])$/;
+      if (key.length > 32 || !keyPattern.test(key)) {
+        throw new OpenChamberControlError('key must be a supported key with optional Control, Shift, Alt, or Meta modifiers (maximum 32 characters)', 400);
+      }
+      parameters.key = key;
+      const selector = asNonEmptyString(input.selector);
+      if (selector) parameters.selector = selector;
+    }
+    if (action === 'browser.hover') {
+      const selector = asNonEmptyString(input.selector);
+      if (!selector) throw new OpenChamberControlError('selector is required for browser.hover', 400);
+      parameters.selector = selector;
+    }
+    let browserWaitTimeoutMs;
+    if (action === 'browser.wait') {
+      const selector = asNonEmptyString(input.selector);
+      const text = asNonEmptyString(input.text);
+      if (Boolean(selector) === Boolean(text)) throw new OpenChamberControlError('browser.wait requires exactly one of selector or text', 400);
+      if (selector) parameters.selector = selector;
+      if (text) parameters.text = text;
+      browserWaitTimeoutMs = input.timeoutMs === undefined ? 5000 : input.timeoutMs;
+      if (!Number.isSafeInteger(browserWaitTimeoutMs) || browserWaitTimeoutMs < 100 || browserWaitTimeoutMs > 15_000) {
+        throw new OpenChamberControlError('timeoutMs must be an integer from 100 to 15000', 400);
+      }
+      parameters.timeoutMs = browserWaitTimeoutMs;
     }
 
     if (action === 'browser.open') {
@@ -777,7 +813,7 @@ export const createOpenChamberControlService = (dependencies) => {
     // Opening a page waits for the navigation to settle, so its budget has to
     // exceed the client's own wait; sharing one timeout with the quick actions
     // made a slow page indistinguishable from an unreachable browser.
-    const timeoutMs = action === 'browser.open' ? 45_000 : 20_000;
+    const timeoutMs = action === 'browser.open' ? 45_000 : browserWaitTimeoutMs !== undefined ? browserWaitTimeoutMs + 5000 : 20_000;
     // Where the call came from, for a provider that keeps one browser per
     // project or chat. Filled by the tool plugin, never by the model.
     const context = {
@@ -815,6 +851,7 @@ export const createOpenChamberControlService = (dependencies) => {
         viewport: capture.viewport ?? null,
         width: capture.width ?? null,
         height: capture.height ?? null,
+        ...(capture.truncated === true ? { truncated: true } : {}),
       };
     }
 

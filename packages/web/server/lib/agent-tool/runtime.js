@@ -61,7 +61,7 @@ const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
  * in the other tool's schema, which is both misleading and paid for in context
  * on every call.
  */
-const WEB_PARAMETER_NAMES = ['url', 'selector', 'text', 'value', 'submit', 'direction', 'viewport', 'label', 'tabId'];
+const WEB_PARAMETER_NAMES = ['url', 'selector', 'text', 'value', 'submit', 'direction', 'viewport', 'label', 'tabId', 'key', 'timeoutMs', 'fullPage'];
 // The task inputs; the schedule tool shares the scope and the run settings
 // (prompt, model, agent, goal) with the control tool.
 const SCHEDULE_ONLY_PARAMETER_NAMES = ['taskId', 'name', 'targetSessionId', 'daily', 'weekly', 'once', 'time', 'cron', 'timezone', 'disabled'];
@@ -129,7 +129,10 @@ const ALL_PARAMETER_PROPERTIES = {
   path: { type: 'string', description: 'Absolute, or relative to the session directory' },
   url: { type: 'string', description: 'http(s)' },
   selector: { type: 'string', description: 'From browser.snapshot' },
-  text: { type: 'string', description: 'Visible label, when no selector' },
+  text: { type: 'string', description: 'Visible label for browser.click, or visible page text for browser.wait' },
+  key: { type: 'string', description: 'Key with optional Control, Shift, Alt, or Meta modifiers' },
+  timeoutMs: { type: 'integer', minimum: 100, maximum: 15000, description: 'browser.wait timeout in milliseconds; default 5000' },
+  fullPage: { type: 'boolean', description: 'Capture the full scrollable page; not with selector' },
   value: { type: 'string', description: 'Text to type, or the option value for browser.select' },
   submit: { type: 'boolean', description: 'Press Enter after typing' },
   direction: { type: 'string', enum: ['up', 'down', 'top', 'bottom'] },

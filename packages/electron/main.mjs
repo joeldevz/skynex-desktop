@@ -1,5 +1,5 @@
 import { canReuseManagedOpenCodePreflight } from './opencode-readiness.mjs';
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, ipcMain, Menu, MessageChannelMain, nativeTheme, net as electronNet, Notification, powerMonitor, powerSaveBlocker, protocol, screen, session, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net as electronNet, Notification, powerMonitor, powerSaveBlocker, protocol, screen, session, shell, webContents } from 'electron';
 import contextMenu from 'electron-context-menu';
 import log from 'electron-log/main.js';
 import dgram from 'node:dgram';
@@ -23,6 +23,7 @@ import { stopEmbeddedServer } from './server-shutdown.mjs';
 import { describeStartupEnvironmentOverrides, resolveStartupUrlProbePlan } from './startup-url-selection.mjs';
 import { clearAppCache } from './app-cache.mjs';
 import { parseExternalUrl } from './external-url-policy.mjs';
+import { buildCdpKeyEvents, buildInputEventSequence, parseKeyChord, validateCaptureClip, validateViewportPoint } from './browser-panel-input.mjs';
 import {
   BACKGROUND_START_ARG,
   DEEP_LINK_PROTOCOL,
@@ -4701,6 +4702,40 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       return { focused: true };
     }
 
+    case 'desktop_browser_dispatch_input': {
+      const target = resolveBrowserPanelContents(args.webContentsId);
+      const kind = args.kind;
+      let keyEvents;
+      let point;
+      if (kind === 'key') keyEvents = buildCdpKeyEvents(parseKeyChord(args.key));
+      else if (kind === 'mouseMove') point = validateViewportPoint(args.x, args.y);
+      else throw new Error('Unsupported browser input kind');
+
+      let attached = target.debugger.isAttached();
+      if (!attached) {
+        try {
+          target.debugger.attach('1.3');
+          attached = true;
+        } catch {
+          attached = false;
+        }
+      }
+      if (attached) {
+        if (kind === 'key') {
+          for (const event of keyEvents) await target.debugger.sendCommand('Input.dispatchKeyEvent', event);
+        } else {
+          await target.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+        }
+        return { dispatched: true, via: 'cdp' };
+      }
+      if (kind === 'key') {
+        for (const event of buildInputEventSequence(parseKeyChord(args.key))) target.sendInputEvent(event);
+      } else {
+        target.sendInputEvent({ type: 'mouseMove', x: point.x, y: point.y });
+      }
+      return { dispatched: true, via: 'input-event' };
+    }
+
     /**
      * Fetches a page's favicon for the tab strip.
      *
@@ -4769,6 +4804,37 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
 
     case 'desktop_browser_capture_page': {
       const wc = resolveBrowserPanelContents(args.webContentsId);
+      const hasClip = args.clip !== undefined;
+      const fullPage = args.fullPage === true;
+      if (hasClip && fullPage) throw new Error('Capture clip and fullPage cannot be used together');
+      if (hasClip || fullPage) {
+        let attached = wc.debugger.isAttached();
+        if (!attached) {
+          try {
+            wc.debugger.attach('1.3');
+            attached = true;
+          } catch {
+            attached = false;
+          }
+        }
+        if (!attached) throw new Error('Close DevTools on this page to capture an element or the full page');
+        let clip;
+        let truncated = false;
+        if (fullPage) {
+          const metrics = await wc.debugger.sendCommand('Page.getLayoutMetrics');
+          const { width, height } = metrics.cssContentSize;
+          truncated = height > 16_384;
+          clip = validateCaptureClip({ x: 0, y: 0, width, height: Math.min(height, 16_384) });
+        } else {
+          clip = validateCaptureClip(args.clip);
+        }
+        const screenshot = await wc.debugger.sendCommand('Page.captureScreenshot', {
+          format: 'jpeg', quality: 82, captureBeyondViewport: true, clip: { ...clip, scale: 1 },
+        });
+        const image = nativeImage.createFromBuffer(Buffer.from(screenshot.data, 'base64'));
+        const size = image.getSize();
+        return { mime: 'image/jpeg', base64: screenshot.data, width: size.width, height: size.height, ...(truncated ? { truncated: true } : {}) };
+      }
       const image = await wc.capturePage();
       const buffer = image.toJPEG(82);
       return {

@@ -132,6 +132,23 @@ describe('browser control router', () => {
     expect(JSON.parse(proxied[0].body).parameters).toEqual({ selector: '#country', label: 'Canada' });
   });
 
+  test('rejects browser actions unavailable to extensions before contacting them', async () => {
+    for (const [action, parameters] of [
+      ['browser.press', { key: 'Escape' }],
+      ['browser.hover', { selector: '#button' }],
+      ['browser.wait', { text: 'Ready' }],
+      ['browser.capture', { selector: '#card' }],
+      ['browser.capture', { fullPage: true }],
+    ]) {
+      const { router, proxied } = createRouter();
+      await expect(router.request(action, parameters)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining('Use the built-in browser'),
+      });
+      expect(proxied).toHaveLength(0);
+    }
+  });
+
   test('a slow page gets the open budget when the caller sets none', async () => {
     const { router, proxied } = createRouter();
     await router.request('browser.open', { url: 'http://a/' });

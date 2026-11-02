@@ -3,11 +3,15 @@ import { Window } from 'happy-dom';
 
 import {
   buildClickScript,
+  buildElementClipScript,
+  buildElementPointScript,
+  buildFocusScript,
   buildInspectScript,
   buildScrollScript,
   buildSelectScript,
   buildSnapshotScript,
   buildTypeScript,
+  buildWaitScript,
 } from './pageActions';
 
 /**
@@ -46,6 +50,10 @@ describe('page action scripts', () => {
     expect(parses(buildInspectScript({ selector: '#save' }))).toBe(true);
     expect(parses(buildScrollScript({ direction: 'bottom' }))).toBe(true);
     expect(parses(buildScrollScript({ selector: 'footer' }))).toBe(true);
+    expect(parses(buildWaitScript({ selector: '#ready', timeoutMs: 5000 }))).toBe(true);
+    expect(parses(buildElementPointScript({ selector: '#ready' }))).toBe(true);
+    expect(parses(buildElementClipScript({ selector: '#ready' }))).toBe(true);
+    expect(parses(buildFocusScript({ selector: '#ready' }))).toBe(true);
   });
 
   test('a hostile selector is embedded as data, not as code', () => {
@@ -61,6 +69,43 @@ describe('page action scripts', () => {
     const script = buildTypeScript({ selector: '#q', value, submit: false });
     expect(parses(script)).toBe(true);
     expect(script).toContain(JSON.stringify(value));
+  });
+
+  test('new selector scripts safely embed selectors and measure viewport/document coordinates', () => {
+    const hostile = `'); window.__owned = true; ('`;
+    for (const script of [buildWaitScript({ selector: hostile, timeoutMs: 5000 }), buildElementPointScript({ selector: hostile }), buildElementClipScript({ selector: hostile }), buildFocusScript({ selector: hostile })]) {
+      expect(parses(script)).toBe(true);
+      expect(script).toContain(JSON.stringify(hostile));
+    }
+    const win = new Window({ url: 'http://localhost:3000/' });
+    win.document.body.innerHTML = '<button id="target">Ready</button>';
+    const target = win.document.querySelector('#target');
+    if (!target) throw new Error('test button was not created');
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ x: 10, y: 20, left: 10, top: 20, width: 40, height: 30, right: 50, bottom: 50 }),
+    });
+    expect(JSON.parse(runInWindow(win, buildElementPointScript({ selector: '#target' })))).toEqual({ ok: true, x: 30, y: 35 });
+    expect(JSON.parse(runInWindow(win, buildElementClipScript({ selector: '#target' })))).toMatchObject({ ok: true, clip: { x: 10, y: 20, width: 40, height: 30 } });
+    expect('__owned' in win).toBe(false);
+  });
+
+  test('wait finds visible selectors and visible page text and reports timeout', async () => {
+    const win = new Window({ url: 'http://localhost:3000/' });
+    win.document.body.innerHTML = '<div id="ready">Loaded state</div>';
+    const target = win.document.querySelector('#ready');
+    if (!target) throw new Error('test target was not created');
+    target.setAttribute('style', 'opacity: 1');
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ x: 0, y: 0, left: 0, top: 0, width: 20, height: 20, right: 20, bottom: 20 }),
+    });
+    const selectorResult = await new Function('window', 'document', 'setTimeout', `return ${buildWaitScript({ selector: '#ready', timeoutMs: 150 })}`)(win, win.document, setTimeout);
+    expect(selectorResult).toMatchObject({ ok: true });
+    expect(selectorResult.waitedMs).toBeGreaterThanOrEqual(0);
+    const textResult = await new Function('window', 'document', 'setTimeout', `return ${buildWaitScript({ text: 'Loaded state', timeoutMs: 150 })}`)(win, win.document, setTimeout);
+    expect(textResult).toMatchObject({ ok: true });
+    const timeout = await new Function('window', 'document', 'setTimeout', `return ${buildWaitScript({ selector: '#missing', timeoutMs: 100 })}`)(win, win.document, setTimeout);
+    expect(timeout).toMatchObject({ ok: false, error: 'Nothing matched #missing within 100ms' });
+    await win.happyDOM.close();
   });
 
   test('a select criterion is embedded as data too', () => {
