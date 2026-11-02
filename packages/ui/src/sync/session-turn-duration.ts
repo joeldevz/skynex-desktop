@@ -11,7 +11,7 @@
 import { useCallback } from 'react';
 import { getRecordedTurnDurationMs } from '@/lib/sessionTurnMetadata';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
-import { useHasSessionActivityDuration, useSessionSettledDurationMs } from './session-activity-timing';
+import { useSessionSettledDurationMs } from './session-activity-timing';
 
 const useRecordedTurnDurationMs = (sessionId: string): number | undefined => (
   useGlobalSessionsStore(useCallback((state) => getRecordedTurnDurationMs(state.entityById.get(sessionId)), [sessionId]))
@@ -21,17 +21,4 @@ const useRecordedTurnDurationMs = (sessionId: string): number | undefined => (
 export const useSessionFinishedTurnDurationMs = (sessionId: string): number | undefined => {
   const measured = useSessionSettledDurationMs(sessionId);
   return useRecordedTurnDurationMs(sessionId) ?? measured;
-};
-
-/**
- * Whether a duration exists to render, without subscribing the caller to the
- * value itself — a row uses this to decide between the counter and its normal
- * metadata, and must not re-render every tick to do so.
- */
-export const useHasSessionTurnDuration = (sessionId: string, running: boolean): boolean => {
-  const hasMeasured = useHasSessionActivityDuration(sessionId, running);
-  const hasRecorded = useGlobalSessionsStore(useCallback((state) => (
-    !running && getRecordedTurnDurationMs(state.entityById.get(sessionId)) !== undefined
-  ), [running, sessionId]));
-  return hasMeasured || hasRecorded;
 };

@@ -108,8 +108,8 @@ that worktree is still in work.
 
 ### Bulk actions here, not in the sidebar
 
-The sidebar's In work block has no "close all": nothing leaves it without the
-user's own click. The maintainer's point was that the overview is different
+The sidebar has no bulk Done action: sessions leave In work through individual
+actions. The overview is different
 because it builds a definition of done the user can trust, with the evidence on
 screen. So bulk exists only here: Mark all done covers Looks done, Jev-only rows
 included; Clean up all covers only worktrees where nothing is lost. Each

@@ -160,13 +160,6 @@ export const useKeyboardShortcuts = () => {
         state.setSessionSwitcherOpen(true);
         return;
       }
-      // The switcher dropdown only mounts while the sidebar is collapsed;
-      // with the sidebar visible the list is already on screen, so the
-      // shortcut opens the sidebar's session search instead.
-      if (state.isSidebarOpen) {
-        window.dispatchEvent(new CustomEvent('openchamber:sidebar-session-search'));
-        return;
-      }
       state.setSessionDropdownOpen(true);
     },
     toggle_prompt_navigator: () => {

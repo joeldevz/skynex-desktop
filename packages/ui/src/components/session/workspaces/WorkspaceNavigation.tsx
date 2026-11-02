@@ -29,11 +29,10 @@ function WorkspaceInitial({ index, name }: { index: number; name: string }) {
   );
 }
 
-export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageButtons, inlineOverview = false }: {
-  renderHistory(onSelected: (id: string) => void): React.ReactNode;
+export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOverview = false }: {
   onSelected?: (id: string) => void;
   footer?: React.ReactNode;
-  /** Page toggles shown beside Session history in both views. */
+  /** Sidebar page toggles shown in the navigation row. */
   pageButtons?: React.ReactNode;
   inlineOverview?: boolean;
 }) {
@@ -47,7 +46,6 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageBut
   const connected = useConfigStore((state) => state.isConnected);
   const currentId = useSessionUIStore((state) => state.currentSessionId);
   const openFailure = useSessionUIStore((state) => state.openSessionFailure);
-  const [history, setHistory] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [name, setName] = React.useState('');
   const [pending, setPending] = React.useState(false);
@@ -55,7 +53,7 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageBut
   React.useEffect(() => {
     if (connected && !isTransientRuntimeKey(getRuntimeKey())) void useWorkspacesStore.getState().load();
   }, [connected, runtimeKey]);
-  React.useEffect(() => { setHistory(false); setCreating(false); setFailed(false); }, [runtimeKey]);
+  React.useEffect(() => { setCreating(false); setFailed(false); }, [runtimeKey]);
   React.useEffect(() => startSubagentMembershipCleanup(), []);
   function selectSession(id: string) {
     const row = openSessionsStore.getState().sessions.find((entry) => entry.sessionId === id);
@@ -69,12 +67,11 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageBut
     } catch { setFailed(true); }
   }
   return <div className="flex h-full min-h-0 flex-col text-foreground">
-    <div className="flex shrink-0 items-center justify-between gap-2 p-2">
-      <Button variant="ghost" aria-pressed={history} onClick={() => setHistory(!history)}>{t('workspaces.history')}</Button>
+    <div className="flex shrink-0 items-center justify-end gap-2 p-2">
       {pageButtons}
     </div>
     <div className="min-h-0 flex-1 overflow-hidden">
-    {history ? renderHistory((id) => { setHistory(false); onSelected?.(id); }) : <div className="h-full min-h-0 overflow-y-auto p-2">
+    <div className="h-full min-h-0 overflow-y-auto p-2">
       <section className="space-y-1 pb-5" aria-label={t('workspaces.title')}>
         <div className="flex items-center justify-between gap-2 ps-2">
           <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.title')}</h2>
@@ -108,7 +105,7 @@ export function WorkspaceNavigation({ renderHistory, onSelected, footer, pageBut
           }).finally(() => setPending(false));
         }}>{t('directoryExplorerDialog.browse.retry')}</Button>
       </div>}
-    </div>}
+    </div>
     </div>
     {footer}
     <div role="alert" className="min-h-6 px-2 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>

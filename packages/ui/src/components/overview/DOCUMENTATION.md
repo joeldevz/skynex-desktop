@@ -92,8 +92,8 @@ sidebar's one repository-thread path (`getLinkedSidebarChanges`,
 
 ### Why bulk Done here and not in the sidebar
 
-The sidebar's In work block has no "close all": nothing leaves it without the
-user's own click. The overview shows each row's reason and the confirmation
+The sidebar has no bulk Done action: each session leaves In work through its
+own action. The overview shows each row's reason and the confirmation
 lists every session, so a bulk Done here is still the user's decision, made
 with the evidence on screen.
 

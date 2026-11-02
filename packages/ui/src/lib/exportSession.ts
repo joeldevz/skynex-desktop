@@ -2,8 +2,7 @@ import type { Message, Part } from '@/lib/opencode/model';
 import { hasParts } from '@/lib/opencode/model';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { getCurrentIntlLocale } from '@/lib/i18n';
-import { isVSCodeRuntime, openDesktopPath, revealDesktopPath, saveDesktopMarkdownFile } from '@/lib/desktop';
-import { getRevealLabelKey } from '@/lib/utils';
+import { isVSCodeRuntime, saveDesktopMarkdownFile } from '@/lib/desktop';
 import { readContextPart } from '@/lib/messages/contextParts';
 import { formatContextMessage, formatMessageText } from '@/lib/messages/messageMarkdown';
 
@@ -176,28 +175,6 @@ export async function saveAsMarkdownDesktop(content: string, filename: string): 
   } catch {
     return null;
   }
-}
-
-export async function revealExportedMarkdown(path: string): Promise<boolean> {
-  const runtimeFiles = getRegisteredRuntimeAPIs()?.files;
-  if (runtimeFiles?.revealPath) {
-    try {
-      const result = await runtimeFiles.revealPath(path);
-      return Boolean(result?.success);
-    } catch {
-      return false;
-    }
-  }
-
-  if (await revealDesktopPath(path)) {
-    return true;
-  }
-
-  return openDesktopPath(path);
-}
-
-export function getExportRevealLabelKey() {
-  return getRevealLabelKey();
 }
 
 export function buildExportFilename(sessionTitle?: string | null): string {

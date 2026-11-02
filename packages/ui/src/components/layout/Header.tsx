@@ -96,6 +96,7 @@ export const Header: React.FC = () => {
   streamPerfCount('ui.header.render');
   const { t, direction } = useI18n();
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
+  const isSessionDropdownOpen = useUIStore((state) => state.isSessionDropdownOpen);
   // The spacers move with the sidebar, so they follow its animation setting.
   const layoutAnimationMs = useLayoutAnimationMs();
   const sessionTabsEnabled = useUIStore((state) => state.sessionTabsEnabled);
@@ -1072,11 +1073,11 @@ export const Header: React.FC = () => {
         ) : (isVSCode || !sessionTabsEnabled) ? (
           <div className="app-region-no-drag me-3 flex min-w-0 max-w-full items-center gap-0.5 py-0.5 -my-0.5 text-start">
             {isCurrentSessionAiRenaming ? <Icon name="loader-4" className="me-1 size-3 shrink-0 animate-spin text-primary" aria-label={t('sessions.aiRename.generating')} /> : null}
-            {!isSidebarOpen ? (
+            {!isSidebarOpen || isSessionDropdownOpen ? (
               <SessionSwitcherDropdown align="start">
                 <button
                   type="button"
-                  className={desktopHeaderIconButtonClass}
+                  className={cn(desktopHeaderIconButtonClass, isSidebarOpen && 'absolute start-0 top-0 size-1 opacity-0 pointer-events-none')}
                   aria-label={t('sessions.switcher.openAria')}
                 >
                   <Icon name="history" className="h-4 w-4" />

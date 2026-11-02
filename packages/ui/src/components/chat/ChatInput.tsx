@@ -226,7 +226,6 @@ import { runForkCommand } from './composer/submit/forkCommand';
 import { useAutocompletePosition } from './composer/state/useAutocompletePosition';
 import { useMessageHistory } from './composer/state/useMessageHistory';
 import { useComposerDraft } from './composer/state/useComposerDraft';
-import { useSessionDraftPublishing } from './composer/state/useSessionDraftPublishing';
 import { useDictationOrigin } from './composer/state/useDictationOrigin';
 import { useDraftTarget } from './composer/state/useDraftTarget';
 import { useDraftWorkspaceTarget } from './composer/state/useDraftWorkspaceTarget';
@@ -396,9 +395,9 @@ const NEW_CHAT_DRAFT_DIRECTORY = CHAT_DRAFT_PROJECT_ID;
 
 /**
  * The composer key of the open project draft (see `workDraftComposerKey`), or
- * null for a new Chat. The sidebars of the desktop, the web and the phone list
- * drafts; VS Code has no shared drafts, so it keeps the per-folder key, where
- * a new draft finds the text left in that folder.
+ * null for a new Chat. Desktop, web and phone drafts use their workDraftId for
+ * composer persistence; VS Code has no shared drafts and keeps the per-folder
+ * key, where a new draft finds the text left in that folder.
  */
 const resolveWorkDraftComposerKey = (draft: NewSessionDraftState | null | undefined): string | null => {
     return draft?.open && draft.target === 'project' && draft.workDraftId && getSettingsSurface() !== 'vscode'
@@ -1267,17 +1266,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 editor.selectAll();
             }
         },
-    });
-
-    // A project's new draft is shared with the server, which lists it in the
-    // sidebar once the user leaves it (the chat identity carries its key only
-    // while it is the one on screen).
-    useSessionDraftPublishing({
-        identity: isBtwActive ? null : chatDraftIdentity,
-        message,
-        confirmedMentionsRef,
-        projectId: newSessionDraftOpen ? newSessionDraft.selectedProjectId ?? null : null,
-        enabled: newSessionDraftOpen && !currentSessionId,
     });
 
     const handleExitBtw = React.useCallback(() => {

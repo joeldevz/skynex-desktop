@@ -11,7 +11,6 @@ import type {
 import type { Session } from '@/lib/opencode/model';
 import { buildLinkedIssue, getLinkedSidebarChanges, getLinkedSidebarIssues, withLinkedIssue } from '@/lib/linkedIssues';
 import { createRepositoryUrlMatcher } from '@/lib/source-control/repositoryUrlMatcher';
-import { buildSessionIssueItems } from '@/components/session/sidebar/sessions/sessionPrSummaries';
 import type { SourceControlProviderDescriptor } from './descriptor';
 import { acmeDescriptor } from './descriptor.fixture';
 import { useSourceControlProviderRegistry } from './registry';
@@ -229,8 +228,7 @@ describe('a source-control provider no UI code names', () => {
     expect(changes.map((change) => change.identifier)).toEqual(['!12']);
     expect(changes[0]?.repository).toMatchObject({ provider: 'acme', instance: ACME_ORIGIN, thread: 'pull', number: 12 });
 
-    const issues = buildSessionIssueItems(getLinkedSidebarIssues(session, matcher), [null]);
-    expect(issues.map((item) => item.label)).toEqual(['#7']);
+    expect(getLinkedSidebarIssues(session, matcher).map((linkedIssue) => linkedIssue.identifier)).toEqual(['#7']);
 
     // The row's change-request badge and the short label other surfaces show.
     const descriptor = matcher.descriptorOf('acme');

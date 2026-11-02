@@ -8,12 +8,10 @@ import type { I18nKey, I18nParams } from '@/lib/i18n';
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { readGlobalSessionLineage } from '@/stores/sessionLineage';
 import { useSessionUIStore, type SessionUIState } from '@/sync/session-ui-store';
-import { buildActiveSessionNode } from '../list/sessionCollection';
-import type { SessionNode } from '../types';
 
 type Translate = (key: I18nKey, params?: I18nParams) => string;
 
-export type SessionSubtreeAction = 'archive' | 'delete';
+type SessionSubtreeAction = 'archive' | 'delete';
 
 export type SessionSubtreeStore = Pick<
   SessionUIState,
@@ -46,25 +44,6 @@ export const collectSessionSubtreeIds = (
   for (const descendant of descendants) ids.add(descendant.id);
   ids.delete(rootId);
   return [...ids];
-};
-
-/**
- * A session's active subtree from the global cache, built the way the project
- * tree builds it: it stops at an archived session and everything below it.
- * Detailed zone rows render a root with no children, so an
- * action that needs the subagents of such a row resolves them here when the
- * user acts.
- */
-export const buildActiveSessionTreeFromCache = (root: Session): SessionNode => {
-  const childrenByParentId = new Map<string, Session[]>();
-  for (const session of readGlobalSessionLineage().descendantsOf(root.id, 'active')) {
-    const parentId = session.parentID;
-    if (!parentId) continue;
-    const siblings = childrenByParentId.get(parentId) ?? [];
-    siblings.push(session);
-    childrenByParentId.set(parentId, siblings);
-  }
-  return buildActiveSessionNode(childrenByParentId, root);
 };
 
 /**

@@ -56,14 +56,12 @@ describe("useProjectsStore settings synchronization", () => {
     useProjectsStore.setState({
       projects: [project],
       activeProjectId: project.id,
-      manualProjectOrder: [project.id],
     })
 
     useProjectsStore.getState().synchronizeFromSettings({ projects: [] } as DesktopSettings)
 
     expect(useProjectsStore.getState().projects).toEqual([])
     expect(useProjectsStore.getState().activeProjectId).toBe(null)
-    expect(useProjectsStore.getState().manualProjectOrder).toEqual([])
   })
 
   test("a reconcile sync never adopts another window's active project", () => {
@@ -108,7 +106,6 @@ describe("useProjectsStore selection identity", () => {
     useProjectsStore.setState({
       projects,
       activeProjectId: first.id,
-      manualProjectOrder: projects.map((project) => project.id),
     })
 
     useProjectsStore.getState().setActiveProjectIdOnly(second.id)
@@ -125,7 +122,6 @@ describe("useProjectsStore default model and thinking level", () => {
     useProjectsStore.setState({
       projects: [project],
       activeProjectId: project.id,
-      manualProjectOrder: [project.id],
     })
   }
 
@@ -190,7 +186,6 @@ describe("useProjectsStore.addProjects", () => {
     useProjectsStore.setState({
       projects: [],
       activeProjectId: null,
-      manualProjectOrder: [],
     })
   }
 

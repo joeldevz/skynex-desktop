@@ -413,7 +413,7 @@ export const getDistinctLinkedIssues = (session: Session | null | undefined, mat
 };
 
 /** A code change linked to a session, as the sidebar shows it. */
-export type LinkedSidebarChange = {
+type LinkedSidebarChange = {
   key: string;
   /** `#12`, `!12`, or an extension's own identifier. */
   identifier: string;
@@ -450,7 +450,7 @@ export const getLinkedSidebarChanges = (session: Session | null | undefined, mat
 };
 
 /** An issue linked to a session, as the sidebar shows it; a discussion is one of its repository issues. */
-export type LinkedSidebarIssue =
+type LinkedSidebarIssue =
   | { source: 'repository'; key: string; ref: RepositoryThreadRef & { thread: 'issue' | 'discussion' }; identifier: string; url: string; title: string }
   | { source: 'tracker'; provider: string; key: string; identifier: string; url: string; title: string }
   | { source: 'guest' | 'external'; key: string; identifier: string; url: string; title: string };

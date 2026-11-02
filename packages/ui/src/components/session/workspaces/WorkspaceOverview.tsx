@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Tabs } from '@base-ui/react/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PauseClock } from '@/components/ui/pause-clock';
 import { Icon } from '@/components/icon/Icon';
 import { dropdownTriggerVariants } from '@/components/ui/dropdown-trigger';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -27,14 +26,13 @@ export interface WorkspaceOverviewProps {
   onAddFolders(): Promise<void>;
   onUnlinkFolder?(folderId: string): Promise<void>;
   onDelete?(): Promise<void>;
-  renderWorkspaceHistory?(): React.ReactNode;
 }
 
 export function WorkspaceOverview(props: WorkspaceOverviewProps) {
   return <WorkspaceEditor key={props.workspace.id} {...props} />;
 }
 
-function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession, onOpenScheduledTasks, scheduledTasksOpen = false, onOpenSourceBoard, sourceBoardOpen = false, onAddFolders, onUnlinkFolder, onDelete, renderWorkspaceHistory }: WorkspaceOverviewProps) {
+function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession, onOpenScheduledTasks, scheduledTasksOpen = false, onOpenSourceBoard, sourceBoardOpen = false, onAddFolders, onUnlinkFolder, onDelete }: WorkspaceOverviewProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState('home');
   const [draft, setDraft] = useState(workspace);
@@ -96,7 +94,6 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
           {[
             { value: 'home', label: t('workspaces.home') },
             { value: 'folders', label: t('workspaces.folders') },
-            { value: 'sessions', label: t('workspaces.sessions') },
           ].map(({ value, label }) => <Tabs.Tab key={value} value={value} className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{label}</Tabs.Tab>)}
           <Tabs.Tab value="scheduledTasks" className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{t('sessions.scheduledTasks.dialog.title')}</Tabs.Tab>
           {onOpenSourceBoard && <Tabs.Tab value="sourceBoard" className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{t('sourceBoard.title')}</Tabs.Tab>}
@@ -147,9 +144,6 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
           </div>;
         })}
       </SettingsSection>
-        </Tabs.Panel>
-        <Tabs.Panel value="sessions" keepMounted className="data-[hidden]:hidden" render={(panelProps, { hidden }) => <div {...panelProps}><PauseClock paused={hidden}>{panelProps.children}</PauseClock></div>}>
-          {renderWorkspaceHistory?.()}
         </Tabs.Panel>
         <Tabs.Panel value="scheduledTasks" keepMounted className="data-[hidden]:hidden" />
         {onOpenSourceBoard && <Tabs.Panel value="sourceBoard" keepMounted className="data-[hidden]:hidden" />}

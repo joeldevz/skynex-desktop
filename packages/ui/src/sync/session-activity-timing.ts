@@ -662,7 +662,7 @@ export const useSessionSettledDurationMs = (sessionId: string): number | undefin
 
 /**
  * Whether this page measured a duration to render, without subscribing the
- * caller to the value itself. Rows use `useHasSessionTurnDuration`
+ * caller to the value itself.
  * (`session-turn-duration.ts`), which also counts the length the server
  * recorded.
  */

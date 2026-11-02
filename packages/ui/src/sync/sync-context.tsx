@@ -24,8 +24,6 @@ import {
   ChildStoreManager,
   markDirectorySessionPartChanged,
   subscribeDirectoryPermission,
-  subscribeDirectoryPermissions,
-  subscribeDirectoryForms,
   subscribeDirectorySessionMessages,
   type DirectoryBootstrapContext,
   type DirectoryBootstrapReason,
@@ -77,7 +75,6 @@ import { useMessageQueueStore } from "@/stores/messageQueueStore"
 import { subscribeMessageQueueSync } from "./message-queue-sync"
 import { subscribeSessionWarmingSync } from "./session-warming-sync"
 import { subscribeSessionFoldersSync } from "./session-folders-sync"
-import { subscribeSessionDraftsSync } from "./session-drafts-sync"
 import { subscribePermissionPolicySync, subscribeSpacePermissionModes } from "./permission-mode-sync"
 import { spaceFoldersOfProject, subscribeSpaceCatalogs } from "./space-catalog-sync"
 import {
@@ -103,7 +100,7 @@ import {
   setSessionParentResolver,
   useGlobalSessionStatusStore,
 } from "./global-session-status"
-import { applyGlobalBlockingRequestEvents, applyWaitingPageEvent, useGlobalBlockingRequestsStore } from "./global-blocking-requests"
+import { applyGlobalBlockingRequestEvents, applyWaitingPageEvent } from "./global-blocking-requests"
 import { requestHostTurnStarts } from "./host-session-status-seed"
 import { setHostTurnStartRequester } from "./session-activity-timing"
 import { applyBackgroundShellEvents, directoriesWithRunningShells, refreshBackgroundShells } from "./background-shells"
@@ -354,25 +351,6 @@ export function useAllLiveSessions(): Session[] {
       countSyncPerformance("liveSessionAggregateRuns")
       return aggregateLiveSessions(states)
     }, []),
-    areSessionListsEquivalent,
-    subscribeLiveSessionLists,
-  )
-}
-
-const EMPTY_LIVE_SESSIONS: Session[] = []
-
-/**
- * Live sessions whose ids are not in `excludedIds`, newest first. Updates to
- * an excluded session (a `time.updated` bump on every streamed step) do not
- * re-render the caller.
- */
-export function useLiveSessionsExcluding(excludedIds: ReadonlySet<string>): Session[] {
-  return useLiveSyncSelector(
-    useCallback((states) => {
-      countSyncPerformance("liveSessionAggregateRuns")
-      const sessions = aggregateLiveSessions(states).filter((session) => !excludedIds.has(session.id))
-      return sessions.length === 0 ? EMPTY_LIVE_SESSIONS : sessions
-    }, [excludedIds]),
     areSessionListsEquivalent,
     subscribeLiveSessionLists,
   )
@@ -3153,7 +3131,6 @@ export function SyncProvider(props: {
     const unsubscribeQueueEvents = subscribeMessageQueueSync(runtimeKey)
     const unsubscribeSessionWarming = subscribeSessionWarmingSync(runtimeKey)
     const unsubscribeFolderEvents = subscribeSessionFoldersSync(runtimeKey)
-    const unsubscribeDraftEvents = subscribeSessionDraftsSync(runtimeKey)
     const unsubscribeSpaceModes = subscribeSpacePermissionModes(runtimeKey)
     const unsubscribePermissionPolicy = subscribePermissionPolicySync(
       runtimeKey,
@@ -3298,7 +3275,6 @@ export function SyncProvider(props: {
       unsubscribeQueueEvents()
       unsubscribeSessionWarming()
       unsubscribeFolderEvents()
-      unsubscribeDraftEvents()
       unsubscribeSpaceModes()
       unsubscribePermissionPolicy()
       unsubscribeSpaceCatalogs()
@@ -3802,87 +3778,6 @@ export function useSessionForms(sessionID: string, directory?: string) {
     useCallback((state: State) => state.form[sessionID] ?? EMPTY_FORM_REQUESTS, [sessionID]),
     directory,
   )
-}
-
-type SessionBlockingRequests = {
-  hasPermission: boolean
-  hasForm: boolean
-}
-
-const NO_SESSION_BLOCKING_REQUESTS: SessionBlockingRequests = {
-  hasPermission: false,
-  hasForm: false,
-}
-
-/**
- * Whether any pending permission or form waits in exact session buckets
- * grouped by owning directory. This lets collapsed rows cover hidden
- * descendants without bootstrapping their stores or subscribing to unrelated
- * updates.
- */
-export function useSessionBlockingRequests(
-  scopes: readonly { directory: string; sessionIDs: readonly string[] }[],
-): SessionBlockingRequests {
-  // Runtime only: the current directory is not an input here, and reading the
-  // directory-bearing context would re-render every sidebar row that shows
-  // blocking requests whenever the user switches projects.
-  const { childStores } = useSyncRuntime()
-  const scopedStores = React.useMemo(() => scopes.map((scope) => ({
-    sessionIDs: scope.sessionIDs,
-    store: childStores.ensureChild(scope.directory, { bootstrap: false }),
-  })), [childStores, scopes])
-  React.useEffect(() => {
-    for (const scope of scopes) childStores.pin(scope.directory)
-    return () => {
-      for (const scope of scopes) childStores.unpin(scope.directory)
-    }
-  }, [childStores, scopes])
-  const snapshotRef = useRef(NO_SESSION_BLOCKING_REQUESTS)
-  const getSnapshot = React.useCallback(() => {
-    let hasPermission = false
-    let hasForm = false
-    // Pages that wait for the user's answer are only in the cross-directory
-    // index; they count as a form. A store this client never bootstrapped
-    // knows only live forms, so until its bootstrap completes, forms come
-    // from the index too, which the host seed fills with the ones already
-    // waiting at load. A complete store is authoritative: its reply and
-    // reconnect paths clear forms the index can keep after a lost event.
-    const indexed = useGlobalBlockingRequestsStore.getState().bySession
-    for (const { sessionIDs, store } of scopedStores) {
-      const { permission: permissions, form: forms, status } = store.getState()
-      const formsAuthoritative = status === "complete"
-      for (const sessionID of sessionIDs) {
-        const pending = indexed.get(sessionID)
-        hasPermission ||= Boolean(permissions[sessionID]?.length)
-        hasForm ||= Boolean(forms[sessionID]?.length)
-          || Boolean(pending?.pages.length)
-          || (!formsAuthoritative && Boolean(pending?.forms.length))
-      }
-    }
-    const previous = snapshotRef.current
-    if (previous.hasPermission === hasPermission && previous.hasForm === hasForm) {
-      return previous
-    }
-    const next = { hasPermission, hasForm }
-    snapshotRef.current = next
-    return next
-  }, [scopedStores])
-  const subscribe = React.useCallback((notify: () => void) => {
-    const unsubscribers = [
-      ...scopedStores.flatMap(({ sessionIDs, store }) => [
-        subscribeDirectoryPermissions(store, sessionIDs, notify),
-        // Also fires when the store's bootstrap status changes, which
-        // switches the source of its forms (see getSnapshot).
-        subscribeDirectoryForms(store, sessionIDs, notify),
-      ]),
-      // Rare writes; getSnapshot keeps the same object when nothing changed.
-      useGlobalBlockingRequestsStore.subscribe(notify),
-    ]
-    return () => {
-      for (const unsubscribe of unsubscribers) unsubscribe()
-    }
-  }, [scopedStores])
-  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /** Get sessions list for a directory */

@@ -24,7 +24,7 @@ export type SessionOwnershipRecord = Session & {
 
 type AuthoritativeOpenCodeProject = Pick<OpenCodeProject, 'id' | 'worktree'>;
 
-export type DirectoryOwner = {
+type DirectoryOwner = {
   projectId: string;
   projectRoot: string;
   scopeDirectory: string;
@@ -33,7 +33,7 @@ export type DirectoryOwner = {
   spaceId?: string;
 };
 
-export type SessionOwnershipIndex = {
+type SessionOwnershipIndex = {
   bySessionId: Map<string, DirectoryOwner>;
   sessionsByProject: Map<string, Session[]>;
   archivedSessionsByProject: Map<string, Session[]>;

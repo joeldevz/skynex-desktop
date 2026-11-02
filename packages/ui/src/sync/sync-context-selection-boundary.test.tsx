@@ -3,8 +3,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { OpenCode } from '@opencode/client'
 import { opencodeClient } from '@/lib/opencode/client'
-import { SyncProvider, useChildStoreManager, useSyncDirectory } from './sync-context'
-import { usePrefetchSessionMessages } from './use-sync'
+import { SyncProvider, useChildStoreManager } from './sync-context'
 import { installHookTestDom } from '../components/session/sidebar/test-utils/testDom'
 import { useSessionUIStore } from './session-ui-store'
 import type { Message, Part, Session } from '@/lib/opencode/model'
@@ -206,47 +205,4 @@ describe('SyncProvider selection boundary', () => {
     }
   }, 15_000)
 
-  test('does not rerender a stable prefetch consumer when only current directory changes', async () => {
-    const dom = installHookTestDom()
-    const previousSurface = window.__OPENCHAMBER_SURFACE__
-    window.__OPENCHAMBER_SURFACE__ = 'desktop'
-    const root = createRoot(dom.container)
-    let runtimeRenders = 0
-    let directoryRenders = 0
-    let callback: ReturnType<typeof usePrefetchSessionMessages> | undefined
-    const RuntimeConsumer = React.memo(() => {
-      callback = usePrefetchSessionMessages()
-      runtimeRenders += 1
-      return null
-    })
-    const DirectoryConsumer = () => {
-      useSyncDirectory()
-      directoryRenders += 1
-      return null
-    }
-    const sdk = createSdk()
-
-    try {
-      await act(async () => root.render(
-        <SyncProvider sdk={sdk} directory="/workspace/a">
-          <RuntimeConsumer />
-          <DirectoryConsumer />
-        </SyncProvider>,
-      ))
-      const initialCallback = callback
-      await act(async () => root.render(
-        <SyncProvider sdk={sdk} directory="/workspace/b">
-          <RuntimeConsumer />
-          <DirectoryConsumer />
-        </SyncProvider>,
-      ))
-      expect(runtimeRenders).toBe(1)
-      expect(callback).toBe(initialCallback)
-      expect(directoryRenders).toBe(2)
-    } finally {
-      await act(async () => root.unmount())
-      window.__OPENCHAMBER_SURFACE__ = previousSurface
-      dom.restore()
-    }
-  })
 })

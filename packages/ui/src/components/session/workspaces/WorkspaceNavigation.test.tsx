@@ -20,8 +20,6 @@ const sessions: readonly OpenSessionReference[] = [
       primaryDirectory: '/elsewhere/notes', folders: workspaces[1].folders } },
 ];
 
-const historySession = { sessionId: 'history-only', title: 'Earlier app discussion', primaryDirectory: '/projects/app' };
-
 async function withNavigation(run: (ui: {
   render(): Promise<void>;
   button(name: string): HTMLButtonElement;
@@ -54,7 +52,7 @@ async function withNavigation(run: (ui: {
     const root = createRoot(container);
     try {
       await run({ container,
-        render: async () => { await act(async () => root.render(<I18nProvider><WorkspaceNavigation renderHistory={() => <p>{historySession.title}</p>} /></I18nProvider>)); },
+        render: async () => { await act(async () => root.render(<I18nProvider><WorkspaceNavigation /></I18nProvider>)); },
         button: (name) => {
           const found = [...container.querySelectorAll<HTMLButtonElement>('button')]
             .find((node) => (node.getAttribute('aria-label') ?? node.textContent?.trim()) === name);
@@ -106,7 +104,6 @@ test('C1/C3 workspaces precede global open sessions and selecting a workspace ke
     const assertSessionRows = () => {
       expect(ui.button('App work').textContent).toContain('Product');
       expect(ui.button('Notes work').textContent).toContain('Research');
-      expect(ui.container.textContent).not.toContain(historySession.title);
     };
     assertSessionRows();
     await act(async () => ui.button('Research').click());
@@ -120,7 +117,7 @@ test('C1/C3 workspaces precede global open sessions and selecting a workspace ke
   });
 });
 
-test('C1/C3/C7 create workspace, history, direct session and close actions stay separate', async () => {
+test('C1/C3/C7 create workspace, direct session and close actions stay separate', async () => {
   await withNavigation(async (ui) => {
     const f = await fixture();
     await ui.render();
@@ -132,8 +129,6 @@ test('C1/C3/C7 create workspace, history, direct session and close actions stay 
     expect(ui.button('Notes work').textContent).toContain('Notes work');
     await act(async () => ui.button('Notes work').click());
     expect(f.sessionSelections).toEqual(['notes-session']);
-    await act(async () => ui.button('Session history').click());
-    expect(ui.container.textContent).toContain(historySession.title);
     expect(f.sessionSelections).toEqual(['notes-session']);
     expect(f.selectedWorkspace()).toBeNull();
   });

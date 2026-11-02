@@ -33,7 +33,6 @@ import { isTerminalShell } from '@/lib/terminalShell';
 import { sanitizeWorkStatusHiddenSections, sanitizeWorkStatusSectionOrder } from '@/components/chat/work-status/sections';
 import { useInputHistoryStore } from '@/stores/useInputHistoryStore';
 import { useMessageQueueStore } from '@/stores/messageQueueStore';
-import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useUIStore, type FileEditorKeymap, type LargeTextPasteBehavior } from '@/stores/useUIStore';
 import { isSessionGoalMaxAutoTurns } from '@/lib/sessionGoalTurnLimit';
@@ -165,19 +164,6 @@ const configField = <K extends keyof ConfigStoreState>(
     configStore()?.setState({ [key]: value } as Pick<ConfigStoreState, K>);
   },
   // The config store's own setters write these through `updateDesktopSettings`.
-  autoSave: false,
-});
-
-type SessionDisplayState = ReturnType<typeof useSessionDisplayStore.getState>;
-
-const sessionDisplayField = <K extends keyof SessionDisplayState>(
-  key: K,
-): SettingsUiBinding<SessionDisplayState[K]> => ({
-  read: () => useSessionDisplayStore.getState()[key],
-  write: (value) => {
-    // SAFETY: a single-key patch built from the key it is typed by.
-    useSessionDisplayStore.setState({ [key]: value } as Pick<SessionDisplayState, K>);
-  },
   autoSave: false,
 });
 
@@ -372,20 +358,6 @@ export const SETTINGS_REGISTRY = {
   // Write-only: the tunnel page learns which presets have a token from the
   // tunnel status endpoint (`managedRemoteTunnelTokenPresetIds`), never from here.
   managedRemoteTunnelPresetTokens: field({ scope: 'instance', secret: true, parse: parseManagedRemoteTunnelPresetTokens }),
-
-  // ── Sidebar display (profile; useSessionDisplayStore) ──
-  sidebarProjectDisplayMode: field({ scope: 'profile', parse: parseOneOf(['all', 'single']), ui: sessionDisplayField('projectDisplayMode') }),
-  // Per surface: the phone defaults to the timeline and a choice made there
-  // must not flip the desktop sidebar (and vice versa).
-  sidebarViewMode: field({ scope: 'profile', perSurface: true, parse: parseOneOf(['projects', 'timeline']), ui: sessionDisplayField('sidebarViewMode') }),
-  sidebarListSessionGrouping: field({ scope: 'profile', perSurface: true, parse: parseOneOf(['project', 'time']), ui: sessionDisplayField('listSessionGrouping') }),
-  sidebarGrouping: field({ scope: 'profile', perSurface: true, parse: parseOneOf(['project', 'time']), ui: sessionDisplayField('sidebarGrouping') }),
-  sidebarKeepWorkInPlace: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('keepWorkInPlace') }),
-  sidebarProjectSortOrder: field({ scope: 'profile', parse: parseOneOf(['manual', 'a-z', 'z-a', 'date-added', 'recent']), ui: sessionDisplayField('projectSortOrder') }),
-  sidebarShowChatsSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showChatsSection') }),
-  sidebarShowWorkSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showWorkSection') }),
-  sidebarShowPinnedSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showPinnedSection') }),
-  sidebarDetailedZoneRows: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('detailedZoneRows') }),
 
   // ── Work status ──
   workStatusSectionOrder: field({

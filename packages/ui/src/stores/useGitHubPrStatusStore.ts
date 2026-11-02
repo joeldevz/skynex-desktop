@@ -90,9 +90,6 @@ const withStatusAliases = (status: ChangeRequestStatus): SourceControlStatus => 
 });
 
 const isTerminalPrState = (state: string | null | undefined): boolean => state === 'closed' || state === 'merged';
-export const getGitHubPrStatusKey = (directory: string, branch: string, remoteName?: string | null): string =>
-  JSON.stringify([getRuntimeKey(), GITHUB_IDENTITY.provider, GITHUB_IDENTITY.instance, directory, branch, remoteName ?? 'auto']);
-
 type RefreshOptions = {
   force?: boolean;
   onlyExistingPr?: boolean;
@@ -509,25 +506,6 @@ export const getFreshestSourceControlStatusForBranch = (
 export const getFreshestActiveSourceControlStatusForBranch = (
   entries: Record<string, PrStatusEntry>, contexts: SourceControlReadContext[], branch: string,
 ): SourceControlStatus | null => getFreshestSourceControlEntryForBranch(entries, contexts, branch)?.status ?? null;
-
-/**
- * Status keys of the bound entries behind these shown branches: one per read
- * context the branch's directory currently has. Live-summary batches use them
- * so an answer lands on the entry the sidebar actually reads.
- */
-export const getActiveSourceControlStatusKeys = (
-  registrations: SourceControlStatusStore['activeContextRegistrations'],
-  targets: Iterable<{ directory: string; branch: string }>,
-): string[] => {
-  const runtimeKey = getRuntimeKey();
-  const keys = new Set<string>();
-  for (const { directory, branch } of targets) {
-    for (const context of getActiveContexts(registrations[getActiveContextsDirectoryKey(runtimeKey, directory)])) {
-      keys.add(getSourceControlStatusKey(context, branch));
-    }
-  }
-  return [...keys];
-};
 
 export const getFreshestPrStatusForBranch = (
   entries: Record<string, PrStatusEntry>, directory: string, branch: string,

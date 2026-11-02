@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Session } from '@/lib/opencode/model';
-import { getMultiRunIdentity, sameMultiRunIdentity, withMultiRunMembership, type MultiRunMembership } from './identity';
+import { getMultiRunIdentity, withMultiRunMembership, type MultiRunMembership } from './identity';
 import { getMultiRunSessionTitle, getFusionSessionTitle, parseMultiRunSessionTitle } from './title';
 import { buildMultiRunIndex } from './runs';
 
@@ -94,17 +94,6 @@ describe('multi-run identity', () => {
     const plain = getMultiRunIdentity(session('s1'));
     expect(plain?.title).toBeUndefined();
     expect(plain?.autoFusion).toBeUndefined();
-    expect(sameMultiRunIdentity(session('s1'), marked)).toBe(false);
   });
 
-  test('preserves unrelated metadata and invalidates row memoization only for relevant changes', () => {
-    const original = session('s1');
-    const changed = session('s1', { ...membership('s1'), role: 'fusion' });
-    expect(sameMultiRunIdentity(original, changed)).toBe(false);
-    expect(sameMultiRunIdentity(original, { ...original, metadata: { ...original.metadata, extra: true } })).toBe(true);
-    expect(sameMultiRunIdentity(original, { ...original, id: 'fork' })).toBe(false);
-    const metadata = withMultiRunMembership({ metadata: { other: 1, openchamber: { goal: { status: 'active' } } } }, membership('s1'));
-    expect(metadata.other).toBe(1);
-    expect(metadata.openchamber).toMatchObject({ goal: { status: 'active' } });
-  });
 });

@@ -52,7 +52,7 @@ const WORK_DRAFT_KEY_PREFIX = 'draft:';
 export const workDraftComposerKey = (workDraftId: string): string => `${WORK_DRAFT_KEY_PREFIX}${workDraftId}`;
 
 /** The draft id of a project draft's composer key, or null for any other key. */
-export const workDraftIdOfComposerKey = (sessionId: string | null | undefined): string | null => (
+const workDraftIdOfComposerKey = (sessionId: string | null | undefined): string | null => (
   sessionId?.startsWith(WORK_DRAFT_KEY_PREFIX) ? sessionId.slice(WORK_DRAFT_KEY_PREFIX.length) : null
 );
 

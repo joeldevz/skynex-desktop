@@ -555,21 +555,17 @@ describe('updateDesktopSettings', () => {
     expect(useUIStore.getState().toolJsonViewMode).toBe('formatted');
   });
 
-  test('applies authoritative shared sidebar preferences without replacing local-only sidebar state', async () => {
+  test('ignores retired shared sidebar preferences without replacing local state', async () => {
     getWindow();
     useSessionDisplayStore.setState({
       projectDisplayMode: 'all',
       sidebarViewMode: 'projects',
-      projectSortOrder: 'manual',
-      showChatsSection: true,
       singleProjectId: 'local-project',
     });
     registerSettingsApi(async () => ({}), async () => ({
       settings: {
         sidebarProjectDisplayMode: 'single',
         sidebarViewMode: 'timeline',
-        sidebarProjectSortOrder: 'recent',
-        sidebarShowChatsSection: false,
         autoSaveEnabled: true,
         draftStartersCraftGoalAdded: true,
         draftStartersScheduleTaskAdded: true,
@@ -583,14 +579,10 @@ describe('updateDesktopSettings', () => {
     expect({
       projectDisplayMode: state.projectDisplayMode,
       sidebarViewMode: state.sidebarViewMode,
-      projectSortOrder: state.projectSortOrder,
-      showChatsSection: state.showChatsSection,
       singleProjectId: state.singleProjectId,
     }).toEqual({
-      projectDisplayMode: 'single',
-      sidebarViewMode: 'timeline',
-      projectSortOrder: 'recent',
-      showChatsSection: false,
+      projectDisplayMode: 'all',
+      sidebarViewMode: 'projects',
       singleProjectId: 'local-project',
     });
   });
@@ -601,8 +593,6 @@ describe('updateDesktopSettings', () => {
     useSessionDisplayStore.setState({
       projectDisplayMode: 'single',
       sidebarViewMode: 'timeline',
-      projectSortOrder: 'a-z',
-      showChatsSection: false,
     });
     registerSettingsApi(async (changes) => {
       saves.push(changes);
@@ -624,13 +614,9 @@ describe('updateDesktopSettings', () => {
     expect({
       projectDisplayMode: state.projectDisplayMode,
       sidebarViewMode: state.sidebarViewMode,
-      projectSortOrder: state.projectSortOrder,
-      showChatsSection: state.showChatsSection,
     }).toEqual({
       projectDisplayMode: 'single',
       sidebarViewMode: 'timeline',
-      projectSortOrder: 'a-z',
-      showChatsSection: false,
     });
   });
 
@@ -639,8 +625,6 @@ describe('updateDesktopSettings', () => {
     useSessionDisplayStore.setState({
       projectDisplayMode: 'single',
       sidebarViewMode: 'timeline',
-      projectSortOrder: 'z-a',
-      showChatsSection: false,
     });
     registerSettingsApi(async () => ({}), async () => {
       throw new Error('offline');
@@ -652,13 +636,9 @@ describe('updateDesktopSettings', () => {
     expect({
       projectDisplayMode: state.projectDisplayMode,
       sidebarViewMode: state.sidebarViewMode,
-      projectSortOrder: state.projectSortOrder,
-      showChatsSection: state.showChatsSection,
     }).toEqual({
       projectDisplayMode: 'single',
       sidebarViewMode: 'timeline',
-      projectSortOrder: 'z-a',
-      showChatsSection: false,
     });
   });
 

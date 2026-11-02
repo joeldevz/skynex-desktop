@@ -285,44 +285,6 @@
       "scope": "instance",
       "secret": true
     },
-    "sidebarProjectDisplayMode": {
-      "scope": "profile"
-    },
-    "sidebarViewMode": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarListSessionGrouping": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarGrouping": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarKeepWorkInPlace": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarProjectSortOrder": {
-      "scope": "profile"
-    },
-    "sidebarShowChatsSection": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarShowWorkSection": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarShowPinnedSection": {
-      "scope": "profile",
-      "perSurface": true
-    },
-    "sidebarDetailedZoneRows": {
-      "scope": "profile",
-      "perSurface": true
-    },
     "workStatusSectionOrder": {
       "scope": "profile"
     },

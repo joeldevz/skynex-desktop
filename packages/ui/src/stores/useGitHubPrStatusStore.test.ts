@@ -15,12 +15,13 @@ let runtimeKey = "runtime-a"
 mock.module("@/lib/runtime-switch", () => ({ getRuntimeKey: () => runtimeKey }))
 
 const { trackedItemKey } = await import("@/lib/trackedItems/model")
+const getGitHubPrStatusKey = (directory: string, branch: string, remoteName?: string | null): string =>
+  JSON.stringify([runtimeKey, 'github', 'github.com', directory, branch, remoteName ?? 'auto'])
 const {
   getBranchTrackedPull,
   getFreshestPrStatusForBranch,
   getFreshestActiveSourceControlStatusForBranch,
   getFreshestSourceControlStatusForBranch,
-  getGitHubPrStatusKey,
   getLinkedChangeRequestVisualSummary,
   getSourceControlStatusKey,
   useGitHubPrStatusStore,

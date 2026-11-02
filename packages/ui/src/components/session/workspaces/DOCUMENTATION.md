@@ -4,11 +4,11 @@
 
 The overview edits one workspace through callback props. The parent owns folder picking, persistence, session creation and navigation. Model and agent options come from the parent. This component makes no runtime requests.
 
-`WorkspaceNavigation` binds catalog selection, explicit membership and history access. `WorkspaceSurface` connects the editor to acknowledged catalog writes and `openWorkspaceDraft`. Add folders opens the same directory explorer that adds projects (path field with completion, folder list, checkboxes, quick add, hidden toggle, keyboard), in its folder-pick mode: folders already in the workspace show as added, the clone action and the existing-repository identity step are gone, and a path that does not exist cannot be submitted. Each picked path is read through the runtime files API before it is linked, and no project, clone or directory is created. VS Code offers existing editor roots only, through the plain root list. Catalog reads address only the overview's primary folder; creation validates defaults against its selected primary folder.
+`WorkspaceNavigation` binds catalog selection and explicit membership. Its header holds the sidebar page toggles. `WorkspaceSurface` connects the editor to acknowledged catalog writes and `openWorkspaceDraft`. Add folders opens the same directory explorer that adds projects (path field with completion, folder list, checkboxes, quick add, hidden toggle, keyboard), in its folder-pick mode: folders already in the workspace show as added, the clone action and the existing-repository identity step are gone, and a path that does not exist cannot be submitted. Each picked path is read through the runtime files API before it is linked, and no project, clone or directory is created. VS Code offers existing editor roots only, through the plain root list. Catalog reads address only the overview's primary folder; creation validates defaults against its selected primary folder.
 
-`WorkspaceNavigation` owns the view shell and its pinned footer slot. The parent supplies the sidebar footer and its controller once, outside both the overview and history scrollers; history remains responsible for its own list scrolling.
+`WorkspaceNavigation` owns the view shell and its pinned footer slot. The parent supplies the sidebar footer and its controller once, outside the overview scroller.
 
-The navigation row above the workspace list holds Session history and the sidebar's page toggles: Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks. `SessionSidebar` supplies them as `pageButtons`, so the row shows them in both the workspace view and session history, each pressed while its page is open.
+The navigation row above the workspace list holds the sidebar's page toggles: Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks. `SessionSidebar` supplies them as `pageButtons`, each pressed while its page is open.
 
 The scheduled-task view uses workspace and folder rows as virtual scopes over
 the Chat task store. Selecting a workspace includes its folders; selecting a
@@ -18,7 +18,7 @@ group.
 
 ## Invariants
 
-- The editor has Home, Folders, Sessions and Scheduled tasks tabs. Only the active editor panel occupies space. Panels stay mounted so tab changes retain unsaved fields and the session folder filter. Switching editor tabs performs no writes. Selecting Scheduled tasks opens the shared scheduler with the current workspace preselected; the mobile app routes through its app-surface action so the inline workspace dialog cannot cover the scheduler. Closing the scheduler returns the editor to Home. Errors and deletion confirmation remain outside the panels.
+- The editor has Home, Folders and Scheduled tasks tabs. Only the active editor panel occupies space. Panels stay mounted so tab changes retain unsaved fields. Switching editor tabs performs no writes. Selecting Scheduled tasks opens the shared scheduler with the current workspace preselected; the mobile app routes through its app-surface action so the inline workspace dialog cannot cover the scheduler. Closing the scheduler returns the editor to Home. Errors and deletion confirmation remain outside the panels.
 - Name, description, roles and defaults remain in a draft until Save. Folder unlinking writes immediately through the acknowledged catalog operation; a retained write keeps the folder visible and exposes an error. An acknowledged unlink removes only that folder and preserves unrelated unsaved draft fields.
 - The workspace header action opens a new composer draft with all saved folders selected. A folder-row action opens a new draft with only that saved folder selected. The parent validates scope and defaults before opening the draft.
 - Creation uses saved workspace defaults. Saving the draft updates the defaults used by later sessions when the parent supplies the acknowledged workspace.
@@ -27,17 +27,12 @@ group.
 - The overview has no filesystem creation or terminal actions. Its optional deletion callback supports independent rendering; the production surface always wires it to acknowledged catalog removal.
 - Before opening a composer draft, selected paths pass the existing runtime scope policy. Unsupported isolated-space targets and unavailable folders retain the editor and show a localized error. Folder selection grants no permission.
 - Workspace overview selection is restored from device/runtime-local storage. Explicit session or draft navigation clears that selection without changing open membership.
-- One Sessions section outside the folder editor cards includes root conversations with a captured workspace ID and normalized folder path matching the saved workspace. Without captured scope, an organizational assignment must match the workspace ID before the original directory matches a saved folder. Unassigned legacy roots retain exact-directory discovery. Active and archived global entities participate. Conversations bound to another workspace never fall back to legacy matching. Live activity comes from the session activity owner.
-- The native folder filter defaults to All folders and uses saved folders only. Invalid paths and workspace or runtime changes reset it to All. Filtering changes only the displayed list. Each session ID appears once in source order and shows all matching current folder basenames below its title, including while filtered. Full-path tooltips and full-path select labels disambiguate duplicate basenames. Unsaved folder edits never change discovery.
-- Sessions displays 10 filtered rows per page in source order. Previous, Next and the page count appear only above 10 matches. Folder filter, workspace and runtime changes reset to page 1; tab switches retain the page. Shrinking results clamp the stored page so later growth cannot restore an out-of-range selection. Pagination never loads data or changes open membership.
-- History discovery performs no writes. Explicit legacy selection awaits assignment through the existing runtime-fenced metadata adapter, then durable open membership, then navigation with restore intent. The metadata updater rechecks the selected saved workspace and its current folders against fresh metadata, refusing competing bindings. Existing captured scopes need no assignment. Runtime or workspace selection changes suppress obsolete navigation. Archive state and original directory remain unchanged. Metadata failure leaves membership and navigation untouched. Membership failure retains the acknowledged assignment and shows the existing open failure for explicit retry, without rollback. Failed loads retain available rows, show Retry, and cannot produce an authoritative empty state.
-- After successful history navigation, the mobile sidebar actions provider closes its owning drawer. Shared history reads that provider optionally, so surfaces without a mobile drawer keep the same navigation. Membership failures and stale-runtime completions leave the drawer open.
 
 ## Decisions
 
 ### Why Base UI owns tab interaction
 
-Base UI Tabs provides linked tabs and panels, roving keyboard focus and locale-aware arrow navigation. The controls reuse the shared recessed pill track and raised selection styling. Kept-mounted history pauses its shared clock while hidden and preserves the parent's existing render callback and filter state.
+Base UI Tabs provides linked tabs and panels, roving keyboard focus and locale-aware arrow navigation. The controls reuse the shared recessed pill track and raised selection styling. Kept-mounted panels preserve unsaved editor fields across tab changes.
 
 ### Why Scheduled tasks is a tab-triggered page transition
 
@@ -61,8 +56,4 @@ Local pages slice the filtered global projection into 10 rows, preserving matchi
 
 ### Why the footer belongs to the navigation shell
 
-Workspace and history are alternate views inside one sidebar, so their actions stay mounted in one shared footer instead of being duplicated in either scrolling view. The history list keeps its own scroller while the shell keeps the footer pinned.
-
-### Why assignment precedes explicit membership
-
-The session metadata owns the organizational association across close and reopen. Acknowledging it before saving the open reference retains its workspace label when ordinary explicit navigation reconstructs that reference. A later membership failure leaves the association valid for retry. All shared runtimes use the existing metadata transport; unsupported writes fail without navigation.
+The workspace overview and open-session list share one sidebar shell, so their actions stay mounted in one shared footer outside either scrolling view.

@@ -42,26 +42,6 @@ export const buildWorktreeByPathIndex = <P extends WorktreeIndexProject>(
 };
 
 /**
- * Per-project exact worktree index for `useSessionGrouping`. Same contract as
- * the global index: normalized keys, project-root exclusion, first-wins
- * dedupe. Previously the grouping map kept the last duplicate; unifying on
- * first-wins matches Recent and keeps repeated publishes stable.
- */
-export const buildProjectWorktreeIndex = (
-  availableWorktrees: readonly WorktreeMetadata[],
-  projectRoot: string | null,
-): Map<string, WorktreeMetadata> => {
-  const byPath = new Map<string, WorktreeMetadata>();
-  for (const meta of availableWorktrees) {
-    if (!meta.path) continue;
-    const normalized = normalizePath(meta.path) ?? meta.path;
-    if (!normalized || normalized === projectRoot || byPath.has(normalized)) continue;
-    byPath.set(normalized, meta);
-  }
-  return byPath;
-};
-
-/**
  * Longest-prefix worktree lookup for sessions inside `<worktree>/sub`.
  * Exact matches are included (`directory === path`). Returns null when no
  * indexed worktree contains the directory.
@@ -80,24 +60,4 @@ export const findPrefixWorktreeEntry = <T>(
     }
   }
   return best;
-};
-
-/**
- * Live-first branch invariant: live git status wins over discovered worktree
- * metadata when they disagree. The worktree-root live lookup covers sessions
- * in `<worktree>/sub`, whose own directory rarely has a git-status entry.
- */
-export const resolveBranchLiveFirst = (
-  directory: string,
-  worktreePath: string | null,
-  worktreeBranch: string | null | undefined,
-  gitBranches: ReadonlyMap<string, string | null>,
-): string | null => {
-  const liveAtDirectory = gitBranches.get(directory)?.trim() || null;
-  if (liveAtDirectory) return liveAtDirectory;
-  if (worktreePath && worktreePath !== directory) {
-    const liveAtWorktree = gitBranches.get(worktreePath)?.trim() || null;
-    if (liveAtWorktree) return liveAtWorktree;
-  }
-  return worktreeBranch?.trim() || null;
 };

@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { getNormalizedParentDirectory, normalizePath } from './pathNormalization';
-import { normalizePath as normalizeMobilePath } from '../apps/mobilePaths';
 
 describe('normalizePath', () => {
   describe('non-string inputs', () => {
@@ -126,9 +125,4 @@ describe('normalizePath', () => {
     expect(getNormalizedParentDirectory('/')).toBeNull();
   });
 
-  test('mobile session paths preserve the same filesystem roots', () => {
-    expect(normalizeMobilePath('c:\\')).toBe('C:/');
-    expect(normalizeMobilePath('/')).toBe('/');
-    expect(normalizeMobilePath('\\\\Server\\Share\\')).toBe('//Server/Share');
-  });
 });

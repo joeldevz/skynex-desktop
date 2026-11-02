@@ -8,7 +8,6 @@
 import type { OpenCodeClient } from "@opencode/client"
 import type { Config } from "@/lib/opencode/model"
 import type { ChildStoreManager } from "./child-store"
-import { getSessionMaterializationStatus } from "./materialization"
 import type { State } from "./types"
 
 let _childStores: ChildStoreManager | null = null
@@ -143,13 +142,6 @@ export function getSyncSessionDirectory(sessionId: string): string | null {
 /** Read messages for a session from current directory's child store */
 export function getSyncMessages(sessionId: string, directory?: string) {
   return getDirectoryState(directory)?.message[sessionId] ?? []
-}
-
-/** Read renderability of a session snapshot from current directory's child store */
-export function getSyncSessionMaterializationStatus(sessionId: string, directory?: string) {
-  const state = getDirectoryState(directory)
-  if (!state) return { hasMessages: false, renderable: false, missingPartMessageIDs: [] }
-  return getSessionMaterializationStatus(state, sessionId)
 }
 
 /** Read parts for a message from current directory's child store */

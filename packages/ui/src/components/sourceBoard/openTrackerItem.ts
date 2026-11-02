@@ -144,20 +144,6 @@ export function useShowTrackerItem() {
 }
 
 /**
- * Opens the issues and PRs board on a project's repository; null in VS Code,
- * where there is no board.
- */
-export function useOpenProjectOnBoard(): ((projectId: string) => void) | null {
-    const mobile = useMobileAppActions();
-
-    const openProjectOnBoard = React.useCallback((projectId: string) => {
-        useSourceBoardStore.getState().update({ projectId, tab: 'repository' });
-        openBoard(mobile);
-    }, [mobile]);
-    return isVSCodeRuntime() ? null : openProjectOnBoard;
-}
-
-/**
  * Opens an issue, PR or tracker item a session is linked to
  * (`useShowTrackerItem`). Cmd or Ctrl opens the link itself, as links do; so
  * does anything the app cannot show here.

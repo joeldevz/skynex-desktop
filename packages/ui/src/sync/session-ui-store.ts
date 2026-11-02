@@ -96,7 +96,7 @@ import { getAttachedSessionDirectory } from "./session-worktree-contract"
 import { setSessionOpener } from "./session-navigation"
 import { getRuntimeKey, isTransientRuntimeKey } from "@/lib/runtime-switch"
 import { clearLastActiveSession, persistLastActiveSession, readLastActiveSession } from "./last-session-cache"
-import { createSessionDraftId, useSessionDraftsStore } from "@/stores/useSessionDraftsStore"
+import { createSessionDraftId } from "@/stores/useSessionDraftsStore"
 import { rememberExplicitOpen } from './session-actions'
 import { openSessionsStore, type OpenSessionReference, type MembershipResult } from '@/stores/useOpenSessionsStore'
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore'
@@ -1131,17 +1131,6 @@ export async function materializeOpenDraftSession(selection: {
   // directory scope than the session that was just created.
   const createdDirectory = normalizePath(created.directory ?? draftDirectoryOverride ?? null)
 
-  // A chat started while the Chats section is hidden would be listed nowhere
-  // in the sidebar, so starting one brings the section back.
-  if (isChatDraft && !useSessionDisplayStore.getState().showChatsSection) {
-    useSessionDisplayStore.getState().setShowChatsSection(true)
-    void import("@/lib/persistence")
-      .then(({ updateDesktopSettings }) => updateDesktopSettings({ sidebarShowChatsSection: true }))
-      .catch((error) => {
-        console.warn("Failed to save the shown Chats section:", error)
-      })
-  }
-
   persistDraftTarget({
     projectId: draftProjectId,
     directory: createdDirectory,
@@ -1971,7 +1960,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         }, options?.draftSnapshot)
         if (!createdDraftSession) throw new Error("Failed to create session")
         // The draft is a session now: it leaves the drafts every client lists.
-        if (draft.workDraftId) void useSessionDraftsStore.getState().discard(draft.workDraftId, { final: true }).catch(() => undefined)
 
         const draftParts: Array<{ text: string; attachments?: AttachedFile[]; synthetic?: boolean; metadata?: ContextPartMetadata }> | undefined = createdDraftSession.syntheticParts?.length
           ? [...(additionalParts || []), ...createdDraftSession.syntheticParts]

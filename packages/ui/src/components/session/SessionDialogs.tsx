@@ -13,6 +13,7 @@ import {
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { Icon } from "@/components/icon/Icon";
 import { DirectoryExplorerDialog } from './DirectoryExplorerDialog';
+import { NewWorktreeDialog } from './NewWorktreeDialog';
 import { cn, formatPathForDisplay } from '@/lib/utils';
 import type { Session } from '@/lib/opencode/model';
 import type { WorktreeMetadata } from '@/types/worktree';
@@ -57,6 +58,8 @@ export const SessionDialogs: React.FC = () => {
     const { t } = useI18n();
     const { git, sourceControl } = useRuntimeAPIs();
     const [isDirectoryDialogOpen, setIsDirectoryDialogOpen] = React.useState(false);
+    const isNewWorktreeDialogOpen = useUIStore((state) => state.isNewWorktreeDialogOpen);
+    const setNewWorktreeDialogOpen = useUIStore((state) => state.setNewWorktreeDialogOpen);
     const [deleteDialog, setDeleteDialog] = React.useState<DeleteDialogState | null>(null);
     const [deleteDialogSummaries, setDeleteDialogSummaries] = React.useState<Array<{ session: Session; metadata: WorktreeMetadata }>>([]);
     const [deleteDialogShouldRemoveRemote, setDeleteDialogShouldRemoveRemote] = React.useState(false);
@@ -835,6 +838,18 @@ export const SessionDialogs: React.FC = () => {
             <DirectoryExplorerDialog
                 open={isDirectoryDialogOpen}
                 onOpenChange={setIsDirectoryDialogOpen}
+            />
+            <NewWorktreeDialog
+                open={isNewWorktreeDialogOpen}
+                onOpenChange={setNewWorktreeDialogOpen}
+                onWorktreeCreated={(worktreePath) => {
+                    useUIStore.getState().closeMainSurfaces();
+                    if (isMobile) useUIStore.getState().setSessionSwitcherOpen(false);
+                    useSessionUIStore.getState().openNewSessionDraft({
+                        directoryOverride: worktreePath,
+                        preserveDirectoryOverride: true,
+                    });
+                }}
             />
         </>
     );

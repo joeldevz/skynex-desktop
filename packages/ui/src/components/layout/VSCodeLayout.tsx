@@ -18,7 +18,6 @@ import { ArchiveAllDropdown } from '@/components/session/ArchiveAllDropdown';
 import { SessionSwitcherDropdown } from '@/components/session/SessionSwitcherDropdown';
 import { SessionsTabTitle } from '@/components/session/SessionsTabTitle';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { getVSCodeBootstrapConfig, getVSCodeBootstrapWorkspaceFolder } from '@/lib/vscodeBootstrap';
 import { cn } from '@/lib/utils';
 import { normalizePath } from '@/lib/pathNormalization';
@@ -566,8 +565,6 @@ export const VSCodeLayout: React.FC = () => {
           >
             <SessionSidebar
               mobileVariant
-              allowReselect
-              hideDirectoryControls
             />
             <div
               className={cn(
@@ -613,9 +610,7 @@ export const VSCodeLayout: React.FC = () => {
               <div className="flex-1 overflow-hidden">
                 <SessionSidebar
                   mobileVariant
-                  allowReselect
                   onSessionSelected={handleSessionSelected}
-                  hideDirectoryControls
                 />
               </div>
             </div>
@@ -663,8 +658,6 @@ interface VSCodeHeaderProps {
 
 const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, onArchiveAll, onNewSession, onSettings, showMcp, showContextUsage, showRateLimits, enableSessionSwitcher }) => {
   const { t } = useI18n();
-  const showArchivedSessions = useSessionDisplayStore((state) => state.showArchivedSessions);
-  const toggleArchivedSessions = useSessionDisplayStore((state) => state.toggleArchivedSessions);
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const activeProjectId = useProjectsStore((state) => state.activeProjectId);
   // Same rollup the work-status panel reports, so the header and the panel
@@ -771,21 +764,6 @@ const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, on
         <SessionsTabTitle title={title} />
       )}
       <div className="min-w-0 flex-1" />
-      {onArchiveAll && (
-        <button
-          type="button"
-          onClick={toggleArchivedSessions}
-          className={cn(
-            'inline-flex h-8 w-8 items-center justify-center p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            showArchivedSessions ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
-          )}
-          aria-label={t('sessions.sidebar.header.displayMode.showArchived')}
-          aria-pressed={showArchivedSessions}
-          title={t('sessions.sidebar.header.displayMode.showArchived')}
-        >
-          <Icon name="archive-stack" className="h-5 w-5" />
-        </button>
-      )}
       {onArchiveAll && <ArchiveAllDropdown onArchiveAll={onArchiveAll} />}
       {onNewSession && (
         <button

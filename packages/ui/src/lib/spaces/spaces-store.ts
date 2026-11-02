@@ -289,16 +289,6 @@ const isStoppedEntry = (entry: SpaceEntry | undefined): boolean => entry?.state 
 
 export const isSpaceStopped = (spaceId: string): boolean => isStoppedEntry(useSpacesStore.getState().journey?.get(spaceId));
 
-/**
- * Whether a space's group offers no new session: its making failed, here or in a host that quit
- * before the code arrived, its container is gone, or its machine cannot be reached. A new session
- * there would open in an empty folder or fail, so the group offers none.
- */
-const spaceTakesNoNewSession = (entry: SpaceEntry | undefined): boolean => entry?.state === 'failed' || entry?.state === 'missing' || entry?.state === 'unreachable';
-
-export const useSpaceTakesNoNewSession = (spaceId: string | null | undefined): boolean =>
-  useSpacesStore((state) => spaceId != null && spaceTakesNoNewSession(state.journey?.get(spaceId)));
-
 export const isSpaceDirectoryStopped = (directory: string | null | undefined): boolean => {
   const spaceId = spaceIdOfDirectory(directory);
   return spaceId !== null && isSpaceStopped(spaceId);
@@ -329,27 +319,6 @@ export const spaceIdsGone = (previous: ReadonlySet<string>, next: ReadonlySet<st
 export const useSpaceDirectoryStopped = (directory: string | null | undefined): boolean => {
   const spaceId = spaceIdOfDirectory(directory);
   return useSpacesStore((state) => spaceId !== null && isStoppedEntry(state.journey?.get(spaceId)));
-};
-
-/**
- * The spaces the sidebar shows a group for: every space the session list marked, and the ones
- * only the journey list knows, a space being made or whose making failed among them, so its group
- * appears the moment it exists. A journey-only space has no session list yet, so it is not stale.
- */
-const mergeSidebarSpaces = (marks: ReadonlyMap<string, SpaceMark>, journey: ReadonlyMap<string, SpaceEntry> | null): SpaceMark[] => {
-  const merged = Array.from(marks.values());
-  for (const entry of journey?.values() ?? []) {
-    if (marks.has(entry.id) || entry.projectDirectory === null || entry.directory === null) continue;
-    merged.push({ id: entry.id, name: entry.name, state: 'complete', projectDirectory: entry.projectDirectory, directory: entry.directory });
-  }
-  return merged;
-};
-
-/** `enabled: false` reads nothing and returns no spaces, for a caller that needs them only some of the time. */
-export const useSidebarSpaces = (enabled = true): SpaceMark[] => {
-  const marks = useSpacesStore((state) => (enabled ? state.spaces : EMPTY));
-  const journey = useSpacesStore((state) => (enabled ? state.journey : null));
-  return React.useMemo(() => mergeSidebarSpaces(marks, journey), [journey, marks]);
 };
 
 /** The spaces of one registered project, in the host's order, for its spaces page (journey step 9). */

@@ -14,7 +14,6 @@ import type { SessionContextUsage } from '@/stores/types/sessionTypes'
 import {
   SyncProvider,
   useDirectoryStore,
-  useLiveSessionsExcluding,
   useSessionDirectory,
   useSessionMessagesSelector,
   useSessionSelector,
@@ -77,22 +76,20 @@ type Readings = {
   agent: string | undefined
   recordChoice: UserModelChoice | null
   contextUsage: SessionContextUsage | null
-  liveGap: Session[]
 }
 
 let store: ReturnType<typeof useDirectoryStore> | null = null
 let readings: Readings | null = null
 let renders = 0
 
-const Probe = ({ excludedIds }: { excludedIds: ReadonlySet<string> }) => {
+const Probe = () => {
   store = useDirectoryStore(DIR, { bootstrap: false })
   const directory = useSessionDirectory(SESSION_ID, DIR)
   const agent = useSessionSelector(SESSION_ID, DIR, selectRecordAgent)
   const recordChoice = useSessionSelector(SESSION_ID, DIR, extractSessionRecordModelChoice, areModelChoicesEqual)
   const selectUsage = React.useCallback((messages: Message[]) => buildSessionContextUsage(messages, 200_000, 32_000), [])
   const contextUsage = useSessionMessagesSelector(SESSION_ID, DIR, selectUsage, isSameContextUsage)
-  const liveGap = useLiveSessionsExcluding(excludedIds)
-  readings = { directory, agent, recordChoice, contextUsage, liveGap }
+  readings = { directory, agent, recordChoice, contextUsage }
   renders += 1
   return null
 }
@@ -103,10 +100,10 @@ describe('session leaf subscriptions', () => {
   let restoreSpies: Array<() => void>
   let previousSurface: typeof window.__OPENCHAMBER_SURFACE__
 
-  const render = async (excludedIds: ReadonlySet<string>) => {
+  const render = async () => {
     await act(async () => root.render(
       <SyncProvider sdk={createSdk()} directory="">
-        <Probe excludedIds={excludedIds} />
+        <Probe />
       </SyncProvider>,
     ))
   }
@@ -144,8 +141,7 @@ describe('session leaf subscriptions', () => {
   })
 
   test('a time-only session update and a re-sent message list do not re-render', async () => {
-    const excluded = new Set([SESSION_ID])
-    await render(excluded)
+    await render()
     await seed([session()], [assistant('msg_1', 50_000)])
 
     expect(readings?.directory).toBe(DIR)
@@ -158,7 +154,6 @@ describe('session leaf subscriptions', () => {
       variant: 'high',
     })
     expect(readings?.contextUsage).toMatchObject({ state: 'measured', totalTokens: 50_000, percentage: 25 })
-    expect(readings?.liveGap).toEqual([])
 
     const settled = renders
     const choice = readings?.recordChoice
@@ -175,7 +170,7 @@ describe('session leaf subscriptions', () => {
   })
 
   test('each rendered value still follows a real change', async () => {
-    await render(new Set([SESSION_ID]))
+    await render()
     await seed([session()], [assistant('msg_1', 50_000)])
 
     await seed([session({ model: { providerID: 'openai', id: 'gpt', variant: 'high' } })], [assistant('msg_1', 50_000)])
@@ -197,25 +192,4 @@ describe('session leaf subscriptions', () => {
     expect(readings?.contextUsage).toBeNull()
   })
 
-  test('live sessions the caller excludes do not re-render it; the rest still do', async () => {
-    const gapSession = session({ id: 'ses_gap', title: 'Gap', time: { created: 1, updated: 1 } })
-    await render(new Set([SESSION_ID]))
-    await seed([session(), gapSession], [])
-    expect(readings?.liveGap.map((entry) => entry.id)).toEqual(['ses_gap'])
-
-    const settled = renders
-    const gap = readings?.liveGap
-    for (let step = 2; step < 8; step += 1) {
-      await seed([session({ time: { created: 1, updated: step } }), gapSession], [])
-    }
-    expect(renders).toBe(settled)
-    expect(readings?.liveGap).toBe(gap)
-
-    await seed([session({ time: { created: 1, updated: 9 } }), { ...gapSession, title: 'Renamed' }], [])
-    expect(readings?.liveGap.map((entry) => entry.title)).toEqual(['Renamed'])
-
-    // Once the global cache holds the session, it leaves the gap.
-    await render(new Set([SESSION_ID, 'ses_gap']))
-    expect(readings?.liveGap).toEqual([])
-  })
 })

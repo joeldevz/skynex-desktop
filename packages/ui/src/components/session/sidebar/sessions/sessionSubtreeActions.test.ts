@@ -5,7 +5,6 @@ import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import {
-  buildActiveSessionTreeFromCache,
   collectSessionMoveDescendants,
   collectSessionSubtreeIds,
   runSessionSubtreeAction,
@@ -170,26 +169,6 @@ describe('collectSessionSubtreeIds', () => {
   });
 });
 
-describe('buildActiveSessionTreeFromCache', () => {
-  beforeEach(resetGlobalSessions);
-
-  test('builds the nested active tree a flat row does not render', () => {
-    useGlobalSessionsStore.getState().upsertSessions([
-      linked('root', null),
-      linked('child', 'root'),
-      linked('grandchild', 'child'),
-      linked('archived-child', 'root', 5),
-      linked('below-archived', 'archived-child'),
-    ]);
-
-    const tree = buildActiveSessionTreeFromCache(linked('root', null));
-    expect(tree.session.id).toBe('root');
-    expect(tree.children.map((child) => child.session.id)).toEqual(['child']);
-    expect(tree.children[0].children.map((child) => child.session.id)).toEqual(['grandchild']);
-    expect(tree.children[0].children[0].children).toEqual([]);
-  });
-});
-
 describe('collectSessionMoveDescendants', () => {
   const ids = (sessions: Session[]) => sessions.map((entry) => entry.id);
 
@@ -247,9 +226,7 @@ describe('the same root from the project tree and from a flat row', () => {
     ]);
     const root = linked('root', null);
     // The project tree renders the active tree; a flat row renders no children.
-    const treeDescendants = (function collect(node: ReturnType<typeof buildActiveSessionTreeFromCache>): Session[] {
-      return node.children.flatMap((child) => [child.session, ...collect(child)]);
-    })(buildActiveSessionTreeFromCache(root));
+    const treeDescendants = [linked('a', 'root'), linked('b', 'a')];
     expect(ids(treeDescendants)).toEqual(['a', 'b']);
 
     expect(ids(collectSessionMoveDescendants(root, treeDescendants))).toEqual(ids(collectSessionMoveDescendants(root, [])));

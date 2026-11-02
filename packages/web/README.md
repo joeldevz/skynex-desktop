@@ -236,7 +236,7 @@ systemctl --user enable --now opencode openchamber
 ## What makes the web version special
 
 - **Remote access** - Cloudflare tunnel with QR onboarding. Scan from your phone, start coding.
-- **Mobile-first PWA** - optimized chat controls, keyboard-safe layouts, drag-to-reorder projects
+- **Mobile-first PWA** - optimized chat controls, keyboard-safe layouts, and a workspace overview in the sessions drawer
 - **Background notifications** - know when your agent finishes, even from another tab
 - **Self-update** - update and restart from the UI, server settings stay intact
 - **Cross-tab tracking** - session activity stays in sync across browser tabs

@@ -89,7 +89,7 @@ const LeftSidebar = React.memo<{ isMobile: boolean }>(({ isMobile }) => {
             topBar={<SidebarTopBar />}
             peek={peek}
         >
-            <SessionSidebar isVisible={isSidebarOpen || peek.state !== false} />
+            <SessionSidebar />
         </Sidebar>
     );
 });

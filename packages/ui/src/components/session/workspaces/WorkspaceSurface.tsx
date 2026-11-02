@@ -1,6 +1,5 @@
 import React from 'react';
 import { WorkspaceOverview } from './WorkspaceOverview';
-import { useWorkspaceFolderHistory } from './WorkspaceFolderHistory';
 import { DirectoryExplorerDialog } from '../DirectoryExplorerDialog';
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useConfigStore, selectProvidersForDirectory, selectConfigAgentsForDirectory } from '@/stores/useConfigStore';
@@ -20,7 +19,6 @@ export function WorkspaceSurface() {
   const mobileActions = useMobileAppActions();
   const workspace = useWorkspacesStore((state) => state.catalog.workspaces.find((entry) => entry.id === state.selectedWorkspaceId));
   const primary = workspace?.folders[0]?.path;
-  const renderWorkspaceHistory = useWorkspaceFolderHistory(workspace);
   const scheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
   const sourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
   const providers = useConfigStore((state) => selectProvidersForDirectory(state, primary));
@@ -35,7 +33,7 @@ export function WorkspaceSurface() {
   if (!workspace) return null;
   const models = providers.flatMap((provider) => provider.models.map((model) => ({ label: `${provider.name} / ${model.name}`, value: { providerID: provider.id, id: model.id } })));
   return <div className="h-full overflow-y-auto bg-background">
-    <WorkspaceOverview workspace={workspace} models={models} agents={agents.map((agent) => ({ label: agent.displayName, value: agent.name }))} renderWorkspaceHistory={renderWorkspaceHistory}
+    <WorkspaceOverview workspace={workspace} models={models} agents={agents.map((agent) => ({ label: agent.displayName, value: agent.name }))}
       onOpenScheduledTasks={() => {
         if (mobileActions?.openScheduledTasks) mobileActions.openScheduledTasks();
         else useUIStore.getState().setScheduledTasksDialogOpen(true);

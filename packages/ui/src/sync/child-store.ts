@@ -80,42 +80,12 @@ export function subscribeDirectoryPermission(
   return subscribeBlockingRequest(permissionSubscribersByStore, store, sessionID, listener)
 }
 
-export function subscribeDirectoryPermissions(
-  store: StoreApi<DirectoryStore>,
-  sessionIDs: readonly string[],
-  listener: BlockingRequestSubscriber,
-): () => void {
-  return subscribeBlockingRequests(permissionSubscribersByStore, store, sessionIDs, listener)
-}
-
 export function subscribeDirectoryForm(
   store: StoreApi<DirectoryStore>,
   sessionID: string,
   listener: BlockingRequestSubscriber,
 ): () => void {
   return subscribeBlockingRequest(formSubscribersByStore, store, sessionID, listener)
-}
-
-export function subscribeDirectoryForms(
-  store: StoreApi<DirectoryStore>,
-  sessionIDs: readonly string[],
-  listener: BlockingRequestSubscriber,
-): () => void {
-  return subscribeBlockingRequests(formSubscribersByStore, store, sessionIDs, listener)
-}
-
-function subscribeBlockingRequests(
-  subscribersByStore: BlockingRequestSubscribers,
-  store: StoreApi<DirectoryStore>,
-  sessionIDs: readonly string[],
-  listener: BlockingRequestSubscriber,
-): () => void {
-  const unsubscribers = [...new Set(sessionIDs.filter(Boolean))].map((sessionID) => (
-    subscribeBlockingRequest(subscribersByStore, store, sessionID, listener)
-  ))
-  return () => {
-    for (const unsubscribe of unsubscribers) unsubscribe()
-  }
 }
 
 function subscribeBlockingRequest(

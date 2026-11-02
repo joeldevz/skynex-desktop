@@ -261,15 +261,6 @@ export function useSync() {
   )
 }
 
-export function usePrefetchSessionMessages() {
-  const { messageLoader, runtimeKey } = useSyncRuntime()
-
-  return useCallback(async ({ directory, sessionID }: { directory: string; sessionID: string }) => {
-    if (getRuntimeKey() !== runtimeKey) return
-    await messageLoader.prefetch({ directory, sessionID })
-  }, [messageLoader, runtimeKey])
-}
-
 export function useSessionMessageRecordsForExport() {
   const { childStores, messageLoader, runtimeKey } = useSyncRuntime()
   const touch = useSessionCacheTouch()

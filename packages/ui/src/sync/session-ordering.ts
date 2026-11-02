@@ -196,7 +196,7 @@ export const raiseSessionOrderingBaselines = (sessions: Iterable<Session>): void
   }
 };
 
-export const getSessionLifecycleOrderValue = (
+const getSessionLifecycleOrderValue = (
   session: Session,
   rankById: ReadonlyMap<string, number>,
   pinned = false,

@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client';
 import { ThemeSystemProvider } from '@/contexts/ThemeSystemContext';
 import { I18nProvider } from '@/lib/i18n';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { SettingsProjectSelector } from './SettingsProjectSelector';
 
@@ -17,9 +16,7 @@ test('mobile picker lists every project in the sidebar order and changes only th
   const projects = Array.from({ length: 55 }, (_, index) => ({ id: `project-${index}`, path: `/projects/${index}`, label: `Project ${String(index).padStart(2, '0')}` }));
   const initialProjects = useProjectsStore.getState();
   const initialUI = useUIStore.getState();
-  const initialDisplay = useSessionDisplayStore.getState();
-  // The sidebar sorts A to Z, so the reversed stored order must come out ascending.
-  useSessionDisplayStore.setState({ sidebarViewMode: 'projects', projectSortOrder: 'a-z' });
+  // The selector follows the fixed order in the project store.
   useProjectsStore.setState({ projects: [...projects].reverse(), activeProjectId: projects[0].id });
   useUIStore.setState({ isMobile: true, settingsProjectPath: null });
   const container = document.createElement('div');
@@ -33,9 +30,9 @@ test('mobile picker lists every project in the sidebar order and changes only th
     const dialog = document.querySelector('[role="dialog"]');
     const rows = Array.from(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? []).filter((row) => row.textContent?.startsWith('Project '));
     expect(rows).toHaveLength(55);
-    expect(rows[0].textContent).toBe('Project 00');
-    expect(rows[54].textContent).toBe('Project 54');
-    await act(async () => rows[54].click());
+    expect(rows[0].textContent).toBe('Project 54');
+    expect(rows[54].textContent).toBe('Project 00');
+    await act(async () => rows[0].click());
     expect(useUIStore.getState().settingsProjectPath).toBe('/projects/54');
     expect(useProjectsStore.getState().activeProjectId).toBe('project-0');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -46,7 +43,6 @@ test('mobile picker lists every project in the sidebar order and changes only th
     await act(async () => root.unmount());
     useProjectsStore.setState(initialProjects);
     useUIStore.setState(initialUI);
-    useSessionDisplayStore.setState(initialDisplay);
     for (const [key, descriptor] of previous) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
       else Reflect.deleteProperty(globalThis, key);

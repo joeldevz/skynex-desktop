@@ -1358,7 +1358,7 @@ selector. The same holds for a directory's session list: `useSessions`
 changes on every streamed step, so a reader that needs when sessions started
 uses `useSessionStartTimes`, which changes only when a session is added or
 removed. A list that must ignore sessions another source already holds reads
-`useLiveSessionsExcluding(ids)` instead of filtering `useAllLiveSessions()`.
+its live session source and filters the result at the call site.
 
 ## Store splitting pattern
 

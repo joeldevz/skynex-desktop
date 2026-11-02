@@ -32,11 +32,6 @@ export type MultiRunIndex = {
   runKeyBySessionId: ReadonlyMap<string, string>;
 };
 
-export const EMPTY_MULTI_RUN_INDEX: MultiRunIndex = Object.freeze({
-  runs: new Map(),
-  runKeyBySessionId: new Map(),
-});
-
 // Session records are replaced on every update, so the object is a complete
 // cache key: an unchanged session is never parsed twice. The legacy scope is
 // part of the key because a title-only identity depends on it.

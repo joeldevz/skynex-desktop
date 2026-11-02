@@ -126,6 +126,7 @@ test('C1/C6 overview saves explicit documentation/default edits and unlinks with
   await withOverview(async (ui) => {
     const f = fixture();
     await ui.render(f.props);
+    expect([...ui.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim())).not.toContain('Sessions');
     expect(f.updates).toEqual([]);
     await ui.edit('Workspace name', 'Product next');
     await ui.edit('Description', 'Explicitly revised');

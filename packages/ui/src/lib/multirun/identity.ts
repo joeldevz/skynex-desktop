@@ -121,14 +121,3 @@ export function withMultiRunMembership(session: Pick<Session, 'metadata'>, membe
 export const multiRunMembershipPatch = (membership: MultiRunMembership): Metadata => ({
   openchamber: { multirun: membershipMetadata(membership) },
 });
-
-/** Compare only the metadata this feature renders, without scanning other sessions. */
-export function sameMultiRunIdentity(a: Session, b: Session): boolean {
-  if (a.id === b.id && a.metadata === b.metadata && a.title === b.title && a.directory === b.directory && a.parentID === b.parentID) return true;
-  const left = getMultiRunIdentity(a);
-  const right = getMultiRunIdentity(b);
-  if (!left || !right) return left === right;
-  return left.key === right.key && left.runGroup === right.runGroup && left.role === right.role
-    && left.groupSlug === right.groupSlug && left.providerID === right.providerID
-    && left.modelID === right.modelID && left.index === right.index && left.title === right.title;
-}

@@ -54,7 +54,6 @@ interface ProjectsStore {
   serverSnapshotFailed: boolean;
   projects: ProjectEntry[];
   activeProjectId: string | null;
-  manualProjectOrder: string[];
 
   addProject: (path: string, options?: { label?: string; id?: string }) => Promise<ProjectEntry | null>;
   addProjects: (paths: string[]) => Promise<ProjectEntry[]>;
@@ -74,7 +73,6 @@ interface ProjectsStore {
   uploadProjectIcon: (id: string, file: File) => Promise<{ ok: boolean; error?: string }>;
   removeProjectIcon: (id: string) => Promise<{ ok: boolean; error?: string }>;
   discoverProjectIcon: (id: string, options?: { force?: boolean }) => Promise<{ ok: boolean; skipped?: boolean; reason?: string; error?: string }>;
-  reorderProjects: (fromIndex: number, toIndex: number) => void;
   resetForRuntimeSwitch: () => void;
   validateProjectPath: (path: string) => ProjectPathValidationResult;
   synchronizeFromSettings: (settings: DesktopSettings, options?: { adoptActiveProject?: boolean }) => void;
@@ -342,17 +340,6 @@ const readPersistedProjects = (): ProjectEntry[] => {
   }
 };
 
-const readPersistedManualOrder = (): string[] => {
-  try {
-    const raw = safeStorage.getItem(getProjectsStorageKey() + ':manualOrder');
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-};
-
 const readPersistedActiveProjectId = (): string | null => {
   try {
     const raw = safeStorage.getItem(getActiveProjectStorageKey())
@@ -388,21 +375,21 @@ const cacheProjects = (projects: ProjectEntry[], activeProjectId: string | null)
   cacheActiveProjectId(activeProjectId);
 };
 
-const persistProjects = (projects: ProjectEntry[], activeProjectId: string | null, manualOrder?: string[]) => {
+const persistProjects = (projects: ProjectEntry[], activeProjectId: string | null) => {
   cacheProjects(projects, activeProjectId);
-  if (manualOrder) {
-    persistManualProjectOrder(manualOrder);
-  }
   void updateDesktopSettings({ projects, activeProjectId: activeProjectId ?? undefined });
 };
 
-const persistManualProjectOrder = (manualOrder: string[]) => {
+const removePersistedManualProjectOrder = () => {
   try {
-    safeStorage.setItem(getProjectsStorageKey() + ':manualOrder', JSON.stringify(manualOrder));
+    safeStorage.removeItem(`${getProjectsStorageKey()}:manualOrder`);
+    if (shouldReadLegacyProjectsCache()) safeStorage.removeItem(`${PROJECTS_STORAGE_KEY}:manualOrder`);
   } catch {
     // ignored
   }
 };
+
+removePersistedManualProjectOrder();
 
 const initialProjects = readPersistedProjects();
 const normalizeVSCodeWorkspaceFolders = (folders: VSCodeWorkspaceFolderConfig[]): VSCodeWorkspaceFolderConfig[] => {
@@ -581,7 +568,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     hasServerSnapshot: false,
     serverSnapshotFailed: false,
     activeProjectId: initialActiveProjectId,
-    manualProjectOrder: readPersistedManualOrder(),
 
     validateProjectPath: (path: string): ProjectPathValidationResult => {
       if (typeof path !== 'string' || path.trim().length === 0) {
@@ -734,9 +720,8 @@ export const useProjectsStore = create<ProjectsStore>()(
         nextActiveId = nextProjects[0]?.id ?? null;
       }
 
-      const nextManualOrder = get().manualProjectOrder.filter((oid) => oid !== id);
-      set({ projects: nextProjects, activeProjectId: nextActiveId, manualProjectOrder: nextManualOrder });
-      persistProjects(nextProjects, nextActiveId, nextManualOrder);
+      set({ projects: nextProjects, activeProjectId: nextActiveId });
+      persistProjects(nextProjects, nextActiveId);
 
       // Clean up worktree entries for the removed project
       if (project) {
@@ -790,7 +775,7 @@ export const useProjectsStore = create<ProjectsStore>()(
       );
 
       set({ projects: nextProjects, activeProjectId: id });
-      persistProjects(nextProjects, id, get().manualProjectOrder);
+      persistProjects(nextProjects, id);
 
       opencodeClient.setDirectory(target.path);
       useDirectoryStore.getState().setDirectory(target.path, { showOverlay: false });
@@ -827,7 +812,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         project.id === id ? { ...project, label: trimmed } : project
       );
       set({ projects: nextProjects });
-      persistProjects(nextProjects, activeProjectId, get().manualProjectOrder);
+      persistProjects(nextProjects, activeProjectId);
     },
 
     updateProjectMeta: (id: string, meta: {
@@ -887,7 +872,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         return updated;
       });
       set({ projects: nextProjects });
-      persistProjects(nextProjects, activeProjectId, get().manualProjectOrder);
+      persistProjects(nextProjects, activeProjectId);
     },
 
     uploadProjectIcon: async (id: string, file: File) => {
@@ -1005,31 +990,8 @@ export const useProjectsStore = create<ProjectsStore>()(
       }
     },
 
-    reorderProjects: (fromIndex: number, toIndex: number) => {
-      if (isVSCodeProjectsRuntime) {
-        return;
-      }
-      const { projects, activeProjectId } = get();
-      if (
-        fromIndex < 0 ||
-        fromIndex >= projects.length ||
-        toIndex < 0 ||
-        toIndex >= projects.length ||
-        fromIndex === toIndex
-      ) {
-        return;
-      }
-
-      const nextProjects = [...projects];
-      const [moved] = nextProjects.splice(fromIndex, 1);
-      nextProjects.splice(toIndex, 0, moved);
-
-      const newOrder = nextProjects.map((p) => p.id);
-      set({ projects: nextProjects, manualProjectOrder: newOrder });
-      persistProjects(nextProjects, activeProjectId, newOrder);
-    },
-
     resetForRuntimeSwitch: () => {
+      removePersistedManualProjectOrder();
       set({ hasServerSnapshot: false, serverSnapshotFailed: false });
       if (isVSCodeProjectsRuntime) {
         return;
@@ -1039,7 +1001,7 @@ export const useProjectsStore = create<ProjectsStore>()(
       const nextActiveProjectId = projects.some((project) => project.id === activeProjectId)
         ? activeProjectId
         : projects[0]?.id ?? null;
-      set({ projects, activeProjectId: nextActiveProjectId, manualProjectOrder: [] });
+      set({ projects, activeProjectId: nextActiveProjectId });
     },
 
     synchronizeFromSettings: (settings: DesktopSettings, options?: { adoptActiveProject?: boolean }) => {
@@ -1073,10 +1035,8 @@ export const useProjectsStore = create<ProjectsStore>()(
         return;
       }
 
-      const cleanedOrder = get().manualProjectOrder.filter((id) => incomingIds.has(id));
-      set({ projects: incomingProjects, activeProjectId: nextActive, manualProjectOrder: cleanedOrder });
+      set({ projects: incomingProjects, activeProjectId: nextActive });
       cacheProjects(incomingProjects, nextActive);
-      persistManualProjectOrder(cleanedOrder);
 
       if (activeChanged && nextActive) {
         const activeProject = incomingProjects.find((project) => project.id === nextActive);

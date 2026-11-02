@@ -28,34 +28,16 @@ describe('useSessionDisplayStore detailed rows', () => {
   });
 });
 
-describe('useSessionDisplayStore project sorting', () => {
-  test('defaults to manual ordering', () => {
-    expect(useSessionDisplayStore.getState().projectSortOrder).toBe('manual');
-  });
-
-  test('migrates the v2 recent default to manual', () => {
-    const migrated = migrateSessionDisplayState({ projectSortOrder: 'recent' }, 2);
-
-    expect(migrated.projectSortOrder).toBe('manual');
-  });
-
-  for (const projectSortOrder of ['manual', 'a-z', 'z-a', 'date-added'] as const) {
-    test(`preserves the v2 ${projectSortOrder} sort order`, () => {
-      const migrated = migrateSessionDisplayState({ projectSortOrder }, 2);
-
-      expect(migrated.projectSortOrder).toBe(projectSortOrder);
-    });
-  }
-
-  test('v3→v4 drops the removed displayMode key and keeps the rest', () => {
+describe('useSessionDisplayStore removed settings', () => {
+  test('v15 drops obsolete Chats visibility and project ordering keys', () => {
     const migrated = migrateSessionDisplayState(
-      { displayMode: 'default', projectSortOrder: 'a-z', showArchivedSessions: true },
-      3,
+      { showChatsSection: false, projectSortOrder: 'z-a', sidebarViewMode: 'projects' },
+      14,
     );
 
-    expect('displayMode' in migrated).toBe(false);
-    expect(migrated.projectSortOrder).toBe('a-z');
-    expect(migrated.showArchivedSessions).toBe(true);
+    expect('showChatsSection' in migrated).toBe(false);
+    expect('projectSortOrder' in migrated).toBe(false);
+    expect(migrated.sidebarViewMode).toBe('projects');
   });
 });
 
@@ -88,20 +70,18 @@ describe('useSessionDisplayStore view mode', () => {
   });
 
   test('v9→v10 drops the removed Recent toggle and keeps the rest', () => {
-    const migrated = migrateSessionDisplayState({ showRecentSection: true, projectSortOrder: 'a-z' }, 9);
+    const migrated = migrateSessionDisplayState({ showRecentSection: true }, 9);
 
     expect('showRecentSection' in migrated).toBe(false);
-    expect(migrated.projectSortOrder).toBe('a-z');
   });
 
   test('v5→v6 drops the removed grouping key and keeps the rest', () => {
     const migrated = migrateSessionDisplayState(
-      { sessionGroupingMode: 'flat', projectSortOrder: 'a-z' },
+      { sessionGroupingMode: 'flat' },
       5,
     );
 
     expect('sessionGroupingMode' in migrated).toBe(false);
-    expect(migrated.projectSortOrder).toBe('a-z');
   });
 });
 
@@ -121,7 +101,7 @@ describe('useSessionDisplayStore animated activity', () => {
       await useSessionDisplayStore.persist.rehydrate();
       expect(useSessionDisplayStore.getState().animatedActivityIndicators).toBe(false);
       expect(useSessionDisplayStore.getState().sidebarViewMode).toBe('timeline');
-      expect(useSessionDisplayStore.persist.getOptions().version).toBe(12);
+       expect(useSessionDisplayStore.persist.getOptions().version).toBe(15);
       useSessionDisplayStore.getState().setAnimatedActivityIndicators(true);
       const enabledSnapshot = stored;
       useSessionDisplayStore.setState({ animatedActivityIndicators: false });

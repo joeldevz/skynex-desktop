@@ -157,6 +157,35 @@ function createComposer(parent: HTMLElement) {
   return composer;
 }
 
+test('Open recent sessions opens the dropdown with the sidebar open or closed', async () => {
+  const initial = useUIStore.getState();
+  try {
+    await withShortcutsMounted(async () => {
+      const input = document.createElement('input');
+      document.body.append(input);
+      input.focus();
+      for (const isSidebarOpen of [false, true]) {
+        useUIStore.setState({
+          isMobile: false,
+          isSidebarOpen,
+          isSessionDropdownOpen: false,
+          shortcutOverrides: {},
+        });
+        const key = async (value: string, code: string, ctrlKey = false) => {
+          const event = new KeyboardEvent('keydown', { key: value, code, ctrlKey, bubbles: true, cancelable: true });
+          await act(async () => { input.dispatchEvent(event); });
+          return event;
+        };
+        expect((await key('k', 'KeyK', true)).defaultPrevented).toBe(true);
+        expect((await key('l', 'KeyL')).defaultPrevented).toBe(true);
+        expect(useUIStore.getState().isSessionDropdownOpen).toBe(true);
+      }
+    });
+  } finally {
+    useUIStore.setState(initial, true);
+  }
+});
+
 test('Ctrl+L adds a selection outside chat and yields to a sequence without one', async () => {
   const previousOverrides = useUIStore.getState().shortcutOverrides;
   await withShortcutsMounted(async () => {
