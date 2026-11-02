@@ -188,12 +188,12 @@ describe('settings runtime', () => {
     }
   });
 
-  it('uses OpenChamber themes when a new install has no theme preferences', async () => {
+  it('uses Skynex themes when a new install has no theme preferences', async () => {
     const { runtime, cleanup } = await createRuntime();
     try {
       await expect(runtime.readSettingsFromDiskMigrated()).resolves.toMatchObject({
-        lightThemeId: 'openchamber-light',
-        darkThemeId: 'openchamber-dark',
+        lightThemeId: 'skynex-light',
+        darkThemeId: 'skynex-dark',
       });
     } finally {
       await cleanup();

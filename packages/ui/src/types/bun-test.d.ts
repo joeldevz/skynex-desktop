@@ -3,20 +3,25 @@
 
 declare module "bun:test" {
   export function describe(name: string, fn: () => void): void;
-  export function test(name: string, fn: () => void | Promise<void>, timeoutMs?: number): void;
+  type EachArgs<T> = T extends readonly unknown[] ? T : [T];
+  export const test: {
+    (name: string, fn: () => void | Promise<void>, timeoutMs?: number): void;
+    each<T>(cases: readonly T[]): (name: string, fn: (...args: EachArgs<T>) => void | Promise<void>) => void;
+  };
   export interface ExpectResult {
     toEqual(expected: unknown): void;
     toBe(expected: unknown): void;
     toBeTruthy(): void;
     toBeFalsy(): void;
     toBeNull(): void;
-    toThrow(expected?: string | RegExp | (new (...args: never[]) => unknown)): void;
+    toThrow(expected?: string | RegExp | Error | (new (...args: never[]) => unknown)): void;
+    toMatch(expected: string | RegExp): void;
     toContain(expected: unknown): void;
     toBeDefined(): void;
     toBeUndefined(): void;
     toMatchObject(expected: unknown): void;
     rejects: {
-      toThrow(expected?: string | RegExp | (new (...args: never[]) => unknown)): Promise<void>;
+      toThrow(expected?: string | RegExp | Error | (new (...args: never[]) => unknown)): Promise<void>;
       toBeInstanceOf(expected: new (...args: never[]) => object): Promise<void>;
     };
     toBeGreaterThan(expected: number): void;
@@ -34,7 +39,10 @@ declare module "bun:test" {
       toHaveProperty(path: string): void;
     };
   }
-  export function expect(value: unknown): ExpectResult;
+  export const expect: {
+    (value: unknown): ExpectResult;
+    any<T>(constructor: new (...args: never[]) => T): T;
+  };
   export function beforeAll(fn: () => void | Promise<void>): void;
   export function beforeEach(fn: () => void | Promise<void>): void;
   export function afterEach(fn: () => void | Promise<void>): void;
