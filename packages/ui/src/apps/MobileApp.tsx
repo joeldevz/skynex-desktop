@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
 import { AppStartupOverlay } from '@/components/ui/AppStartupOverlay';
 import { ChatView } from '@/components/views/ChatView';
+import { IntegrationsCatalogView } from '@/components/views/IntegrationsCatalogView';
 import { SettingsView } from '@/components/views/SettingsView';
 import { AppLinkConfirmDialog } from '@/components/chat/AppLinkConfirmDialog';
 import { SharedTrustConfirmDialog } from '@/components/projects/SharedTrustConfirmDialog';
@@ -18,6 +19,7 @@ import { SpaceActionsSheet, SpaceDeleteDialog } from '@/components/session/space
 import { SpaceApplyDialog } from '@/components/session/spaces/SpaceApplyDialog';
 import { SpaceSetupOutputDialog } from '@/components/session/spaces/SpaceSetupOutput';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { HelpDialog } from '@/components/ui/HelpDialog';
 import { RunOverview } from '@/components/multirun/RunOverview';
 import { RuntimeAPIProvider } from '@/contexts/RuntimeAPIProvider';
 import { useAuthSessionStore } from '@/lib/runtime-auth-expiry';
@@ -123,7 +125,7 @@ const NATIVE_RESUME_SYNC_EVENT_THROTTLE_MS = 1_000;
     footer. Exactly one can be open at a time — opening another replaces it,
     closing returns to the chat. The sessions drawer and the workspace drawer
     (Status / Changes / Files / Terminal / Notes) are separate layers. */
-type MobileSurface = 'archive' | 'board' | 'overview' | 'instances' | 'scheduled' | 'settings' | 'update' | 'usage';
+type MobileSurface = 'archive' | 'board' | 'integrations' | 'overview' | 'instances' | 'scheduled' | 'settings' | 'update' | 'usage';
 
 const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onActiveConnectionDeleted }) => {
   const { t, direction } = useI18n();
@@ -174,10 +176,12 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   // the persistent Changes pane in the workspace drawer, and clearing it would
   // remount the pane (losing its navigation) on every close.
   const closeSurface = React.useCallback(() => {
+    useUIStore.getState().setIntegrationsCatalogOpen(false);
     setActiveSurface(null);
   }, []);
 
   const openSurface = React.useCallback((surface: MobileSurface) => {
+    useUIStore.getState().setIntegrationsCatalogOpen(surface === 'integrations');
     setActiveSurface(surface);
   }, []);
 
@@ -406,13 +410,21 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       onOpenInstances: showCapacitorOnlyFeatures ? () => openSurface('instances') : undefined,
       onOpenSettings: () => openSettingsSurface('nav'),
       onOpenUsage: () => openSurface('usage'),
+      onOpenIntegrations: () => openSurface('integrations'),
+      onOpenShortcuts: () => {
+        useUIStore.getState().setHelpDialogOpen(true);
+      },
+      onOpenAbout: () => {
+        setSettingsPage('about');
+        openSettingsSurface('page-content');
+      },
       onOpenScheduled: () => openSurface('scheduled'),
       onOpenArchive: () => openSurface('archive'),
       onOpenOverview: overviewAvailable ? () => openSurface('overview') : undefined,
       onOpenSourceBoard: () => openSurface('board'),
       onOpenUpdate: showUpdateItem ? () => openSurface('update') : undefined,
     }),
-    [openSettingsSurface, openSurface, overviewAvailable, showCapacitorOnlyFeatures, showUpdateItem],
+    [openSettingsSurface, openSurface, overviewAvailable, setSettingsPage, showCapacitorOnlyFeatures, showUpdateItem],
   );
 
   // A started run or a loop file to edit replaces the page: back to the chat,
@@ -679,6 +691,21 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
           </MobileFullscreenSurface>
         ) : null}
 
+        {activeSurface === 'integrations' ? (
+          <MobileFullscreenSurface
+            open
+            variant={surfaceVariant}
+            dialogAlign="app"
+            onClose={closeSurface}
+            ariaLabel={t('integrationsCatalog.page.title')}
+            title={t('integrationsCatalog.page.title')}
+          >
+            <ErrorBoundary>
+              <IntegrationsCatalogView onOpenSettings={() => openSettingsSurface('page-content')} />
+            </ErrorBoundary>
+          </MobileFullscreenSurface>
+        ) : null}
+
         {activeSurface === 'overview' && overviewAvailable ? (
           <MobileFullscreenSurface
             open
@@ -725,6 +752,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
             </ErrorBoundary>
           </MobileFullscreenSurface>
         ) : null}
+        <HelpDialog />
       </div>
     </DedicatedMobileAppProvider>
   );

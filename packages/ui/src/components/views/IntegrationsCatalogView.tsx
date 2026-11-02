@@ -204,7 +204,7 @@ const COMPONENT_ICON = {
   extension: 'apps',
 } satisfies Record<CatalogComponent['kind'], IconName>;
 
-export function IntegrationsCatalogView(): React.ReactNode {
+export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: () => void } = {}): React.ReactNode {
   const { t } = useI18n();
   const open = useUIStore((state) => state.isIntegrationsCatalogOpen);
   const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen);
@@ -397,8 +397,9 @@ export function IntegrationsCatalogView(): React.ReactNode {
     } else {
       setSettingsPage('skills.catalog');
     }
-    setSettingsDialogOpen(true);
-  }, [pluginEntries, setSettingsDialogOpen, setSelectedMcp, setSelectedPlugin, setSettingsPage]);
+    if (onOpenSettings) onOpenSettings();
+    else setSettingsDialogOpen(true);
+  }, [onOpenSettings, pluginEntries, setSettingsDialogOpen, setSelectedMcp, setSelectedPlugin, setSettingsPage]);
 
   /**
    * Opens Settings on the page that owns one component, with that component
@@ -419,8 +420,9 @@ export function IntegrationsCatalogView(): React.ReactNode {
     } else {
       setSettingsPage('extensions');
     }
-    setSettingsDialogOpen(true);
-  }, [pluginEntries, setSettingsDialogOpen, setSelectedMcp, setSelectedPlugin, setSettingsPage]);
+    if (onOpenSettings) onOpenSettings();
+    else setSettingsDialogOpen(true);
+  }, [onOpenSettings, pluginEntries, setSettingsDialogOpen, setSelectedMcp, setSelectedPlugin, setSettingsPage]);
 
   /**
    * One Install pass over every component of the entry: the MCP server, the

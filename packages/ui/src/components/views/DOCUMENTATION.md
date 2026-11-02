@@ -1,5 +1,10 @@
 # Retained context views
 
+`IntegrationsCatalogView` accepts an optional `onOpenSettings` callback for hosts
+that own Settings navigation. Its default opens the desktop Settings dialog;
+mobile supplies the callback to open its Settings surface after the catalog has
+selected the owning page and component.
+
 `ContextPanel` keeps file, diff and walkthrough views mounted to preserve
 navigation, expanded sections and editor state. Its `visible` prop combines
 the panel's open state with the selected tab. Hiding via CSS alone does not

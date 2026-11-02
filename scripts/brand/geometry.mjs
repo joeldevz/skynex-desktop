@@ -1,4 +1,4 @@
-// The OpenChamber mark as code: every drawing of the logo is built here.
+// The Skynex mark as code: every drawing of the logo is built here.
 //
 // Units are the cube's own: half-width 41.568, half-height 48, centred on the
 // origin. The roof is the rhombus around (0, -24); the tiers are smaller
@@ -9,6 +9,9 @@ const ROOF_HY = 24;
 const ROOF_CY = -24;
 
 const fmt = (n) => Number(n.toFixed(3)).toString();
+
+export const SKYNET_S = 'M706 322c-45-67-117-103-211-103-115 0-191 57-191 145 0 78 55 116 198 145l44 9c136 28 184 69 184 145 0 93-82 150-216 150-102 0-183-37-239-109';
+export const S_MARK_TRANSFORM = 'scale(0.1) translate(-512 -512)';
 
 const polygon = (points) => `M${points.map(([x, y]) => `${fmt(x)} ${fmt(y)}`).join(' L')} Z`;
 
@@ -101,12 +104,7 @@ export const FLAT_LOGO = {
  * `data-tier` (0 outer .. 2 core) so a page script can light them in turn.
  */
 export const flatLogoInner = ({ color = 'currentColor', idPrefix = 'oc-logo-' } = {}) => (
-  `<defs>${wallGradients(idPrefix, color, FLAT_WALL_STRENGTH)}</defs>`
-  + `<path d="${LEFT_SHADE}" fill="url(#${idPrefix}l)"/>`
-  + `<path d="${RIGHT_SHADE}" fill="url(#${idPrefix}r)"/>`
-  + `<path d="${rhombus(1)}" fill="${color}" fill-opacity="${FLAT_ROOF_OPACITY}"/>`
-  + TIER_SCALES.map((scale, i) => `<path data-tier="${i}" d="${rhombus(scale)}" fill="${color}" fill-opacity="${FLAT_TIER_OPACITY[i]}"/>`).join('')
-  + shellStrokes(color, FLAT_STROKE)
+  `<path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="none" stroke="${color}" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>`
 );
 
 export const flatLogoSvg = ({ color, size = 512 }) => (
@@ -132,12 +130,7 @@ const NO_TILE = {
 const CUBE_SILHOUETTE = 'M0 -48 L41.568 -24 L41.568 24 L0 48 L-41.568 24 L-41.568 -24 Z';
 
 const noTileInner = () => (
-  `<defs>${wallGradients('nt-', 'white', 0.55)}${floorGradient('nt-f', 'white', 0.55)}</defs>`
-  + `<path d="${OUTER_HEXAGON}" fill="none" stroke="${NO_TILE.outline}" stroke-width="3.1" stroke-linejoin="round"/>`
-  + `<path d="${CUBE_SILHOUETTE}" fill="${NO_TILE.inside}"/>`
-  + `<path d="${LEFT_SHADE}" fill="url(#nt-l)"/><path d="${RIGHT_SHADE}" fill="url(#nt-r)"/><path d="${FLOOR_SHADE}" fill="url(#nt-f)"/>`
-  + TIER_SCALES.map((scale, i) => `<path d="${rhombus(scale)}" fill="${NO_TILE.tiers[i]}" fill-opacity="${NO_TILE.tierOpacity}"/>`).join('')
-  + shellStrokes(NO_TILE.edge, 2.6)
+  `<path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="none" stroke="#73C991" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>`
 );
 
 // Construction tape across the lower cube, the full width of a picture `view`
@@ -173,48 +166,35 @@ export const noTileIconSvg = ({ size = 1024, background = null, cubeShare = 1, t
 
 // ---------------------------------------------------------------------------
 // Small glyph, one colour: menu bar, favicon, VS Code, model picker, Android
-// notification and themed icon. Drawn on a 32 grid: the cube outline and two
-// roof rings (outer faint, inner strong) around an empty centre.
+// notification and themed icon. Drawn on a 32 grid.
 
-const GLYPH_FRAME = { cx: 16, cy: 9.375, hx: 12.5, hy: 6.875 };
 export const GLYPH_STROKE = 1.4;
-const GLYPH_SHELL = [
-  'M16 2.5 L28.5 9.375 L28.5 23 L16 30 L3.5 23 L3.5 9.375 Z',
-  'M3.5 9.375 L16 16.25 L28.5 9.375',
-  'M16 16.25 L16 30',
-];
-const GLYPH_WALLS = 'M3.5 9.375 L16 16.25 L16 30 L3.5 23 Z M28.5 9.375 L16 16.25 L16 30 L28.5 23 Z';
 export const GLYPH_RING_OPACITY = [0.3, 0.75];
-
-// Two rings that only touch leave an anti-aliased seam between them, which
-// shows as a dark line once both are nearly opaque (the busy breath). So the
-// outer opacity is one band across both rings, and the inner ring is laid
-// over it with whatever opacity makes the two together reach its own.
-const GLYPH_BAND = rhombusRing(0.8, 0.36, GLYPH_FRAME);
-const GLYPH_INNER_RING = rhombusRing(0.58, 0.36, GLYPH_FRAME);
-const overlayOpacity = (base, target) => (base >= 1 ? 0 : 1 - (1 - target) / (1 - base));
+const GLYPH_MARK_TRANSFORM = 'translate(16 16) scale(0.03125) translate(-512 -512)';
+const glyphMarkPath = ({ color, width, opacity = 1 }) => (
+  `<path d="${SKYNET_S}" transform="${GLYPH_MARK_TRANSFORM}" fill="none" stroke="${color}" stroke-width="${width}" stroke-opacity="${fmt(opacity)}" stroke-linecap="round" stroke-linejoin="round"/>`
+);
 
 /**
  * Inner markup of the glyph on a 32 grid. `walls` fills the side walls (the
  * menu bar's "unread" state); `rings` overrides the outer and inner ring
  * opacities (the busy breath).
  */
-export const glyphInner = ({ color = 'currentColor', stroke = GLYPH_STROKE, walls = 0, rings = GLYPH_RING_OPACITY } = {}) => (
-  (walls ? `<path d="${GLYPH_WALLS}" fill="${color}" fill-opacity="${fmt(walls)}"/>` : '')
-  + `<g fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linejoin="round" stroke-linecap="round">`
-  + GLYPH_SHELL.map((d) => `<path d="${d}"/>`).join('')
-  + '</g>'
-  + `<path d="${GLYPH_BAND}" fill="${color}" fill-opacity="${fmt(rings[0])}"/>`
-  + `<path d="${GLYPH_INNER_RING}" fill="${color}" fill-opacity="${fmt(overlayOpacity(rings[0], rings[1]))}"/>`
-);
+export const glyphInner = ({ color = 'currentColor', stroke = GLYPH_STROKE, walls = 0, rings = GLYPH_RING_OPACITY } = {}) => {
+  const breathing = rings.some((value, index) => value !== GLYPH_RING_OPACITY[index]);
+  const breathPhase = Math.min(1, Math.max(0, (rings[0] - 0.36) / 0.54));
+  const glyphOpacity = breathing ? 0.35 + breathPhase * 0.65 : 1;
+  return glyphMarkPath({ color, width: stroke * 42, opacity: glyphOpacity })
+    + (walls > 0 ? `<circle cx="27" cy="6.5" r="3.8" fill="${color}" fill-opacity="0.95"/>` : '');
+};
 
 /** `zoom` enlarges the glyph inside its square, around the cube's centre. */
-export const glyphSvg = ({ size = 32, style = '', zoom = 1, ...options } = {}) => {
+export const glyphSvg = ({ size = 32, style = '', zoom = 1, tape = false, ...options } = {}) => {
   const side = 32 / zoom;
   const view = zoom === 1 ? '0 0 32 32' : `${fmt(16 - side / 2)} ${fmt(16.25 - side / 2)} ${fmt(side)} ${fmt(side)}`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${view}">`
-    + style + glyphInner(options)
+    + style + glyphInner(options) + (tape ? devTape(32) : '')
     + '</svg>\n'
   );
 };
@@ -229,11 +209,7 @@ export const MENU_BAR_GLYPH_ZOOM = 1.05;
  */
 export const glyphSymbolSvg = () => (
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
-  + '<g fill="none" stroke="#000000" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">'
-  + GLYPH_SHELL.map((d) => `<path d="${d}"/>`).join('')
-  + '</g>'
-  // The ring reaches under the roof edge, so no seam shows between them.
-  + `<path d="${rhombusRing(0.9, 0.36, GLYPH_FRAME)}" fill="#000000"/>`
+  + `<path d="${SKYNET_S}" transform="${GLYPH_MARK_TRANSFORM}" fill="none" stroke="#000000" stroke-width="58.8" stroke-linecap="round" stroke-linejoin="round"/>`
   + '</svg>\n'
 );
 
@@ -249,23 +225,15 @@ export const GLYPH_UNSEEN_WALLS = 0.6;
 // transparent 1024 canvas; colour comes from the document, so Clear and Tinted
 // get real layers to work with.
 
-const LAYER_SCALE = 6.6;
+const LAYER_SCALE = 9.6;
 const layerSvg = (inner, defs = '') => (
   `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>${defs}</defs>`
   + `<g transform="translate(512 512) scale(${LAYER_SCALE})">${inner}</g></svg>`
 );
 
 export const appIconLayerSvgs = () => {
-  const tier = (scale, opacity) => layerSvg(`<path d="${rhombus(scale)}" fill="white" fill-opacity="${opacity}"/>`);
-  const restingTiers = [0.3, 0.55, 0.95];
   return {
-    'shell.png': layerSvg(
-      `<path d="${LEFT_SHADE}" fill="url(#l)"/><path d="${RIGHT_SHADE}" fill="url(#r)"/><path d="${FLOOR_SHADE}" fill="url(#f)"/>${shellStrokes('white', 2.6)}`,
-      wallGradients('', 'white', 0.55) + floorGradient('f', 'white', 0.55),
-    ),
-    'roof.png': layerSvg(`<path d="${rhombus(1)}" fill="white" fill-opacity="0"/>`),
-    ...Object.fromEntries(TIER_SCALES.map((scale, i) => [`tier${i}.png`, tier(scale, restingTiers[i])])),
-    ...Object.fromEntries(TIER_SCALES.map((scale, i) => [`ttier${i}.png`, tier(scale, 1)])),
+    'shell.png': layerSvg(`<path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="none" stroke="white" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>`),
   };
 };
 
@@ -285,52 +253,24 @@ const layer = (name, { glass, opacity = [{ value: 1 }], fill }) => ({
 });
 
 /**
- * The Icon Composer document. Light Default: light tile, flat grey shell
- * lines and grey tiers. Dark: near-black tile, white glass shell, opaque grey
- * tiers. Clear and Tinted (the `tinted` appearance): white glass shell, opaque
- * tiers in the Canary's violets, which the system turns into separate tones.
- * Layers hidden in an appearance keep glass off there, or they still show.
+ * The Icon Composer document. The S mark uses one glass layer over light and
+ * dark automatic tiles.
  */
 export const appIconDocument = () => {
   const white = [0.96, 0.96, 0.97];
   const lineGrey = [0.22, 0.22, 0.23];
-  const tierGrey = [0.42, 0.42, 0.43];
-  const darkTierGreys = [0.47, 0.62, 0.8];
-  const tintedTiers = [[120 / 255, 98 / 255, 230 / 255], [160 / 255, 142 / 255, 245 / 255], [205 / 255, 196 / 255, 1]];
   const shellFill = [solid(lineGrey), solid(white, 'dark'), solid(white, 'tinted')];
   const shellGlass = [{ value: false }, { appearance: 'dark', value: true }, { appearance: 'tinted', value: true }];
-  const lightOnly = [{ value: 1 }, { appearance: 'dark', value: 0 }, { appearance: 'tinted', value: 0 }];
-  const lightHidden = [{ value: 0 }, { appearance: 'dark', value: 0.85 }, { appearance: 'tinted', value: 0.85 }];
-  const restingTiers = [2, 1, 0].map((i) => layer(`tier${i}`, {
-    glass: [{ value: true }],
-    opacity: lightOnly,
-    fill: [solid(tierGrey), solid(white, 'dark'), solid(white, 'tinted')],
-  }));
-  const solidTiers = [2, 1, 0].map((i) => layer(`ttier${i}`, {
-    glass: shellGlass,
-    opacity: lightHidden,
-    fill: [solid(tintedTiers[i]), solid([darkTierGreys[i], darkTierGreys[i], darkTierGreys[i] + 0.01], 'dark')],
-  }));
   return {
     'fill-specializations': [
       { value: { 'automatic-gradient': 'srgb:0.95000,0.95000,0.96000,1.00000' } },
       solid([0.075, 0.075, 0.085], 'dark'),
     ],
-    groups: [
-      {
-        layers: [...solidTiers, ...restingTiers],
-        shadow: { kind: 'layer-color', opacity: 0.5 },
-        translucency: { enabled: true, value: 0.35 },
-      },
-      {
-        layers: [
-          layer('shell', { glass: shellGlass, fill: shellFill }),
-          layer('roof', { glass: shellGlass, fill: shellFill }),
-        ],
-        shadow: { kind: 'neutral', opacity: 0.5 },
-        translucency: { enabled: true, value: 0.5 },
-      },
-    ],
+    groups: [{
+      layers: [layer('shell', { glass: shellGlass, fill: shellFill })],
+      shadow: { kind: 'neutral', opacity: 0.5 },
+      translucency: { enabled: true, value: 0.5 },
+    }],
     'supported-platforms': { circles: ['watchOS'], squares: 'shared' },
   };
 };

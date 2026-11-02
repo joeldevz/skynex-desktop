@@ -90,7 +90,7 @@ struct OverviewWidget: Widget {
             OverviewWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("OpenChamber")
+        .configurationDisplayName("Skynex")
         .description("Recent sessions and quick actions.")
         .supportedFamilies([.systemMedium])
     }
@@ -104,7 +104,7 @@ struct QuickActionsWidgetView: View {
             // Wide primary button: New Session.
             Link(destination: WidgetDeepLink.newSession()) {
                 HStack(spacing: 8) {
-                    CubeLogoView()
+                    SMarkView()
                         .frame(width: 26, height: 26)
                     Text("Chat")
                         .font(.title3)
@@ -178,7 +178,7 @@ struct SessionsWidgetView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            CubeLogoView()
+            SMarkView()
                 .frame(width: 20, height: 20)
             Text("Sessions")
                 .font(.headline)
@@ -250,7 +250,7 @@ struct LockNewSessionView: View {
     var body: some View {
         ZStack {
             AccessoryWidgetBackground()
-            CubeLogoView()
+            SMarkView()
                 .padding(7)
         }
         .widgetURL(WidgetDeepLink.newSession())
@@ -266,7 +266,7 @@ struct LockNewSessionWidget: Widget {
                 .containerBackground(.clear, for: .widget)
         }
         .configurationDisplayName("New Session")
-        .description("Start a new OpenChamber session.")
+        .description("Start a new Skynex session.")
         .supportedFamilies([.accessoryCircular])
     }
 }

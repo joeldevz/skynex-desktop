@@ -4,3 +4,5 @@ type MobileSidebarActions = { close: () => void };
 const MobileSidebarActionsContext = React.createContext<MobileSidebarActions | null>(null);
 
 export const MobileSidebarActionsProvider = MobileSidebarActionsContext.Provider;
+
+export const useOptionalMobileSidebarActions = (): MobileSidebarActions | null => React.useContext(MobileSidebarActionsContext);

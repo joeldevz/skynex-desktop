@@ -15,6 +15,7 @@ export interface WorkspaceOverviewContract {
   onCreateSession(selection: FolderSelection, defaults: WorkspaceDefaults): Promise<void>;
   onAddFolders(): Promise<void>;
   onUnlinkFolder?(folderId: string): Promise<void>;
+  renderWorkspaceHistory?(): React.ReactNode;
 }
 
 const workspace: Workspace = {
@@ -118,6 +119,7 @@ function fixture() {
     onCreateSession: async (selection, defaults) => { creates.push([selection, defaults]); },
     onAddFolders: async () => { additions.push('picker'); },
     onUnlinkFolder: async (folderId) => { unlinks.push(folderId); },
+    renderWorkspaceHistory: () => <div>Workspace session list</div>,
   };
   return { props, updates, creates, additions, unlinks };
 }
@@ -126,7 +128,11 @@ test('C1/C6 overview saves explicit documentation/default edits and unlinks with
   await withOverview(async (ui) => {
     const f = fixture();
     await ui.render(f.props);
-    expect([...ui.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim())).not.toContain('Sessions');
+    expect([...ui.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim())).toContain('Sessions');
+    expect(ui.container.textContent).toContain('Workspace session list');
+    expect(ui.container.textContent).toContain('/projects/app');
+    expect([...ui.container.querySelectorAll('button')].some((button) => button.textContent?.includes('New session'))).toBe(true);
+    expect([...ui.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim())).not.toContain('Session history');
     expect(f.updates).toEqual([]);
     await ui.edit('Workspace name', 'Product next');
     await ui.edit('Description', 'Explicitly revised');

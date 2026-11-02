@@ -13,7 +13,8 @@ import {
 test('menuLabel returns proper English labels for en and other locales', () => {
   assert.equal(menuLabel('en', 'file'), 'File');
   assert.equal(menuLabel('en', 'settings'), 'Settings');
-  assert.equal(menuLabel('en', 'app.name'), 'OpenChamber');
+  assert.equal(menuLabel('en', 'app.name'), 'Skynex');
+  assert.equal(menuLabel('en', 'about'), 'About Skynex');
   assert.equal(menuLabel(undefined, 'file'), 'File');
   assert.equal(menuLabel('xx', 'file'), 'File');
   assert.equal(menuLabel('fr', 'file'), 'Fichier');
@@ -42,6 +43,8 @@ test('menu dictionaries share identical key sets across locales', () => {
   for (const locale of Object.keys(MENU_LOCALE_DICTIONARIES)) {
     const keys = Object.keys(MENU_LOCALE_DICTIONARIES[locale]).sort();
     assert.deepEqual(keys, enKeys, `menu dictionary ${locale} key mismatch`);
+    assert.equal(MENU_LOCALE_DICTIONARIES[locale]['app.name'], 'Skynex');
+    assert.match(MENU_LOCALE_DICTIONARIES[locale].about, /Skynex/);
   }
 
   const enContextKeys = Object.keys(CONTEXT_MENU_LABEL_DICTIONARIES.en).sort();

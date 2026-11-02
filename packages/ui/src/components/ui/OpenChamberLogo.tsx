@@ -1,8 +1,6 @@
-import React, { useId, useMemo } from 'react';
-import { useReducedMotion } from 'motion/react';
+import React, { useMemo } from 'react';
 import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import { useI18n } from '@/lib/i18n';
-import { useWaitingPhase } from '@/hooks/useDurationTicker';
 import { OPEN_CHAMBER_LOGO_ART as ART } from './openChamberLogoArt';
 
 interface OpenChamberLogoProps {
@@ -13,24 +11,16 @@ interface OpenChamberLogoProps {
   variant?: 'default' | 'splash';
 }
 
-// The open-shell cube in one colour, the theme's text colour. The drawing is
-// generated from scripts/brand, which also writes the HTML splashes that show
-// before React, so the hand-off between them does not change the logo.
+// The S monogram is generated from scripts/brand, which also writes the HTML
+// splashes shown before React.
 export const OpenChamberLogo: React.FC<OpenChamberLogoProps> = ({
   className = '',
   width = 70,
   height = 70,
-  isAnimated = false,
   variant = 'default',
 }) => {
   const { t } = useI18n();
   const themeContext = useOptionalThemeSystem();
-  const gradientId = useId();
-  const reducedMotion = useReducedMotion();
-  // While loading, the roof tiers light up one at a time, one step a second
-  // on the shared clock.
-  const animated = isAnimated && !reducedMotion;
-  const litTier = useWaitingPhase(animated, ART.tiers.length);
 
   const color = useMemo(() => {
     // Startup stages share the pre-paint palette while the app theme hydrates.
@@ -50,11 +40,6 @@ export const OpenChamberLogo: React.FC<OpenChamberLogoProps> = ({
     return 'white';
   }, [themeContext, variant]);
 
-  const tierOpacity = (index: number) => {
-    if (!animated) return ART.tierOpacity[index];
-    return index === litTier ? ART.tierLit[index] : ART.tierRest[index];
-  };
-
   return (
     <svg
       width={width}
@@ -66,35 +51,7 @@ export const OpenChamberLogo: React.FC<OpenChamberLogoProps> = ({
       role="img"
       aria-label={t('openChamberLogo.aria.logo')}
     >
-      <defs>
-        {ART.walls.map(({ gradient }, index) => (
-          <linearGradient
-            key={index}
-            id={`${gradientId}-wall-${index}`}
-            gradientUnits="userSpaceOnUse"
-            x1={gradient.x1}
-            y1={gradient.y1}
-            x2={gradient.x2}
-            y2={gradient.y2}
-          >
-            {gradient.stops.map(([offset, opacity]) => (
-              <stop key={offset} offset={offset} stopColor={color} stopOpacity={opacity} />
-            ))}
-          </linearGradient>
-        ))}
-      </defs>
-      {ART.walls.map(({ path }, index) => (
-        <path key={index} d={path} fill={`url(#${gradientId}-wall-${index})`} />
-      ))}
-      <path d={ART.roof} fill={color} fillOpacity={ART.roofOpacity} />
-      {ART.tiers.map((path, index) => (
-        <path key={index} d={path} fill={color} fillOpacity={tierOpacity(index)} />
-      ))}
-      <g fill="none" stroke={color} strokeWidth={ART.stroke} strokeLinejoin="round" strokeLinecap="round">
-        {ART.shell.map((path) => (
-          <path key={path} d={path} />
-        ))}
-      </g>
+      <path d={ART.mark} transform={ART.transform} fill="none" stroke={color} strokeWidth={ART.strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 };

@@ -67,9 +67,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
     } catch { setFailed(true); }
   }
   return <div className="flex h-full min-h-0 flex-col text-foreground">
-    <div className="flex shrink-0 items-center justify-end gap-2 p-2">
-      {pageButtons}
-    </div>
+    {pageButtons ? <div className="flex shrink-0 items-center justify-end gap-2 p-2">{pageButtons}</div> : null}
     <div className="min-h-0 flex-1 overflow-hidden">
     <div className="h-full min-h-0 overflow-y-auto p-2">
       <section className="space-y-1 pb-5" aria-label={t('workspaces.title')}>
@@ -87,7 +85,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
       </section>
       <section className="space-y-1" aria-label={t('workspaces.openSessions')}>
         <h2 className="px-2 py-1 typography-ui-label text-muted-foreground">{t('workspaces.openSessions')}</h2>
-        <OpenSessionCollection sessions={sessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} />
+        <OpenSessionCollection sessions={sessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} onReorder={(id, overId) => openSessionsStore.getState().reorderSession(id, overId)} onReopen={(reference) => openSessionsStore.getState().openSession(reference)} />
         {hydration === 'failed' && <Button variant="outline" onClick={() => void openSessionsStore.getState().hydrate(null)}>{t('workspaces.closeFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
       </section>
       {openFailure && <div role="alert" className="space-y-2 typography-meta text-[var(--status-error-text)]">

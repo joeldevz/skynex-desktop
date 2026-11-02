@@ -138,13 +138,13 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
       max-width: 280px;
     }
   </style>
-  <title>OpenChamber</title>
+  <title>Skynex</title>
 </head>
 <body>
   <!-- Initial loading screen with the OpenChamber logo -->
   <div id="initial-loading">
     <svg class="logo" width="70" height="70" viewBox="-50 -50 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- brand:flat-logo:start --><defs><linearGradient id="oc-logo-l" gradientUnits="userSpaceOnUse" x1="-42" y1="-20" x2="-2" y2="12"><stop offset="0" stop-color="currentColor" stop-opacity="0.025"/><stop offset="0.72" stop-color="currentColor" stop-opacity="0.143"/><stop offset="1" stop-color="currentColor" stop-opacity="0.198"/></linearGradient><linearGradient id="oc-logo-r" gradientUnits="userSpaceOnUse" x1="40" y1="3" x2="3" y2="-16"><stop offset="0" stop-color="currentColor" stop-opacity="0.071"/><stop offset="0.68" stop-color="currentColor" stop-opacity="0.174"/><stop offset="1" stop-color="currentColor" stop-opacity="0.223"/></linearGradient></defs><path d="M-41.568 -24 L-41.568 24 L0 0 Z" fill="url(#oc-logo-l)"/><path d="M41.568 -24 L0 0 L41.568 24 Z" fill="url(#oc-logo-r)"/><path d="M0 -48 L41.568 -24 L0 0 L-41.568 -24 Z" fill="currentColor" fill-opacity="0.08"/><path data-tier="0" data-rest="0.12" data-lit="0.55" d="M0 -43.2 L33.254 -24 L0 -4.8 L-33.254 -24 Z" fill="currentColor" fill-opacity="0.22"/><path data-tier="1" data-rest="0.15" data-lit="0.48" d="M0 -37.92 L24.109 -24 L0 -10.08 L-24.109 -24 Z" fill="currentColor" fill-opacity="0.27"/><path data-tier="2" data-rest="0.38" data-lit="0.85" d="M0 -32.64 L14.964 -24 L0 -15.36 L-14.964 -24 Z" fill="currentColor" fill-opacity="0.85"/><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -48 L-41.568 -24 L0 0 L41.568 -24 Z"/><path d="M-41.568 -24 L-41.568 24 L0 48 L41.568 24 L41.568 -24"/><path d="M0 0 L0 48"/></g><!-- brand:flat-logo:end -->
+      <!-- brand:flat-logo:start --><path d="M706 322c-45-67-117-103-211-103-115 0-191 57-191 145 0 78 55 116 198 145l44 9c136 28 184 69 184 145 0 93-82 150-216 150-102 0-183-37-239-109" transform="scale(0.1) translate(-512 -512)" fill="none" stroke="currentColor" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/><!-- brand:flat-logo:end -->
     </svg>
     <!-- Status text stays empty while things are fine; populated only on error. -->
     <div class="status-text" id="loading-status"></div>

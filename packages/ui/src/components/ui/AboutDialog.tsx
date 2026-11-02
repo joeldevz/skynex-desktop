@@ -168,7 +168,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
           <OpenChamberLogo width={64} height={64} />
 
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">OpenChamber</h2>
+            <h2 className="text-lg font-semibold">Skynex</h2>
             <div className="space-y-0.5 typography-meta text-muted-foreground">
               {renderVersionRow('aboutDialog.openChamberVersionLabel', version)}
               {renderVersionRow('aboutDialog.openCodeVersionLabel', openCodeVersion)}

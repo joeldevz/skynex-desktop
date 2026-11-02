@@ -51,7 +51,7 @@ export function createSessionNotifier(deps: SessionNotifierDeps) {
     if (requireHidden && deps.isChatAttended()) return false;
     if (sessionId && isDuplicate([sessionId, title, body].join('|'))) return false;
 
-    const message = [title || 'OpenChamber', body].filter(Boolean).join(': ');
+    const message = [title || 'Skynex', body].filter(Boolean).join(': ');
     if (!sessionId) {
       void deps.show(message);
       return true;

@@ -152,7 +152,7 @@ The webview build emits each worker as one self-contained file. VS Code webviews
 - Plugin metadata and OpenCode version checks use `packages/web/server/lib/opencode/npm-registry-config.js`, the same resolver as the web server. It reads inherited registry settings and the user's `.npmrc`, supports scoped registries, and sends credentials only in HTTP headers.
 
 - `sessionNotifications.ts`
-  - Shows OpenChamber notifications (finished turn, error, question, the Settings test) as `vscode.window.showInformationMessage`. The webview keeps deciding which events notify and their text from the shared notification settings.
+  - Shows Skynex notifications (finished turn, error, question, the Settings test) as `vscode.window.showInformationMessage`. The webview keeps deciding which events notify and their text from the shared notification settings.
   - With "Notify while app is focused" off (`requireHidden`), a notification is skipped only while VS Code is focused and an OpenChamber chat, the sidebar or a session tab, is on screen. A hidden or collapsed chat counts as out of view. Any visible chat is enough, whichever session it shows; `packages/ui/src/lib/surfaceAttention.ts` decides unread per chat instead, so a session finishing behind another visible chat is marked unread without a notification.
   - A session notification carries "Open Session", which reveals the sidebar and selects that session (`openSession` webview command). Every open webview asks for the same session event, so repeats of one session message within 10 seconds show once; a notification without a session, the Settings test, is never deduplicated.
   - Kept free of the `vscode` import so it is unit tested directly.

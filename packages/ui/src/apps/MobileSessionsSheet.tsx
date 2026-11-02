@@ -1,7 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { isIMECompositionEvent } from '@/lib/ime';
-import { DirectoryExplorerDialog } from '@/components/session/DirectoryExplorerDialog';
 import { Icon } from '@/components/icon/Icon';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useI18n } from '@/lib/i18n';
 import { refreshGlobalSessions } from '@/stores/useGlobalSessionsStore';
+import { openSessionsStore } from '@/stores/useOpenSessionsStore';
+import { useConfigStore } from '@/stores/useConfigStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
+import { useEnterpriseMode } from '@/stores/useEnterprisePolicyStore';
 import { seedGlobalSessionStatusFromHost } from '@/sync/host-session-status-seed';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useAllLiveSessions } from '@/sync/sync-context';
@@ -39,6 +41,9 @@ type MobileSessionsSheetProps = {
     onOpenScheduled: () => void;
     onOpenArchive: () => void;
     onOpenUsage: () => void;
+    onOpenIntegrations: () => void;
+    onOpenShortcuts: () => void;
+    onOpenAbout: () => void;
     /** The overview of what waits, runs and looks done; absent while the feature is not in this build. */
     onOpenOverview?: () => void;
     /** The issues and PRs board. */
@@ -53,14 +58,15 @@ const MOBILE_MENU_ITEM_CLASS = 'min-h-10 items-center justify-between';
 
 /**
  * The phone's sessions drawer, and the iPad's sidebar. It holds the workspace
- * overview, New chat and Add project actions, plus the app-level footer.
+ * overview, New chat, and the app-level footer.
  */
 export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, onOpenChange, variant = 'drawer', footer }) => {
   const { t } = useI18n();
   const liveSessions = useAllLiveSessions();
+  const isConnected = useConfigStore((state) => state.isConnected);
   const projects = useProjectsStore((state) => state.projects);
+  const enterpriseMode = useEnterpriseMode();
   const openNewSessionDraft = useSessionUIStore((state) => state.openNewSessionDraft);
-  const [directoryDialogOpen, setDirectoryDialogOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) {
@@ -75,6 +81,10 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     // intentionally only on open transition — session events keep the list current after that
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  React.useEffect(() => {
+    if (open) void openSessionsStore.getState().hydrate(null);
+  }, [isConnected, open]);
 
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
   const newChatButton = projects.length > 0 ? (
@@ -94,26 +104,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     </Button>
   ) : null;
 
-  const addProjectButton = (
-    <Button
-      type="button"
-      variant="chip"
-      size="sm"
-      aria-label={t('sessions.sidebar.header.actions.addProject')}
-      title={t('sessions.sidebar.header.actions.addProject')}
-      onClick={() => setDirectoryDialogOpen(true)}
-      style={{ touchAction: 'manipulation' }}
-    >
-      <Icon name="folder-add" className="size-4" />
-    </Button>
-  );
-
-  const trailingActions = (
-    <>
-      {addProjectButton}
-      {newChatButton}
-    </>
-  );
+  const trailingActions = newChatButton;
 
   // flex-1 + min-h-0 rather than h-full: both hosts put a fixed-height header
   // above this, so a 100% height overflows by exactly that header — and the
@@ -121,7 +112,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   const surfaceContent = (
       <div className="flex min-h-0 flex-1 flex-col">
         <MobileSidebarActionsProvider value={{ close }}>
-          <SessionSidebar mobileVariant />
+          <SessionSidebar mobileVariant hostOwnsChrome={Boolean(footer)} onSessionSelected={close} />
         </MobileSidebarActionsProvider>
 
         {/* App-level footer: the connected instance (Capacitor) on the left;
@@ -167,23 +158,38 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="end" className="w-56">
-                  <DropdownMenuItem onClick={footer.onOpenScheduled} className={MOBILE_MENU_ITEM_CLASS}>
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenScheduled(); }} className={MOBILE_MENU_ITEM_CLASS}>
                     <span className="flex items-center gap-2">
                       <Icon name="calendar-schedule" className="size-4" />
                       {t('sessions.sidebar.header.actions.scheduledTasks')}
                     </span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={footer.onOpenArchive} className={MOBILE_MENU_ITEM_CLASS}>
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenArchive(); }} className={MOBILE_MENU_ITEM_CLASS}>
                     <span className="flex items-center gap-2">
                       <Icon name="archive" className="size-4" />
                       {t('sessions.sidebar.nav.archive')}
                     </span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={footer.onOpenUsage} className={MOBILE_MENU_ITEM_CLASS}>
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenUsage(); }} className={MOBILE_MENU_ITEM_CLASS}>
                     <span className="flex items-center gap-2">
                       <Icon name="bar-chart" className="size-4" />
                       {t('usageStats.openAction')}
                     </span>
+                  </DropdownMenuItem>
+                  {enterpriseMode ? null : <DropdownMenuItem onClick={() => { close(); footer.onOpenIntegrations(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2"><Icon name="store-2" className="size-4" />{t('integrationsCatalog.sidebar.open')}</span>
+                  </DropdownMenuItem>}
+                  {footer.onOpenOverview ? <DropdownMenuItem onClick={() => { close(); footer.onOpenOverview?.(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2"><Icon name="compass-3" className="size-4" />{t('overview.title')}</span>
+                  </DropdownMenuItem> : null}
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenSourceBoard(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2"><Icon name="git-pull-request" className="size-4" />{t('sourceBoard.title')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenShortcuts(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2"><Icon name="question" className="size-4" />{t('sessions.sidebar.footer.actions.shortcuts')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { close(); footer.onOpenAbout(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2"><Icon name="information" className="size-4" />{t('sessions.sidebar.footer.actions.aboutOpenChamber')}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -202,32 +208,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                   <span className="absolute inset-e-2 top-2 inline-flex size-2 rounded-full bg-primary" aria-hidden />
                 </Button>
               ) : null}
-              {footer.onOpenOverview ? (
-                <Button
-                  type="button"
-                  variant="chip"
-                  size="lg"
-                  className="w-10 px-0"
-                  onClick={footer.onOpenOverview}
-                  aria-label={t('overview.title')}
-                  title={t('overview.title')}
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  <Icon name="compass-3" className="size-5" />
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="chip"
-                size="lg"
-                className="w-10 px-0"
-                onClick={footer.onOpenSourceBoard}
-                aria-label={t('sourceBoard.title')}
-                title={t('sourceBoard.title')}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <Icon name="git-pull-request" className="size-5" />
-              </Button>
               <Button
                 type="button"
                 variant="default"
@@ -244,7 +224,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
           </div>
         ) : null}
 
-        <DirectoryExplorerDialog open={directoryDialogOpen} onOpenChange={setDirectoryDialogOpen} />
       </div>
   );
 

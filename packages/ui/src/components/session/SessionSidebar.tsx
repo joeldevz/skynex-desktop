@@ -14,6 +14,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 interface SessionSidebarProps {
   mobileVariant?: boolean;
+  hostOwnsChrome?: boolean;
   onSessionSelected?: (sessionId: string) => void;
 }
 
@@ -96,8 +97,8 @@ export const SessionSidebar = React.memo(function SessionSidebar(props: SessionS
     <WorkspaceNavigation
       inlineOverview={Boolean(props.mobileVariant) || isVSCode}
       onSelected={props.onSessionSelected}
-      footer={<SidebarFooterController mobileVariant={Boolean(props.mobileVariant)} isVSCode={isVSCode} />}
-      pageButtons={<SidebarPageButtons
+      footer={props.hostOwnsChrome ? undefined : <SidebarFooterController mobileVariant={Boolean(props.mobileVariant)} isVSCode={isVSCode} />}
+      pageButtons={props.hostOwnsChrome ? undefined : <SidebarPageButtons
         showSourceBoard={!props.mobileVariant && !isVSCode}
         buttonClassName={props.mobileVariant ? MOBILE_HEADER_ACTION_BUTTON_CLASS : DESKTOP_HEADER_ACTION_BUTTON_CLASS}
         iconClassName={HEADER_ACTION_ICON_CLASS}

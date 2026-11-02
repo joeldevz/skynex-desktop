@@ -59,7 +59,7 @@
   },
   "build": {
     "appId": "dev.openchamber.desktop",
-    "productName": "OpenChamber",
+    "productName": "Skynex",
     "asarUnpack": [
       "node_modules/@openchamber/web/server/built-in-extensions/**/*",
       "node_modules/@openchamber/web/server/lib/git/credential-helper.js",

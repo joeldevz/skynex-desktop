@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
-import type { OpenSessionReference, SessionCloseResult } from '@/stores/useOpenSessionsStore';
+import type { MembershipResult, OpenSessionReference, SessionCloseResult } from '@/stores/useOpenSessionsStore';
 import { useSessionTurnActivity } from '@/sync/global-session-status';
 import { SessionActivityIndicator } from '../../SessionActivityIndicator';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
@@ -10,6 +13,10 @@ import { Icon } from '@/components/icon/Icon';
 import { useReducedMotion } from 'motion/react';
 import { useSpinnerPhase } from '@/hooks/useDurationTicker';
 import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
+import { useSessionUnread } from '@/sync/session-unread';
+import { useGlobalBlockingRequestsStore } from '@/sync/global-blocking-requests';
+import { getRuntimeKey } from '@/lib/runtime-switch';
+import { toast } from '@/components/ui';
 
 const HELIX_DOTS = Array.from({ length: 25 }, (_, index) => {
   const column = index % 5;
@@ -60,6 +67,8 @@ export interface OpenSessionCollectionProps {
   selectedId: string | null;
   onSelect(sessionId: string): void;
   onClose(sessionId: string, confirmation: 'unconfirmed' | 'stop-confirmed'): Promise<SessionCloseResult>;
+  onReorder?(sessionId: string, overId: string): Promise<{ kind: 'saved' } | { kind: 'retained'; reason: string }>;
+  onReopen?(reference: OpenSessionReference): Promise<MembershipResult>;
 }
 
 function OpenSessionRow({ session, selected, pending, onSelect, onClose }: {
@@ -70,15 +79,19 @@ function OpenSessionRow({ session, selected, pending, onSelect, onClose }: {
   onClose(session: OpenSessionReference): void;
 }) {
   const { t } = useI18n();
+  const unread = useSessionUnread(session.sessionId);
+  const permissionRequired = useGlobalBlockingRequestsStore((state) => (state.bySession.get(session.sessionId)?.permissions.length ?? 0) > 0);
+  const turnActivity = useSessionTurnActivity(session.sessionId);
+  const sortable = useSortable({ id: session.sessionId });
   const liveTitle = useGlobalSessionsStore((state) => state.entityById.get(session.sessionId)?.title);
   const title = liveTitle || session.title || t('sessions.sidebar.session.untitled');
   const workspaceName = session.scope?.workspaceName ?? session.workspaceAssignment?.workspaceName;
-  return <li className="min-w-0">
+  return <li ref={sortable.setNodeRef} style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }} className={`min-w-0 ${sortable.isDragging ? 'opacity-60' : ''}`}>
     <div className={`relative rounded-md ${selected ? 'bg-interactive-selection/70 text-interactive-selection-foreground' : 'has-[button:hover]:bg-interactive-hover'}`}>
-      <Button variant="ghost" aria-label={title} aria-pressed={selected} className="h-auto w-full min-w-0 flex-col items-stretch gap-0.5 py-2 pe-10 text-start whitespace-normal hover:bg-transparent [@media(pointer:coarse)]:min-h-12 [@media(pointer:coarse)]:pe-14" onClick={() => onSelect(session.sessionId)}>
+      <Button ref={sortable.setActivatorNodeRef} {...sortable.attributes} {...sortable.listeners} variant="ghost" aria-label={title} aria-pressed={selected} className="h-auto w-full min-w-0 flex-col items-stretch gap-0.5 py-2 pe-10 text-start whitespace-normal touch-pan-y hover:bg-transparent [@media(pointer:coarse)]:min-h-12 [@media(pointer:coarse)]:pe-14" onClick={() => onSelect(session.sessionId)}>
         <span className="flex min-w-0 items-center gap-2">
           <span dir="auto" className="oc-ui-start-align min-w-0 flex-1 truncate font-normal" title={title}>{title}</span>
-          <span className="inline-flex size-3.5 shrink-0 items-center justify-center"><OpenSessionActivity id={session.sessionId} /></span>
+          <span className="inline-flex size-3.5 shrink-0 items-center justify-center">{permissionRequired ? <span role="img" aria-label={t('sessions.sidebar.session.status.permissionRequired')} title={t('sessions.sidebar.session.status.permissionRequired')} className="text-[var(--status-warning-text)]"><Icon name="shield-keyhole" className="size-3.5" /></span> : unread && !turnActivity ? <span role="img" aria-label={t('sessions.sidebar.session.status.unread')} title={t('sessions.sidebar.session.status.unread')} className="size-2 rounded-full bg-status-info" /> : <OpenSessionActivity id={session.sessionId} />}</span>
         </span>
         {workspaceName && <span dir="auto" className="oc-ui-start-align truncate typography-meta font-normal text-muted-foreground" title={workspaceName}>{formatWorkspaceLabel(workspaceName)}</span>}
       </Button>
@@ -89,31 +102,73 @@ function OpenSessionRow({ session, selected, pending, onSelect, onClose }: {
   </li>;
 }
 
-export function OpenSessionCollection({ sessions, selectedId, onSelect, onClose }: OpenSessionCollectionProps) {
+export function OpenSessionCollection({ sessions, selectedId, onSelect, onClose, onReorder, onReopen }: OpenSessionCollectionProps) {
   const { t } = useI18n();
   const [confirmation, setConfirmation] = useState<OpenSessionReference | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ title: string; message: string } | null>(null);
   const target = confirmation && sessions.find((session) => session.sessionId === confirmation.sessionId);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!onReorder || !over || active.id === over.id) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (!sessions.some((session) => session.sessionId === activeId) || !sessions.some((session) => session.sessionId === overId)) return;
+    const result = await onReorder(activeId, overId);
+    if (result.kind === 'retained') setFailure({ title: t('workspaces.openSessions'), message: t('workspaces.actionFailed') });
+    else setFailure(null);
+  }
   async function close(session: OpenSessionReference, mode: 'unconfirmed' | 'stop-confirmed') {
+    const runtimeKey = getRuntimeKey();
     setPending(session.sessionId);
     setFailure(null);
     try {
       const result = await onClose(session.sessionId, mode);
+      if (runtimeKey !== getRuntimeKey()) return;
+      if (result.kind === 'closed' && onReopen) {
+        let restoring = false;
+        const reopen = onReopen;
+        toast.info(t('workspaces.sessionClosed', { name: session.title }), {
+          duration: 8000,
+          action: {
+            label: t('workspaces.undoClose'),
+            onClick: () => {
+              if (restoring || runtimeKey !== getRuntimeKey()) return;
+              restoring = true;
+              void reopen(session).then((restored) => {
+                if (runtimeKey === getRuntimeKey() && restored.kind !== 'saved') toast.error(t('workspaces.openFailed'));
+              }).catch(() => {
+                if (runtimeKey === getRuntimeKey()) toast.error(t('workspaces.openFailed'));
+              });
+            },
+          },
+        });
+      }
       if (result.kind === 'confirmation-required') setConfirmation(session);
       else {
         setConfirmation(null);
         if (result.kind === 'retained') setFailure({ title: session.title, message: result.reason === 'stop-failed' ? t('workspaces.stopFailed') : result.reason === 'persistence-failed' && mode === 'stop-confirmed' ? t('workspaces.stoppedButOpen') : t('workspaces.closeFailed') });
       }
     } catch {
-      setConfirmation(null);
-      setFailure({ title: session.title, message: t('workspaces.closeFailed') });
+      if (runtimeKey === getRuntimeKey()) {
+        setConfirmation(null);
+        setFailure({ title: session.title, message: t('workspaces.closeFailed') });
+      }
     } finally { setPending(null); }
   }
   return <>
-    <ul className="space-y-1">
-      {sessions.map((session) => <OpenSessionRow key={session.sessionId} session={session} selected={selectedId === session.sessionId} pending={pending !== null} onSelect={onSelect} onClose={(reference) => void close(reference, 'unconfirmed')} />)}
-    </ul>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => { void handleDragEnd(event); }}>
+      <SortableContext items={sessions.map((session) => session.sessionId)} strategy={verticalListSortingStrategy}>
+        <ul className="space-y-1">
+          {sessions.map((session) => <OpenSessionRow key={session.sessionId} session={session} selected={selectedId === session.sessionId} pending={pending !== null} onSelect={onSelect} onClose={(reference) => void close(reference, 'unconfirmed')} />)}
+        </ul>
+      </SortableContext>
+    </DndContext>
     <div role="alert" className="min-h-6 typography-meta text-[var(--status-error-text)]">{failure && <><span dir="auto">{failure.title}</span>{' · '}{failure.message}</>}</div>
     <Dialog open={Boolean(target)} onOpenChange={(open) => { if (!open && pending === null) setConfirmation(null); }}>
       <DialogContent showCloseButton={false}>
