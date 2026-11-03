@@ -29,7 +29,7 @@ const request = (overrides: Partial<MagicPromptRequest> & Pick<MagicPromptReques
   ...overrides,
 });
 
-const sharedPathOf = (repo: string) => path.join(repo, '.openchamber', 'project.json');
+const sharedPathOf = (repo: string) => path.join(repo, '.skynex', 'project.json');
 const readJson = async (filePath: string) => JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
 
 describe('magic prompts in the extension host', () => {

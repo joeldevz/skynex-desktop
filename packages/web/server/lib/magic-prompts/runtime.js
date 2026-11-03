@@ -273,7 +273,7 @@ export const createMagicPromptRuntime = (dependencies) => {
 
 /**
  * Project overrides: the `magicPrompts` map of the project's shared file
- * `<checkout>/.openchamber/project.json`, read and written through the
+ * `<checkout>/.skynex/project.json`, read and written through the
  * project config runtime that owns that file. `project` is `{ id, path }`
  * of a registered project, resolved by the caller; nothing here falls back to
  * the global file.
@@ -285,12 +285,12 @@ export const createProjectMagicPromptRuntime = ({ projectConfigRuntime }) => {
   const readProjectState = async (project) => {
     const read = await projectConfigRuntime.readSharedProjectFile(project.path);
     if (read.status === 'missing') return { status: 'missing', overrides: {} };
-    if (read.status === 'invalid') return { status: 'invalid', reason: read.reason };
+    if (read.status === 'invalid') return { status: 'invalid', reason: read.reason, path: read.path };
     if (!hasOwn(read.document, PROJECT_KEY)) return { status: 'missing', overrides: {} };
     try {
       return { status: 'ok', overrides: parseProjectOverrides(read.document[PROJECT_KEY]) };
     } catch (error) {
-      return { status: 'invalid', reason: error.message };
+      return { status: 'invalid', reason: error.message, path: read.path };
     }
   };
 

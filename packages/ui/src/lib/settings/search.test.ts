@@ -24,6 +24,23 @@ const runtimeCtx = {
 };
 
 describe('settings search', () => {
+  test('uses stable workspace, folder and Chats targets without indexing the removed Close action', () => {
+    const projectIdsFor = (query: string) => buildSettingsSearchResults({ query, runtimeCtx, t, getPageTitle: (page) => page })
+      .filter((result) => result.page === 'projects').map((result) => result.id);
+    expect(projectIdsFor('workspace')).toContain('projects.workspace');
+    expect(projectIdsFor('folder settings')).toContain('projects.folder');
+    expect(projectIdsFor('chats')).toContain('projects.chats');
+    expect(projectIdsFor('close project')).not.toContain('projects.close');
+
+    const vscodeResults = buildSettingsSearchResults({
+      query: 'workspace folder chats',
+      runtimeCtx: { ...runtimeCtx, isVSCode: true },
+      t,
+      getPageTitle: (page) => page,
+    });
+    expect(vscodeResults.some((result) => result.id.startsWith('projects.'))).toBe(false);
+  });
+
   test('has no native knowledge, memory or saved-plan settings', () => {
     for (const query of ['agent knowledge', 'agent memory', 'plans folder']) {
       const results = buildSettingsSearchResults({ query, runtimeCtx, t, getPageTitle: (page) => page });

@@ -27,7 +27,11 @@ description: 自定义 OpenChamber 自动化流程背后的内置提示词。
 
 要添加项目覆盖，在侧边栏顶部的选择器中选择该项目，然后在 **范围** 下选择 **项目**。在每个修改过的区块下方点击 **保存**。重置按钮只改变当前打开的范围。在 **项目** 中，**移除项目覆盖** 和 **移除全部项目覆盖** 会让区块回到你的全局覆盖或内置文本。在 **全局** 中保存与内置相同的文本会移除你的全局覆盖。在 **项目** 中，这段文本会保留为项目覆盖，所以即使你的全局覆盖是别的内容，项目仍使用内置文本。
 
-项目覆盖保存在项目检出中 `.openchamber/project.json` 的 `magicPrompts` 键里。它和 [仓库配置](/zh-cn/repository-config/) 是同一个文件，提交它就能和团队共享提示词。全局覆盖仍保存在服务器数据文件夹中的 `magic-prompts.json`。
+项目覆盖保存在项目检出中 `.skynex/project.json` 的 `magicPrompts` 键里。它和 [仓库配置](/zh-cn/repository-config/) 是同一个文件，提交它就能和团队共享提示词。全局覆盖仍保存在服务器数据文件夹中的 `magic-prompts.json`。
+
+仍包含 `.openchamber/project.json` 的仓库会继续正常工作。首次保存时会写入 `.skynex/project.json`，旧文件保持不变。
+
+如果 Git 忽略了 `.skynex/`，Settings 会显示带有 **Add exception** 按钮的警告。
 
 工作树使用其主检出中项目的提示词，除非你把这个工作树作为独立项目添加。没有项目的聊天、不属于任何项目的文件夹，以及在隔离空间中的工作，只使用全局提示词。VS Code 扩展没有 Magic Prompts 页面，需要手动编辑文件，全局文件始终是 `~/.config/openchamber/magic-prompts.json`。
 

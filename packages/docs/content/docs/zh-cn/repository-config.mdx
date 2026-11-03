@@ -7,7 +7,11 @@ description: 把项目操作、工作树设置命令、启动项和计划放进�
 
 项目操作、工作树设置命令和草稿启动项默认保存在你自己的 OpenChamber 设置里。别人看不到它们。如果你希望克隆仓库的队友也拥有同样的开发服务器操作，以及每个新工作树里同样的 `bun install`，就把这些项目移到仓库中。
 
-OpenChamber 把它们存放在仓库根目录的 `.openchamber/project.json` 里。只有当你把第一个项目移进去时这个文件才会出现，移出最后一个项目时它会消失。像提交其他文件一样提交它即可。
+OpenChamber 把它们存放在仓库根目录的 `.skynex/project.json` 里。移入第一个项目时会创建此文件。如果存在旧的 `.openchamber/project.json`，移出最后一个项目时 Skynex 会保留一个空的 `.skynex/project.json`，以免旧文件重新生效。像提交其他文件一样提交它即可。
+
+仍包含 `.openchamber/project.json` 的仓库会继续正常工作。首次保存时会写入 `.skynex/project.json`，旧文件保持不变。
+
+如果 Git 忽略了 `.skynex/`，Settings 会显示带有 **Add exception** 按钮的警告。 此修复仍会忽略嵌套的 `.skynex/` 文件夹。
 
 ## 什么放在哪里
 

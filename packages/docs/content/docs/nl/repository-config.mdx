@@ -7,7 +7,11 @@ description: Bewaar projectacties, worktree-inrichtingsopdrachten, startopties e
 
 Projectacties, opdrachten voor het inrichten van worktrees en startopties voor nieuwe sessies staan standaard in uw eigen OpenChamber-instellingen. Anderen zien ze niet. Wilt u dat een teamgenoot na het klonen dezelfde ontwikkelserveractie krijgt en bij elke nieuwe worktree ook `bun install` uitvoert, verplaats die onderdelen dan naar de repository.
 
-OpenChamber bewaart ze in `.openchamber/project.json` in de hoofdmap van de repository. Het bestand verschijnt zodra u het eerste onderdeel verplaatst en verdwijnt wanneer u het laatste eruit haalt. Commit het zoals elk ander bestand.
+OpenChamber bewaart ze in `.skynex/project.json` in de hoofdmap van de repository. Het bestand verschijnt wanneer u het eerste onderdeel verplaatst. Als er een oud `.openchamber/project.json` bestaat, laat Skynex een leeg `.skynex/project.json` staan wanneer u het laatste onderdeel verwijdert, zodat het oude bestand niet terugkomt. Commit het zoals elk ander bestand.
+
+Repositories met een bestaand `.openchamber/project.json` blijven werken. De eerste keer opslaan schrijft `.skynex/project.json` en laat het oude bestand ongemoeid.
+
+Als Git `.skynex/` negeert, toont Settings een waarschuwing met de knop **Add exception**. De uitzondering laat geneste `.skynex/`-mappen genegeerd.
 
 ## Wat hoort waar?
 

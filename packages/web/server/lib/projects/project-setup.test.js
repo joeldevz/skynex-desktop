@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 
 import { createProjectConfigRuntime } from './project-config.js';
@@ -30,6 +31,13 @@ const emptyPersonal = {
   sharedTrust: null,
 };
 
+// The project registry the runtime checks before writing into a checkout: the
+// tests' repositories live at these two paths under each temp root.
+const registryOf = (tempRoot) => ({
+  readSettingsFromDisk: async () => ({ projects: ['repo', 'missing-repo', 'legacy-invalid'].map((name) => ({ path: path.join(tempRoot, name) })) }),
+  sanitizeProjects: (projects) => projects,
+});
+
 const createRuntime = async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'oc-project-setup-'));
   const runtime = createProjectConfigRuntime({
@@ -37,6 +45,7 @@ const createRuntime = async () => {
     path,
     projectsDirPath: path.join(tempRoot, 'projects'),
     createTaskID: () => 'task-fixed-id',
+    ...registryOf(tempRoot),
   });
   return {
     runtime,
@@ -235,7 +244,7 @@ describe('shared project config', () => {
       { type: 'command', name: 'both', source: 'shared' },
       { type: 'command', name: 'mine', source: 'personal' },
     ]);
-    expect(merged.shared).toEqual({ status: 'ok', path: '.openchamber/project.json', ...shared.config });
+    expect(merged.shared).toEqual({ status: 'ok', path: '.skynex/project.json', ...shared.config });
     expect(merged.personal).toBe(personal);
     expect(merged.trust).toEqual({ hash: sharedTrustHashOf(shared.config), trusted: false });
   });
@@ -424,8 +433,8 @@ describe('project setup runtime', () => {
     const { runtime, tempRoot, cleanup } = await createRuntime();
     try {
       const repo = path.join(tempRoot, 'repo');
-      await mkdir(path.join(repo, '.openchamber'), { recursive: true });
-      await writeFile(path.join(repo, '.openchamber', 'project.json'), JSON.stringify({
+      await mkdir(path.join(repo, '.skynex'), { recursive: true });
+      await writeFile(path.join(repo, '.skynex', 'project.json'), JSON.stringify({
         version: 1,
         setupWorktree: ['bun install'],
         projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev' }, { id: 'lint', name: 'Lint', command: 'bun lint' }],
@@ -455,7 +464,7 @@ describe('project setup runtime', () => {
       expect(trusted.trust.trusted).toBe(true);
       expect(trusted.personal.sharedTrust?.hash).toBe(view.trust.hash);
       // A pull that changes a shared command invalidates the answer.
-      await writeFile(path.join(repo, '.openchamber', 'project.json'), JSON.stringify({ version: 1, setupWorktree: ['bun install && rm -rf /'] }));
+      await writeFile(path.join(repo, '.skynex', 'project.json'), JSON.stringify({ version: 1, setupWorktree: ['bun install && rm -rf /'] }));
       expect((await runtime.readProjectSetup(projectId)).trust.trusted).toBe(false);
       const reset = await runtime.updateProjectSetup(projectId, { sharedTrustHash: null });
       expect(reset.personal.sharedTrust).toBeNull();
@@ -464,13 +473,89 @@ describe('project setup runtime', () => {
     }
   });
 
+  it('prefers the canonical file and migrates the whole legacy document on the first setup write', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'repo');
+      const canonicalPath = path.join(repo, '.skynex', 'project.json');
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await mkdir(path.dirname(legacyPath), { recursive: true });
+      const legacyBytes = JSON.stringify({ version: 1, setupWorktree: ['legacy'], magicPrompts: { 'a.visible': 'A' }, futureKey: { kept: true } });
+      await writeFile(legacyPath, legacyBytes);
+      const projectId = createProjectIdFromPath(repo);
+      expect((await runtime.readProjectSetup(projectId)).setupWorktree).toEqual(['legacy']);
+      await mkdir(path.dirname(canonicalPath), { recursive: true });
+      await writeFile(canonicalPath, JSON.stringify({ version: 1, setupWorktree: ['canonical'] }));
+      expect((await runtime.readProjectSetup(projectId)).setupWorktree).toEqual(['canonical']);
+      await rm(canonicalPath);
+      await runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['written'] });
+      expect(JSON.parse(await readFile(canonicalPath, 'utf8'))).toEqual({ version: 1, setupWorktree: ['written'], magicPrompts: { 'a.visible': 'A' }, futureKey: { kept: true } });
+      expect(await readFile(legacyPath, 'utf8')).toBe(legacyBytes);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses a symlinked .skynex directory without reading or writing outside the checkout', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'repo');
+      const outside = path.join(tempRoot, 'outside');
+      await mkdir(repo, { recursive: true });
+      await mkdir(outside);
+      const outsideFile = path.join(outside, 'project.json');
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await writeFile(outsideFile, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.skynex'), 'dir');
+      const projectId = createProjectIdFromPath(repo);
+      expect((await runtime.readProjectSetup(projectId)).shared).toMatchObject({ status: 'invalid', path: '.skynex/project.json' });
+      await expect(runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['write'] })).rejects.toMatchObject({ code: 'shared_config_invalid' });
+      expect(await readFile(outsideFile, 'utf8')).toBe(bytes);
+    } finally { await cleanup(); }
+  });
+
+  it('refuses a symlinked canonical project.json without changing its target', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'repo');
+      const outside = path.join(tempRoot, 'outside.json');
+      await mkdir(path.join(repo, '.skynex'), { recursive: true });
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await writeFile(outside, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.skynex', 'project.json'), 'file');
+      const projectId = createProjectIdFromPath(repo);
+      expect((await runtime.readProjectSetup(projectId)).shared).toMatchObject({ status: 'invalid', path: '.skynex/project.json' });
+      await expect(runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['write'] })).rejects.toMatchObject({ code: 'shared_config_invalid' });
+      expect(await readFile(outside, 'utf8')).toBe(bytes);
+    } finally { await cleanup(); }
+  });
+
+  it('refuses a symlinked legacy directory without falling back through it', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'repo');
+      const outside = path.join(tempRoot, 'outside');
+      await mkdir(repo, { recursive: true });
+      await mkdir(outside);
+      const outsideFile = path.join(outside, 'project.json');
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await writeFile(outsideFile, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.openchamber'), 'dir');
+      const projectId = createProjectIdFromPath(repo);
+      expect((await runtime.readProjectSetup(projectId)).shared).toMatchObject({ status: 'invalid', path: '.openchamber/project.json' });
+      await expect(runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['write'] })).rejects.toMatchObject({ code: 'shared_config_invalid' });
+      expect(await readFile(outsideFile, 'utf8')).toBe(bytes);
+      await expect(readFile(path.join(repo, '.skynex', 'project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally { await cleanup(); }
+  });
+
   it('writes the shared file into the checkout, trusts it for the writer, and removes it when emptied', async () => {
     const { runtime, tempRoot, readRaw, cleanup } = await createRuntime();
     try {
       const repo = path.join(tempRoot, 'repo');
       await mkdir(repo, { recursive: true });
       const projectId = createProjectIdFromPath(repo);
-      const sharedPath = path.join(repo, '.openchamber', 'project.json');
+      const sharedPath = path.join(repo, '.skynex', 'project.json');
 
       const shared = await runtime.updateSharedProjectSetup(projectId, {
         setupWorktree: ['bun install'],
@@ -495,10 +580,50 @@ describe('project setup runtime', () => {
       const emptied = await runtime.updateSharedProjectSetup(projectId, { setupWorktree: [], projectActions: [], setupWorktreeWait: null });
       expect(emptied.shared.status).toBe('missing');
       await expect(readFile(sharedPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
-      await expect(readFile(path.join(repo, '.openchamber'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(readFile(path.join(repo, '.skynex'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
       expect((await readRaw(projectId)).sharedTrust).toBeUndefined();
     } finally {
       await cleanup();
+    }
+  });
+
+  it('does not read the shared file of a checkout that is not a registered project', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const other = path.join(tempRoot, 'unregistered');
+      await mkdir(path.join(other, '.skynex'), { recursive: true });
+      await writeFile(path.join(other, '.skynex', 'project.json'), JSON.stringify({ version: 1, setupWorktree: ['secret'] }));
+      const view = await runtime.readProjectSetup(createProjectIdFromPath(other));
+      expect(view.shared.status).toBe('missing');
+      expect(view.setupWorktree).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses a setup write while an unreadable legacy file is the only shared file', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'repo');
+      // A directory where the legacy file should be cannot be read as a file.
+      await mkdir(path.join(repo, '.openchamber', 'project.json'), { recursive: true });
+      await expect(runtime.updateSharedProjectSetup(createProjectIdFromPath(repo), { setupWorktree: ['x'] })).rejects.toThrow('.openchamber/project.json is invalid');
+      await expect(readFile(path.join(repo, '.skynex', 'project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses every shared write when the runtime has no project registry', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'oc-project-setup-'));
+    try {
+      const runtime = createProjectConfigRuntime({ fsPromises: await import('fs/promises'), path, projectsDirPath: path.join(tempRoot, 'projects') });
+      const repo = path.join(tempRoot, 'repo');
+      await mkdir(repo, { recursive: true });
+      await expect(runtime.updateSharedProjectSetup(createProjectIdFromPath(repo), { setupWorktree: ['x'] })).rejects.toThrow();
+      await expect(readFile(path.join(repo, '.skynex', 'project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -511,7 +636,7 @@ describe('project setup runtime', () => {
       const repo = path.join(tempRoot, 'repo');
       await mkdir(repo, { recursive: true });
       await expect(runtime.updateSharedProjectSetup(createProjectIdFromPath(repo), { setupWorktree: 'invalid' })).rejects.toThrow('setupWorktree must be');
-      await expect(readFile(path.join(repo, '.openchamber', 'project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(readFile(path.join(repo, '.skynex', 'project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await cleanup();
     }
@@ -539,8 +664,8 @@ describe('project setup runtime', () => {
 describe('shared file keys owned by other writers', () => {
   const setupRepo = async (tempRoot, content) => {
     const repo = path.join(tempRoot, 'repo');
-    await mkdir(path.join(repo, '.openchamber'), { recursive: true });
-    const sharedPath = path.join(repo, '.openchamber', 'project.json');
+    await mkdir(path.join(repo, '.skynex'), { recursive: true });
+    const sharedPath = path.join(repo, '.skynex', 'project.json');
     if (content !== undefined) await writeFile(sharedPath, content);
     return { repo, sharedPath, projectId: createProjectIdFromPath(repo) };
   };
@@ -557,10 +682,27 @@ describe('shared file keys owned by other writers', () => {
       await runtime.updateSharedProjectSetup(projectId, { setupWorktree: [] });
       expect(JSON.parse(await readFile(sharedPath, 'utf8'))).toEqual({ version: 1, magicPrompts: { 'plan.todo.instructions': '' }, futureKey: [1] });
 
-      // A wrongly shaped setup key is repaired; the keys around it stay.
+      // A setup write repairs a wrongly shaped canonical file while preserving foreign keys.
       await writeFile(sharedPath, JSON.stringify({ version: 1, setupWorktree: 'oops', magicPrompts: { 'a.visible': 'A' } }));
       await runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['x'] });
       expect(JSON.parse(await readFile(sharedPath, 'utf8'))).toEqual({ version: 1, setupWorktree: ['x'], magicPrompts: { 'a.visible': 'A' } });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses setup writes for an invalid legacy file while canonical is absent', async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime();
+    try {
+      const repo = path.join(tempRoot, 'legacy-invalid');
+      await mkdir(path.join(repo, '.openchamber'), { recursive: true });
+      const legacyPath = path.join(repo, '.openchamber/project.json');
+      await writeFile(legacyPath, '{ broken');
+      const projectId = createProjectIdFromPath(repo);
+      await expect(runtime.updateSharedProjectSetup(projectId, { setupWorktree: ['x'] }))
+        .rejects.toMatchObject({ code: 'shared_config_invalid' });
+      expect(await readFile(legacyPath, 'utf8')).toBe('{ broken');
+      await expect(readFile(path.join(repo, '.skynex/project.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await cleanup();
     }
@@ -593,7 +735,7 @@ describe('shared file keys owned by other writers', () => {
   it('serializes setup and foreign-key writes from two runtimes sharing a projects dir', async () => {
     const { runtime, tempRoot, cleanup } = await createRuntime();
     try {
-      const other = createProjectConfigRuntime({ fsPromises: await import('fs/promises'), path, projectsDirPath: path.join(tempRoot, 'projects') });
+      const other = createProjectConfigRuntime({ fsPromises: await import('fs/promises'), path, projectsDirPath: path.join(tempRoot, 'projects'), ...registryOf(tempRoot) });
       const { repo, sharedPath, projectId } = await setupRepo(tempRoot);
       const writes = [];
       for (let index = 0; index < 6; index += 1) {

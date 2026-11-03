@@ -55,6 +55,7 @@ import {
     type GuestToolRule,
 } from '@/lib/guests/tool-presentation';
 import { useDurationTickerNow } from '@/hooks/useDurationTicker';
+import { Spinner } from '@/components/ui/spinner';
 import {
     prepareTaskToolOutput,
     readTaskSessionIdFromOutput,
@@ -63,6 +64,7 @@ import {
 } from './taskToolModel';
 import { areRenderRelevantPartsEqual } from '../renderCompare';
 import { useI18n } from '@/lib/i18n';
+import { useReducedMotion } from 'motion/react';
 import {
     extractFirstChangedLineFromDiff,
     getApplyPatchFilePath,
@@ -112,6 +114,8 @@ import { findSubagentCancellation, findSubagentRun, readBackgroundSubagentChildI
 import { useGlobalSessionStatusStore } from '@/sync/global-session-status';
 import { useBackgroundShellOutput } from './useBackgroundShellOutput';
 import { useToolContentCompletion } from './useToolContentCompletion';
+import { readShellProgress } from './shellProgress';
+import { INTERRUPTED_TOOL_ERROR } from '@/sync/interrupted-tool';
 
 type ToolJsonViewMode = 'summary' | 'formatted' | 'raw';
 
@@ -148,6 +152,31 @@ const LiveDuration: React.FC<{ start: number; end?: number; active: boolean }> =
     const now = useDurationTickerNow(active);
 
     return <>{formatDuration(start, end, now)}</>;
+};
+
+// The segment sweeps one of its widths per second of the shared clock, gliding
+// between ticks with a transform transition; it starts and wraps outside the
+// track, so the jump back is never seen.
+const SHELL_BAR_POSITIONS = 5;
+
+const ShellActivityBar: React.FC<{ output: string }> = ({ output }) => {
+    const { direction } = useI18n();
+    const reducedMotion = useReducedMotion();
+    const progress = readShellProgress(output);
+    const now = useDurationTickerNow(!progress);
+    const position = Math.floor(now / 1000) % SHELL_BAR_POSITIONS;
+    const offset = (position - 1) * 100 * (direction === 'rtl' ? -1 : 1);
+
+    return (
+        <div
+            className={cn('h-[3px] bg-surface-muted', progress ? '' : 'relative')}
+            {...(progress ? { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': progress.percent } : { 'aria-hidden': true })}
+        >
+            {progress
+                ? <div className="h-full bg-[var(--status-info)]" style={{ width: `${progress.percent}%` }} />
+                : <div className="absolute inset-y-0 start-0 w-1/3 bg-[var(--status-info)]" style={{ transform: `translateX(${offset}%)`, transition: position === 0 || reducedMotion ? 'none' : 'transform 1000ms linear' }} />}
+        </div>
+    );
 };
 
 const deferredToolBodyMounts: Array<{ active: boolean; fn: () => void }> = [];
@@ -1078,6 +1107,7 @@ interface ToolExpandedContentProps {
     isExpanded: boolean;
     onShowPopup?: (content: ToolPopupContent) => void;
     presentation: GuestToolRule | null;
+    hideShellInput?: boolean;
 }
 
 const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
@@ -1087,6 +1117,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
     isExpanded,
     onShowPopup,
     presentation,
+    hideShellInput = false,
 }) => {
     const { t } = useI18n();
     const runtime = React.useContext(RuntimeAPIContext);
@@ -1505,7 +1536,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
                         </div>
                     ) : null}
 
-                    {hasInputText ? (
+                    {hasInputText && !(hideShellInput && isShellTool(part.tool)) ? (
                         <div className="my-1">
                             {renderScrollableBlock(
                                 isShellTool(part.tool) ? (
@@ -1582,7 +1613,7 @@ type ToolRowHeader = {
     stop?: { onStop: () => void; ariaLabel: string };
 };
 
-const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subagentSessionId?: string }> = ({
+const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subagentSessionId?: string; shellCard?: boolean }> = ({
     part,
     isExpanded,
     onToggle: toggleRow,
@@ -1592,6 +1623,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     failureReason,
     header,
     subagentSessionId: taskSessionId,
+    shellCard = false,
 }) => {
     const { t } = useI18n();
     const rowRef = React.useRef<HTMLDivElement>(null);
@@ -1761,6 +1793,28 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
 
     // Opened, the body already carries the whole error and output.
     const failureDetail = isError && !isExpanded ? failureReason : undefined;
+    const shellOutput = typeof stateWithData.output === 'string'
+        ? stateWithData.output
+        : typeof metadata?.output === 'string' ? metadata.output : '';
+    const shellProgress = shellCard ? readShellProgress(shellOutput) : null;
+    const shellRunning = shellCard && isActive;
+    const shellCommand = input && typeof input === 'object' && 'command' in input && typeof input.command === 'string' ? input.command : '';
+    const shellTitle = shellCard ? (description || shellCommand || displayName) : displayName;
+    const previousShellStatus = React.useRef<string | undefined>(status);
+    const shellWasLive = React.useRef(false);
+    React.useEffect(() => {
+        const previous = previousShellStatus.current;
+        previousShellStatus.current = status;
+        if (!shellCard) return;
+        if (shellRunning || header?.durationUnknown) shellWasLive.current = true;
+        if (!isError) return;
+        const transitionedFromLive = shellWasLive.current && (previous === 'running' || header?.durationUnknown || previous === 'completed');
+        shellWasLive.current = false;
+        const isUserAbort = state.status === 'error'
+            && 'error' in state
+            && (state.error === 'Tool execution aborted' || state.error === INTERRUPTED_TOOL_ERROR || metadata?.interrupted === true);
+        if (transitionedFromLive && !isUserAbort && !isExpanded) toggleRow(part.id);
+    }, [header?.durationUnknown, isError, isExpanded, metadata?.interrupted, part.id, shellCard, shellRunning, state, status, toggleRow]);
 
     // Tool title/description — shown inline as context. A subtitle the
     // extension declared replaces it, since both land in the same slot.
@@ -1930,8 +1984,13 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
         <div ref={rowRef}>
             {}
             <div
+                // overflow-clip keeps the rounded corners without becoming a scroll
+                // container, so the Copy button can stick to the chat scroller.
+                className={shellCard ? cn('my-1.5 overflow-clip rounded-md border border-border', isError && 'border-[var(--status-error)]/50') : undefined}
+            >
+            <div
                 className={cn(
-                    'group/tool flex gap-1.5 pe-2 ps-px py-1.5 rounded-xl',
+                    shellCard ? 'group/tool flex min-w-0 items-center gap-2 bg-surface-elevated px-2 py-2 cursor-pointer' : 'group/tool flex gap-1.5 pe-2 ps-px py-1.5 rounded-xl',
                     isMultiFileApplyPatch ? 'flex-wrap items-start cursor-pointer' : 'items-center cursor-pointer',
                 )}
                 onClick={isMultiFileApplyPatch ? () => onToggle(part.id) : handleMainRowClick}
@@ -1943,8 +2002,14 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                 } : handleMainKeyDown}
                 role="button"
                 tabIndex={0}
+                aria-expanded={shellCard ? isExpanded : undefined}
             >
-                <div className={cn('flex gap-1.5', isMultiFileApplyPatch ? 'w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5' : 'items-center flex-shrink-0')}>
+                <div className={cn('flex gap-1.5', isMultiFileApplyPatch ? 'w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5' : shellCard ? 'min-w-0 flex-1 items-center' : 'items-center flex-shrink-0')}>
+                    {shellCard ? (
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground">
+                            <Icon name="terminal-box" className="size-3.5" />
+                        </span>
+                    ) : null}
                     {isMultiFileApplyPatch ? (
                         <>
                             <div className="flex h-5 flex-shrink-0 items-center gap-1.5">
@@ -1966,10 +2031,10 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                 <MinDurationShineText
                                     active={Boolean(isActive && !isError)}
                                     minDurationMs={300}
-                                    className={cn(TOOL_ROW_TITLE_CLASS, 'flex-shrink-0')}
+                                    className={cn(TOOL_ROW_TITLE_CLASS, shellCard ? 'min-w-0 truncate' : 'flex-shrink-0')}
                                     style={titleStyle}
                                 >
-                                    {displayName}
+                                    {shellTitle}
                                 </MinDurationShineText>
                             </div>
                             <ApplyPatchFileButtons
@@ -1984,7 +2049,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                         </>
                     ) : (
                         <>
-                            <div
+                            {!shellCard ? <div
                                 // h-5 matches StaticToolRow's icon column, so expandable
                                 // and static rows come out the same height (the 14px
                                 // icon alone left these rows ~2px shorter).
@@ -2010,16 +2075,16 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                 >
                                     {isExpanded ? <Icon name="arrow-down-s" className="h-3.5 w-3.5" /> : <Icon name="arrow-right-s" className="h-3.5 w-3.5" />}
                                 </div>
-                            </div>
-                            <div className={cn('flex items-center min-w-0 flex-1', quickOpenTarget || taskSessionId ? 'gap-1' : 'gap-2')}>
+                            </div> : null}
+                            <div className={cn('flex min-w-0 flex-1 items-center', quickOpenTarget || taskSessionId ? 'gap-1' : 'gap-2')}>
                                 <MinDurationShineText
                                     active={Boolean(isActive && !isError)}
                                     minDurationMs={300}
-                                    className={cn(TOOL_ROW_TITLE_CLASS, 'flex-shrink-0')}
+                                    className={cn(TOOL_ROW_TITLE_CLASS, shellCard ? 'min-w-0 truncate' : 'flex-shrink-0')}
                                     style={titleStyle}
-                                    title={displayName}
+                                    title={shellTitle}
                                 >
-                                    {displayName}
+                                    {shellTitle}
                                 </MinDurationShineText>
                                 {quickOpenTarget ? (
                                     <button
@@ -2040,6 +2105,13 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                     <OpenSubtaskButton sessionId={taskSessionId} agent={subagentAgent(input)} isMobile={isMobile} />
                                 ) : null}
                             </div>
+                            {shellCard && shellProgress ? <span className="flex-shrink-0 typography-meta tabular-nums text-muted-foreground">{shellProgress.percent}%</span> : null}
+                            {/* An unknown background outcome shows no status rather than a guess. */}
+                            {shellCard && (shellRunning || !header?.durationUnknown) ? (
+                                <span className={cn('flex h-5 flex-shrink-0 items-center', shellRunning ? 'text-[var(--status-info)]' : header?.label === 'stopped' ? 'text-muted-foreground' : isError ? 'text-[var(--status-error)]' : 'text-[var(--status-success)]')}>
+                                    {shellRunning ? <Spinner className="size-3.5" /> : <Icon name={header?.label === 'stopped' ? 'stop' : isError ? 'close-circle' : 'checkbox-circle'} className="size-3.5" />}
+                                </span>
+                            ) : null}
                             {showsDuration && typeof effectiveTimeStart === 'number' && !header?.durationUnknown ? (
                                 <span className={cn('flex-shrink-0 tabular-nums text-muted-foreground/80', TOOL_ROW_DESCRIPTION_CLASS)}>
                                     <LiveDuration
@@ -2056,13 +2128,14 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                         : t('chat.toolPart.background.label')}
                                 </span>
                             ) : null}
+                            {shellCard ? <Icon name={isExpanded ? 'arrow-down-s' : 'arrow-right-s'} className="size-3.5 flex-shrink-0 text-muted-foreground" /> : null}
                         </>
                     )}
                 </div>
 
                 {!isMultiFileApplyPatch && (
-                    <div className={cn('flex items-center gap-1 flex-1 min-w-0', TOOL_ROW_DESCRIPTION_CLASS)} style={{ color: 'var(--tools-description)' }}>
-                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                    <div className={cn('flex items-center gap-1 min-w-0', shellCard ? 'flex-shrink-0' : 'flex-1', TOOL_ROW_DESCRIPTION_CLASS)} style={{ color: 'var(--tools-description)' }}>
+                        {!shellCard ? <div className="flex items-center gap-1 flex-1 min-w-0">
                             {justificationText && (
                                 <span
                                     className={cn('min-w-0 truncate', TOOL_ROW_DESCRIPTION_CLASS)}
@@ -2111,7 +2184,12 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                     <span style={{ color: 'var(--status-success)' }}>+{writeLineCount}</span>
                                 </span>
                             )}
-                        </div>
+                        </div> : null}
+                        {shellCard && failureDetail ? (
+                            <span className={cn('max-w-[min(30vw,14rem)] flex-shrink-0 truncate text-[var(--status-error)]', TOOL_ROW_DESCRIPTION_CLASS)} title={failureDetail}>
+                                {failureDetail}
+                            </span>
+                        ) : null}
                         {header?.stop ? (
                             // A labelled red action, the same one the composer's
                             // background commands strip offers. The negative
@@ -2132,8 +2210,13 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                 )}
             </div>
 
+            {shellRunning ? (
+                <ShellActivityBar output={shellOutput} />
+            ) : null}
+
             <div
                 ref={expandedContentRef}
+                className={shellCard ? cn('bg-background', isExpanded && 'border-t border-border') : undefined}
                 aria-hidden={!isExpanded}
                 style={{
                     height: isExpanded ? 'auto' : '0px',
@@ -2143,9 +2226,34 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
             >
                 {shouldRenderExpandedContent ? (
                     <div
-                        className="relative ms-2 ps-3"
+                        className={cn('relative', shellCard ? 'p-2' : 'ms-2 ps-3')}
                     >
-                        <BlockLine onToggle={() => onToggle(part.id)} topOffset={1} />
+                        {!shellCard ? <BlockLine onToggle={() => onToggle(part.id)} topOffset={1} /> : null}
+                        {shellCard ? (
+                            // The whole command wraps downward; Copy sticks to the top of the view while it scrolls past.
+                            <div className="mb-2 flex min-w-0 items-start gap-2">
+                                <div className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono typography-code leading-5" dir="ltr">$ {shellCommand}</div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
+                                    className="sticky top-2 flex-shrink-0 self-start bg-background"
+                                    aria-label={t('updateDialog.actions.copyCommand')}
+                                    title={t('updateDialog.actions.copyCommand')}
+                                    onClick={async (event) => {
+                                        event.stopPropagation();
+                                        const result = await copyTextToClipboard(shellCommand);
+                                        if (!result.ok) toast.error(t('chat.toolPart.copyCommandFailed'));
+                                    }}
+                                >
+                                    <Icon name="file-copy" className="size-3" />
+                                    {t('updateDialog.actions.copyCommand')}
+                                </Button>
+                            </div>
+                        ) : null}
+                        {shellCard && shellRunning && !/\S/.test(shellOutput) ? (
+                            <div className="typography-meta py-1 text-muted-foreground">{t('chat.toolPart.shellNoOutputYet')}</div>
+                        ) : null}
                         {contentCompletion.status === 'whole' ? (
                             <ToolExpandedContent
                                 part={part}
@@ -2154,6 +2262,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                 isExpanded={isExpanded}
                                 onShowPopup={onShowPopup}
                                 presentation={presentation}
+                                hideShellInput={shellCard}
                             />
                         ) : contentCompletion.status === 'loading' ? (
                             contentCompletion.showProgress ? (
@@ -2169,8 +2278,12 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                 </Button>
                             </div>
                         )}
+                        {shellCard && typeof metadata?.exit === 'number' ? (
+                            <div className="mt-2 border-t border-border pt-2 typography-meta text-muted-foreground">{t('chat.toolPart.shellExitCode', { code: metadata.exit })}</div>
+                        ) : null}
                     </div>
                 ) : null}
+            </div>
             </div>
         </div>
     );
@@ -2265,6 +2378,7 @@ const BackgroundShellToolPartContent: React.FC<ToolPartProps & { shellID: string
         <ToolPartContent
             {...props}
             part={part}
+            shellCard
             header={{
                 label: phase.kind === 'stopped' ? 'stopped' : 'background',
                 durationUnknown: phase.kind === 'unknown',
@@ -2360,7 +2474,7 @@ const ToolPart: React.FC<ToolPartProps> = (props) => {
                 ? <BackgroundShellToolPartContent {...props} shellID={backgroundShellID} />
                 : isSubagentTool(toolName)
                     ? <SubagentToolPartContent {...props} />
-                    : <ToolPartContent {...props} />}
+                    : <ToolPartContent {...props} shellCard={isShellTool(toolName)} />}
         </ToolPartErrorBoundary>
     );
 };

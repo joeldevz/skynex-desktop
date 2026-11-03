@@ -2,7 +2,7 @@
 
 ## Ownership
 
-Server storage for Magic Prompt overrides in two scopes: global (`<data dir>/magic-prompts.json`) and project (the `magicPrompts` key of the checkout's `.openchamber/project.json`, written through `../projects`, which owns that file). For a directory it answers which overrides apply; built-in text lives only in the client (`packages/ui/src/lib/magicPrompts.ts`).
+Server storage for Magic Prompt overrides in two scopes: global (`<data dir>/magic-prompts.json`) and project (the `magicPrompts` key of the checkout's `.skynex/project.json`, written through `../projects`, which owns that file). Legacy `.openchamber/project.json` is read when the canonical file is absent; writes migrate the full document to the canonical path without changing legacy bytes. For a directory it answers which overrides apply; built-in text lives only in the client (`packages/ui/src/lib/magicPrompts.ts`).
 
 `service.js` handles every request for both transports: `routes.js` adapts Express, and the VS Code extension host (`packages/vscode/src/magic-prompts.ts`) calls it with its own project list and owner resolution. Keep `runtime.js` and `service.js` free of imports outside this folder, so the extension bundle takes nothing else from the server.
 

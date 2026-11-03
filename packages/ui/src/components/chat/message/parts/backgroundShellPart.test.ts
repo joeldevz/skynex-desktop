@@ -42,7 +42,7 @@ describe('toBackgroundShellPart', () => {
 
     test('a finished command ends when OpenCode reported it, with its real output', () => {
         const state = toBackgroundShellPart(call, { kind: 'finished', completion: completion() }).state;
-        expect(state).toMatchObject({ status: 'completed', output: '5 minutes elapsed', time: { start: 1000, end: 301_000 } });
+        expect(state).toMatchObject({ status: 'completed', output: '5 minutes elapsed', metadata: { exit: 0 }, time: { start: 1000, end: 301_000 } });
     });
 
     test('a failed command reads as a failed tool call', () => {
@@ -50,7 +50,7 @@ describe('toBackgroundShellPart', () => {
             kind: 'finished',
             completion: completion({ exit: 2, output: 'boom\n\nExited with code 2' }),
         }).state;
-        expect(state).toMatchObject({ status: 'error', error: 'exited (2)', output: 'boom\n\nExited with code 2' });
+        expect(state).toMatchObject({ status: 'error', error: 'exited (2)', output: 'boom\n\nExited with code 2', metadata: { exit: 2 } });
     });
 
     test('an unknown state shows the notice without the instruction for the model', () => {

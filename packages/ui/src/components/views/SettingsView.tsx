@@ -8,6 +8,9 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useEnterpriseMode, useJevBlockedByEnterprise } from '@/stores/useEnterprisePolicyStore';
 import { useSettingsDirectory } from '@/hooks/useSettingsDirectory';
 import { useProjectsStore } from '@/stores/useProjectsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { normalizePath } from '@/lib/pathNormalization';
+import { resolveInitialWorkspaceTarget, visibleWorkspaceCatalog } from '@/components/sections/projects/workspaceSettingsTargets';
 import { useAgentsStore } from '@/stores/useAgentsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
 import { useMcpConfigStore } from '@/stores/useMcpConfigStore';
@@ -337,7 +340,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     'isolated-spaces': 'spaces',
   }), []);
 
-  const getPageTitle = React.useCallback((slug: SettingsPageSlug): string => t(settingsPageTitleKey(slug)), [t]);
+  const getPageTitle = React.useCallback((slug: SettingsPageSlug): string => t(
+    slug === 'projects' && runtimeCtx.isVSCode ? 'settings.page.projects.vscodeTitle' : settingsPageTitleKey(slug),
+  ), [runtimeCtx.isVSCode, t]);
 
   const trackers = useTrackerDescriptors();
   const sourceControlProviders = useSourceControlProviders();
@@ -432,6 +437,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       return 'extensions.add';
     }
 
+    if (result.id === 'projects.workspace') {
+      const firstWorkspace = visibleWorkspaceCatalog(useWorkspacesStore.getState().catalog).workspaces[0];
+      useUIStore.getState().setSettingsWorkspaceTarget(firstWorkspace
+        ? { kind: 'workspace', workspaceId: firstWorkspace.id }
+        : { kind: 'chats' });
+      return firstWorkspace ? result.id : 'projects.chats';
+    }
+
+    if (result.id === 'projects.folder') {
+      const first = visibleWorkspaceCatalog(useWorkspacesStore.getState().catalog).workspaces
+        .flatMap((workspace) => workspace.folders.map((folder) => ({ workspace, folder })))[0];
+      if (first) {
+        useUIStore.getState().setSettingsWorkspaceTarget({ kind: 'folder', workspaceId: first.workspace.id, folderId: first.folder.id });
+        if (!useProjectsStore.getState().projects.some((project) => normalizePath(project.path) === normalizePath(first.folder.path))) {
+          void useProjectsStore.getState().addProject(first.folder.path, { activate: false });
+        }
+        return result.id;
+      }
+      const workspace = visibleWorkspaceCatalog(useWorkspacesStore.getState().catalog).workspaces[0];
+      useUIStore.getState().setSettingsWorkspaceTarget(workspace ? { kind: 'workspace', workspaceId: workspace.id } : { kind: 'chats' });
+      return workspace ? 'projects.workspace' : 'projects.chats';
+    }
+
+    if (result.id === 'projects.chats') {
+      useUIStore.getState().setSettingsWorkspaceTarget({ kind: 'chats' });
+      return result.id;
+    }
+
+    let preparedTargetId = result.id;
+    if (result.id.startsWith('projects.') && !runtimeCtx.isVSCode) {
+      const legacyProject = useProjectsStore.getState().projects.find((project) => project.id === useUIStore.getState().settingsProjectsSelectedId);
+      const catalog = visibleWorkspaceCatalog(useWorkspacesStore.getState().catalog);
+      let initial = resolveInitialWorkspaceTarget(catalog, legacyProject?.path ?? null);
+      if (initial.kind !== 'folder') {
+        const firstFolder = catalog.workspaces.flatMap((workspace) => workspace.folders.map((folder) => ({ workspace, folder })))[0];
+        if (firstFolder) initial = { kind: 'folder', workspaceId: firstFolder.workspace.id, folderId: firstFolder.folder.id };
+      }
+      useUIStore.getState().setSettingsWorkspaceTarget(initial);
+      if (initial.kind === 'folder') {
+        const folder = catalog.workspaces.find((workspace) => workspace.id === initial.workspaceId)?.folders.find((entry) => entry.id === initial.folderId);
+        if (folder && !useProjectsStore.getState().projects.some((project) => normalizePath(project.path) === normalizePath(folder.path))) {
+          void useProjectsStore.getState().addProject(folder.path, { activate: false });
+        }
+      } else preparedTargetId = initial.kind === 'workspace' ? 'projects.workspace' : 'projects.chats';
+    }
+
     const projectTab = projectSettingsTabForSearchTarget(result.id);
     if (projectTab) {
       useProjectSettingsTabStore.getState().setTab(projectTab);
@@ -439,8 +490,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
 
     openChatSettingsTabFor(result.id);
 
-    return result.id;
-  }, []);
+    return preparedTargetId;
+  }, [runtimeCtx.isVSCode]);
 
   const groupedSettingsSearchResults = React.useMemo(() => {
     const groups: Array<{ page: SettingsPageSlug; pageTitle: string; results: SettingsSearchResult[] }> = [];
@@ -626,7 +677,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
 
     switch (slug) {
       case 'projects':
-        return <ProjectsPage />;
+        return <ProjectsPage onClose={onClose} />;
       case 'remote-instances':
         return <RemoteInstancesPage />;
       case 'agents':
@@ -683,7 +734,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       default:
         return null;
     }
-  }, [openChamberSectionBySlug, renderUnavailable, runtimeCtx, t]);
+  }, [onClose, openChamberSectionBySlug, renderUnavailable, runtimeCtx, t]);
 
   // Mobile: if opened via deep-link / palette to a non-home page, jump into it once.
   React.useEffect(() => {

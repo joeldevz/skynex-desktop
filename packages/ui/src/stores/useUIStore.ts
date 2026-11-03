@@ -971,6 +971,7 @@ interface UIStore {
   settingsPage: string;
   settingsHasOpenedOnce: boolean;
   settingsProjectsSelectedId: string | null;
+  settingsWorkspaceTarget: { kind: 'workspace'; workspaceId: string } | { kind: 'folder'; workspaceId: string; folderId: string } | { kind: 'chats' } | null;
   /**
    * Project the Settings pages are looking at. `null` follows the app's active
    * project. Settings browses another project's configuration without moving
@@ -1286,6 +1287,7 @@ interface UIStore {
   setSidebarSection: (section: SidebarSection) => void;
   setSettingsPage: (slug: string) => void;
   setSettingsProjectsSelectedId: (projectId: string | null) => void;
+  setSettingsWorkspaceTarget: (target: UIStore['settingsWorkspaceTarget']) => void;
   setSettingsProjectPath: (path: string | null) => void;
   setSettingsProvidersConnectRequested: (requested: boolean) => void;
   setSettingsProvidersClassificationRequested: (requested: boolean) => void;
@@ -1529,6 +1531,7 @@ export const useUIStore = create<UIStore>()(
         settingsPage: 'home',
         settingsHasOpenedOnce: false,
         settingsProjectsSelectedId: null,
+        settingsWorkspaceTarget: null,
         settingsProjectPath: null,
         settingsProvidersConnectRequested: false,
         settingsProvidersClassificationRequested: false,
@@ -2607,6 +2610,9 @@ export const useUIStore = create<UIStore>()(
 
         setSettingsProjectsSelectedId: (projectId) => {
           set({ settingsProjectsSelectedId: projectId });
+        },
+        setSettingsWorkspaceTarget: (target) => {
+          set({ settingsWorkspaceTarget: target });
         },
 
         setSettingsRemoteInstancesSelectedId: (instanceId) => {

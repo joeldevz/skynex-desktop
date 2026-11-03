@@ -27,7 +27,11 @@ Een prompt kan ook een overschrijving voor één project hebben. OpenChamber geb
 
 Kies daarvoor het project in de keuzelijst boven in de zijbalk en kies daarna **Project** onder **Bereik**. Klik op **Opslaan** onder elk blok dat u wijzigt. De knoppen om terug te zetten wijzigen alleen het bereik dat open staat. In **Project** brengen **Projectoverschrijving verwijderen** en **Alle projectoverschrijvingen verwijderen** uw globale overschrijving of de ingebouwde tekst terug. Slaat u in **Globaal** de ingebouwde tekst op, dan verdwijnt uw globale overschrijving. In **Project** blijft die tekst opgeslagen, zodat het project de ingebouwde tekst houdt, ook als uw globale overschrijving iets anders zegt.
 
-Projectoverschrijvingen staan in de sleutel `magicPrompts` van `.openchamber/project.json` in de checkout van het project. Dat is hetzelfde bestand als de [repositoryconfiguratie](/nl/repository-config/). Commit het om de prompts met uw team te delen. Globale overschrijvingen blijven in `magic-prompts.json` in de gegevensmap van de server.
+Projectoverschrijvingen staan in de sleutel `magicPrompts` van `.skynex/project.json` in de checkout van het project. Dat is hetzelfde bestand als de [repositoryconfiguratie](/nl/repository-config/). Commit het om de prompts met uw team te delen. Globale overschrijvingen blijven in `magic-prompts.json` in de gegevensmap van de server.
+
+Repositories met een bestaand `.openchamber/project.json` blijven werken. De eerste keer opslaan schrijft `.skynex/project.json` en laat het oude bestand ongemoeid.
+
+Als Git `.skynex/` negeert, toont Settings een waarschuwing met de knop **Add exception**.
 
 Een worktree gebruikt de prompts van het project in zijn hoofdcheckout, tenzij u de worktree als eigen project hebt toegevoegd. Een chat zonder project, een map die bij geen enkel project hoort en werk in een geïsoleerde ruimte gebruiken alleen globale prompts. De VS Code-extensie heeft geen pagina Magic Prompts. Daar bewerkt u de bestanden met de hand, en het globale bestand is altijd `~/.config/openchamber/magic-prompts.json`.
 

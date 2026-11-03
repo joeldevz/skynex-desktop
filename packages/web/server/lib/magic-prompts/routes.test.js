@@ -32,7 +32,7 @@ const createFixture = async () => {
     resolveWorktreeTopLevel,
   });
 
-  const sharedPathOf = (checkout) => path.join(checkout, '.openchamber', 'project.json');
+  const sharedPathOf = (checkout) => path.join(checkout, '.skynex', 'project.json');
   const writeShared = async (checkout, document) => {
     await fsPromises.mkdir(path.dirname(sharedPathOf(checkout)), { recursive: true });
     await fsPromises.writeFile(sharedPathOf(checkout), typeof document === 'string' ? document : JSON.stringify(document));
@@ -68,6 +68,18 @@ const withFixture = async (run) => {
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
 
 describe('magic prompt routes', () => {
+  it('migrates legacy prompt data on the first project prompt write without changing legacy bytes', async () => {
+    await withFixture(async ({ repo, setProject, sharedPathOf }) => {
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await fsPromises.mkdir(path.dirname(legacyPath), { recursive: true });
+      const legacyBytes = JSON.stringify({ version: 1, magicPrompts: { 'old.visible': 'Old' }, futureKey: true });
+      await fsPromises.writeFile(legacyPath, legacyBytes);
+      await setProject('repo', 'new.visible', 'New');
+      expect(JSON.parse(await fsPromises.readFile(sharedPathOf(repo), 'utf8'))).toEqual({ version: 1, magicPrompts: { 'old.visible': 'Old', 'new.visible': 'New' }, futureKey: true });
+      expect(await fsPromises.readFile(legacyPath, 'utf8')).toBe(legacyBytes);
+    });
+  });
+
   it('takes the project override, then the global one, then leaves the built-in text to the client', async () => {
     await withFixture(async ({ app, repo, tempRoot, setGlobal, setProject, overridesIn }) => {
       await setGlobal('session.summary.visible', 'Global visible');

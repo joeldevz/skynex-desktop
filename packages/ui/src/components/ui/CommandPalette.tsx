@@ -558,7 +558,7 @@ export const CommandPalette: React.FC = () => {
       .map((page) => {
         const iconName = getSettingsNavIcon(page.slug) ?? 'settings-3';
         const keywords = (page.keywords ?? []).join(' ');
-        const title = t(settingsPageTitleKey(page.slug));
+        const title = t(page.slug === 'projects' && settingsRuntimeCtx.isVSCode ? 'settings.page.projects.vscodeTitle' : settingsPageTitleKey(page.slug));
         return {
           id: `settings:${page.slug}`,
           title,

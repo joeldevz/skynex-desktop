@@ -7,7 +7,11 @@ description: Gardez les actions de projet, les commandes de configuration de wor
 
 Les actions de projet, les commandes de configuration de worktree et les amorces de brouillon vivent par défaut dans vos propres réglages OpenChamber. Personne d'autre ne les voit. Si vous voulez qu'un collègue qui clone le dépôt ait la même action de serveur de dev et le même `bun install` dans chaque nouveau worktree, déplacez ces éléments dans le dépôt.
 
-OpenChamber les enregistre dans `.openchamber/project.json` à la racine du dépôt. Le fichier n'apparaît que lorsque vous y déplacez le premier élément, et il disparaît quand vous retirez le dernier. Committez-le comme n'importe quel autre fichier.
+OpenChamber les enregistre dans `.skynex/project.json` à la racine du dépôt. Le fichier apparaît lorsque vous y déplacez le premier élément. Si un ancien `.openchamber/project.json` existe, Skynex conserve un `.skynex/project.json` vide lorsque vous retirez le dernier élément, afin que l'ancien fichier ne revienne pas. Committez-le comme n'importe quel autre fichier.
+
+Les dépôts qui contiennent encore `.openchamber/project.json` continuent de fonctionner. Le premier enregistrement écrit `.skynex/project.json` et laisse l’ancien fichier intact.
+
+Si Git ignore `.skynex/`, Settings affiche un avertissement avec le bouton **Add exception**. L’exception laisse les dossiers `.skynex/` imbriqués ignorés.
 
 ## Ce qui va où
 

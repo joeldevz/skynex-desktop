@@ -1,10 +1,13 @@
 import { DateTime, IANAZone } from 'luxon';
 import { CronExpressionParser } from 'cron-parser';
+import { constants as fsConstants } from 'node:fs';
 import { z } from 'zod';
 
 import { projectConfigFileStemOf, projectPathFromId } from './project-id.js';
+import { createSharedConfigIgnore } from '../git/shared-config-ignore.js';
 import {
   EMPTY_SHARED_PROJECT_CONFIG,
+  LEGACY_SHARED_CONFIG_RELATIVE_PATH,
   SHARED_CONFIG_RELATIVE_PATH,
   SHARED_SETUP_KEYS,
   applySharedProjectSetupPatch,
@@ -410,6 +413,8 @@ export const createProjectConfigRuntime = (deps) => {
     path,
     projectsDirPath,
     createTaskID,
+    readSettingsFromDisk,
+    sanitizeProjects,
   } = deps;
 
   const taskIDFactory = typeof createTaskID === 'function'
@@ -422,6 +427,17 @@ export const createProjectConfigRuntime = (deps) => {
     });
 
   const writeLocks = new Map();
+  const sharedConfigIgnore = createSharedConfigIgnore({ fsPromises, pathApi: path });
+  // A checkout path counts only when it is a registered project. Without the
+  // project registry nothing counts: repository reads and writes fail closed.
+  const registeredPath = async (checkout) => {
+    if (!checkout) return null;
+    if (typeof readSettingsFromDisk !== 'function' || typeof sanitizeProjects !== 'function') return null;
+    const settings = await readSettingsFromDisk();
+    const projects = sanitizeProjects(settings.projects) || [];
+    return projects.some((project) => path.resolve(project.path) === path.resolve(checkout)) ? path.resolve(checkout) : null;
+  };
+  const registeredCheckout = (projectID) => registeredPath(projectPathFromId(sanitizeProjectID(projectID)));
   const PROJECT_FILE_LOCK_WAIT_MS = 10_000;
   const PROJECT_FILE_LOCK_STALE_MS = 60_000;
   const PROJECT_FILE_LOCK_RETRY_MS = 20;
@@ -1037,23 +1053,90 @@ export const createProjectConfigRuntime = (deps) => {
   const projectPathOf = (projectID, personalRaw) => (
     projectPathFromId(projectID) || (typeof personalRaw.projectPath === 'string' ? personalRaw.projectPath.trim() : '')
   );
-  const sharedConfigPathOf = (projectPath) => path.join(projectPath, ...SHARED_CONFIG_RELATIVE_PATH.split('/'));
+  const sharedConfigIgnoreStatus = async (projectID) => {
+    const projectPath = await registeredCheckout(projectID);
+    if (!projectPath) throw Object.assign(new Error('Project not found'), { code: 'project_not_found' });
+    return sharedConfigIgnore.read(projectPath);
+  };
+  const fixSharedConfigIgnore = async (projectID) => {
+    const projectPath = await registeredCheckout(projectID);
+    if (!projectPath) throw Object.assign(new Error('Project not found'), { code: 'project_not_found' });
+    return sharedConfigIgnore.fix(projectPath);
+  };
+  const sharedConfigPathOf = (projectPath, relativePath = SHARED_CONFIG_RELATIVE_PATH) => path.join(projectPath, ...relativePath.split('/'));
+
+  const validateSharedConfigTarget = async (projectPath, relativePath) => {
+    const checkoutRealPath = await fsPromises.realpath(projectPath);
+    const directoryPath = path.dirname(sharedConfigPathOf(projectPath, relativePath));
+    let directoryStat;
+    try { directoryStat = await fsPromises.lstat(directoryPath); } catch (error) {
+      if (error?.code === 'ENOENT') return { exists: false };
+      throw error;
+    }
+    if (!directoryStat.isDirectory()) throw new Error(`${relativePath.split('/')[0]} is a symbolic link or not a directory`);
+    const directoryRealPath = await fsPromises.realpath(directoryPath);
+    if (directoryRealPath !== checkoutRealPath && !directoryRealPath.startsWith(`${checkoutRealPath}${path.sep}`)) {
+      throw new Error(`${relativePath.split('/')[0]} resolves outside the project checkout`);
+    }
+    const filePath = sharedConfigPathOf(projectPath, relativePath);
+    try {
+      const fileStat = await fsPromises.lstat(filePath);
+      if (!fileStat.isFile()) throw new Error(`${relativePath} is a symbolic link or not a regular file`);
+      return { exists: true, filePath, directoryPath, directoryStat };
+    } catch (error) {
+      if (error?.code === 'ENOENT') return { exists: false, filePath, directoryPath, directoryStat };
+      throw error;
+    }
+  };
+
+  const assertSharedDirectoryIdentity = async (directoryPath, expected) => {
+    const current = await fsPromises.lstat(directoryPath);
+    if (!current.isDirectory() || current.dev !== expected.dev || current.ino !== expected.ino) {
+      throw new Error('shared config directory changed during the operation');
+    }
+  };
+
+  const sharedTargetStat = async (filePath) => {
+    try {
+      const current = await fsPromises.lstat(filePath);
+      if (!current.isFile()) throw new Error('shared config target is not a regular file');
+      return current;
+    } catch (error) {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    }
+  };
 
   // A missing file is `missing`; one that cannot be read or parsed is
   // `invalid` with a reason, never "no shared setup".
   const readSharedProjectFile = async (projectPath) => {
-    let raw;
-    try {
-      raw = await fsPromises.readFile(sharedConfigPathOf(projectPath), 'utf8');
-    } catch (error) {
-      if (error && typeof error === 'object' && error.code === 'ENOENT') return { status: 'missing' };
-      return { status: 'invalid', reason: error instanceof Error ? error.message : String(error) };
+    for (const relativePath of [SHARED_CONFIG_RELATIVE_PATH, LEGACY_SHARED_CONFIG_RELATIVE_PATH]) {
+      try {
+        const target = await validateSharedConfigTarget(projectPath, relativePath);
+        if (!target.exists) continue;
+        const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
+        const handle = await fsPromises.open(target.filePath, flags);
+        let raw;
+        try {
+          const fileStat = await handle.stat();
+          if (!fileStat.isFile()) throw new Error(`${relativePath} is not a regular file`);
+          await assertSharedDirectoryIdentity(target.directoryPath, target.directoryStat);
+          raw = await handle.readFile('utf8');
+        } finally {
+          await handle.close();
+        }
+        return { ...parseSharedProjectConfig(raw), path: relativePath };
+      } catch (error) {
+        if (error?.code === 'ENOENT') continue;
+        return { status: 'invalid', reason: error instanceof Error ? error.message : String(error), path: relativePath };
+      }
     }
-    return parseSharedProjectConfig(raw);
+    return { status: 'missing' };
   };
 
+  // Only a registered project's checkout is read; any other path has no shared setup.
   const readSharedProjectConfig = async (projectID, personalRaw) => {
-    const projectPath = projectPathOf(projectID, personalRaw);
+    const projectPath = await registeredPath(projectPathOf(projectID, personalRaw));
     if (!projectPath) return { status: 'missing' };
     return readSharedProjectFile(projectPath);
   };
@@ -1069,23 +1152,69 @@ export const createProjectConfigRuntime = (deps) => {
 
   // Replace the shared file through a unique temporary sibling, so a failed
   // write or rename leaves the previous bytes in place and no temporary file.
-  // An empty result removes the file, and the `.openchamber` folder when that
+  // An empty result removes the file, and the `.skynex` folder when that
   // leaves it empty.
   const writeSharedProjectFile = async (projectPath, text) => {
     const filePath = sharedConfigPathOf(projectPath);
-    if (text === null) {
-      await fsPromises.rm(filePath, { force: true });
-      await fsPromises.rmdir(path.dirname(filePath)).catch(() => {});
-      return;
+    const directoryPath = path.dirname(filePath);
+    const validate = async () => {
+      const canonical = await validateSharedConfigTarget(projectPath, SHARED_CONFIG_RELATIVE_PATH);
+      await validateSharedConfigTarget(projectPath, LEGACY_SHARED_CONFIG_RELATIVE_PATH);
+      return canonical;
+    };
+    let canonical;
+    try { canonical = await validate(); } catch (error) {
+      throw Object.assign(new Error(`.skynex/project.json is invalid: ${error instanceof Error ? error.message : String(error)}`), { code: 'shared_config_invalid' });
     }
-    await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+    if (text === null) {
+      let legacyExists = false;
+      legacyExists = (await validateSharedConfigTarget(projectPath, LEGACY_SHARED_CONFIG_RELATIVE_PATH)).exists;
+      if (legacyExists) {
+        text = '{"version":1}\n';
+      } else {
+        if (!canonical.directoryStat) return;
+        await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+        const existing = await sharedTargetStat(filePath);
+        await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+        if (existing) await fsPromises.rm(filePath);
+        await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+        await fsPromises.rmdir(directoryPath).catch(() => {});
+        return;
+      }
+    }
+    await fsPromises.mkdir(directoryPath, { recursive: false }).catch((error) => {
+      if (!error || error.code !== 'EEXIST') throw error;
+    });
+    try { canonical = await validate(); } catch (error) {
+      throw Object.assign(new Error(`.skynex/project.json is invalid: ${error instanceof Error ? error.message : String(error)}`), { code: 'shared_config_invalid' });
+    }
     const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let temporaryIdentity;
+    let handle;
     try {
-      await fsPromises.writeFile(temporaryPath, text, 'utf8');
+      const flags = fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | (fsConstants.O_NOFOLLOW ?? 0);
+      handle = await fsPromises.open(temporaryPath, flags, 0o666);
+      temporaryIdentity = await handle.stat();
+      await handle.writeFile(text, 'utf8');
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+      await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+      await sharedTargetStat(filePath);
+      await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
       await fsPromises.rename(temporaryPath, filePath);
+      await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+      const finalStat = await sharedTargetStat(filePath);
+      if (!finalStat || finalStat.dev !== temporaryIdentity.dev || finalStat.ino !== temporaryIdentity.ino) {
+        throw new Error('shared config file changed during the operation');
+      }
     } catch (error) {
-      await fsPromises.rm(temporaryPath, { force: true }).catch(() => {});
-      throw error;
+      await handle?.close().catch(() => {});
+      try {
+        await assertSharedDirectoryIdentity(canonical.directoryPath, canonical.directoryStat);
+        if (await sharedTargetStat(temporaryPath)) await fsPromises.rm(temporaryPath);
+      } catch {}
+      throw Object.assign(new Error(`.skynex/project.json is invalid: ${error instanceof Error ? error.message : String(error)}`), { code: 'shared_config_invalid' });
     }
   };
 
@@ -1110,19 +1239,27 @@ export const createProjectConfigRuntime = (deps) => {
 
   /**
    * Change the team's shared file in the checkout: the patch replaces the
-   * keys it names over the current file (a broken file counts as empty, so
-   * a write repairs it). A result with nothing in it removes the file (and
-   * the `.openchamber` folder when that leaves it empty), so unsharing the
+    * keys it names over the current file (a broken canonical file counts as
+    * empty, so a write repairs it). An invalid legacy file is refused while
+    * the canonical file is absent. An empty result removes the file (and
+    * the `.skynex` folder when that leaves it empty), so unsharing the
    * last item leaves no trace. The writer has seen the commands it just
    * shared, so the personal trust record is set to the new hash on this
    * instance; teammates still get the prompt.
    */
   const updateSharedProjectSetup = async (projectID, patch) => (
     withProjectWriteLock(projectID, async () => {
+      const decodedPath = projectPathFromId(sanitizeProjectID(projectID));
+      await assertProjectCheckout(decodedPath);
+      const registeredPath = await registeredCheckout(projectID);
+      if (!registeredPath) throw Object.assign(new Error('Project not found'), { code: 'project_not_found' });
       const personalRaw = await readRawProjectConfigFromDisk(projectID);
-      const projectPath = projectPathOf(projectID, personalRaw);
+      const projectPath = registeredPath;
       await assertProjectCheckout(projectPath);
       const currentRead = await readSharedProjectConfig(projectID, personalRaw);
+      if (currentRead.status === 'invalid' && currentRead.path === LEGACY_SHARED_CONFIG_RELATIVE_PATH) {
+        throw Object.assign(new Error(`${currentRead.path || SHARED_CONFIG_RELATIVE_PATH} is invalid: ${currentRead.reason}`), { code: 'shared_config_invalid' });
+      }
       const current = currentRead.status === 'ok' ? currentRead.config : EMPTY_SHARED_PROJECT_CONFIG;
       // Keys this writer does not own survive the write, and a repair of a
       // wrongly shaped setup key too; only an unreadable, unparsable or
@@ -1164,7 +1301,7 @@ export const createProjectConfigRuntime = (deps) => {
       await assertProjectCheckout(projectPath);
       const currentRead = await readSharedProjectFile(projectPath);
       if (currentRead.status === 'invalid') {
-        throw Object.assign(new Error(`${SHARED_CONFIG_RELATIVE_PATH} is invalid: ${currentRead.reason}`), { code: 'shared_config_invalid' });
+        throw Object.assign(new Error(`${currentRead.path || SHARED_CONFIG_RELATIVE_PATH} is invalid: ${currentRead.reason}`), { code: 'shared_config_invalid' });
       }
       const document = currentRead.status === 'ok' ? currentRead.document : { version: 1 };
       const current = Object.prototype.hasOwnProperty.call(document, key) ? document[key] : undefined;
@@ -1186,6 +1323,8 @@ export const createProjectConfigRuntime = (deps) => {
     readProjectSetup,
     updateProjectSetup,
     updateSharedProjectSetup,
+    sharedConfigIgnoreStatus,
+    fixSharedConfigIgnore,
     readSharedProjectFile,
     updateSharedProjectEntry,
     listScheduledTasks,

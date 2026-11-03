@@ -140,6 +140,7 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useSessionUIStore.getState().restoreForRuntimeSwitch(detail.runtimeKey, detail.previousRuntimeKey);
   useSessionUIStore.setState({ openSessionFailure: null });
   useWorkspacesStore.getState().resetForRuntimeSwitch();
+  useUIStore.getState().setSettingsWorkspaceTarget(null);
   void hydrateOpenSessionsForRestore();
   useSessionUIStore.setState({ worktreeDiscoveryByProject: new Map() });
   useUIStore.getState().setOpenGuestPage(null);

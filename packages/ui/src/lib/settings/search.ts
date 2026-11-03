@@ -962,6 +962,27 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['models', 'quota', 'limits', 'tokens'],
   },
   {
+    id: 'projects.workspace',
+    page: 'projects',
+    titleKey: 'workspaces.title',
+    keywords: ['workspace', 'workspaces', 'catalog', 'organize'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
+    id: 'projects.folder',
+    page: 'projects',
+    titleKey: 'settings.projects.search.folder',
+    keywords: ['folder', 'folders', 'directory', 'repository'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
+    id: 'projects.chats',
+    page: 'projects',
+    titleKey: 'settings.projects.search.chats',
+    keywords: ['chat', 'chats', 'conversation', 'conversations', 'default agent', 'default model'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
     id: 'projects.name',
     page: 'projects',
     titleKey: 'settings.projects.page.field.projectName',
@@ -990,13 +1011,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     page: 'projects',
     titleKey: 'settings.projects.page.field.projectIcon',
     keywords: ['icon', 'favicon', 'upload', 'color', 'accent color', 'appearance', 'project metadata'],
-  },
-  {
-    id: 'projects.close',
-    page: 'projects',
-    titleKey: 'settings.projects.page.actions.closeProject',
-    keywords: ['close', 'remove', 'delete', 'forget', 'project'],
-    isAvailable: (ctx) => !ctx.isVSCode,
   },
   {
     id: 'projects.actions',
@@ -1036,7 +1050,7 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     page: 'projects',
     titleKey: 'settings.projects.team.title',
     descriptionKey: 'settings.projects.team.info',
-    keywords: ['shared', 'team', 'repository', '.openchamber', 'project.json', 'trust'],
+    keywords: ['shared', 'team', 'repository', '.skynex', 'project.json', 'trust'],
   },
   {
     id: 'remote-instances.client-auth',

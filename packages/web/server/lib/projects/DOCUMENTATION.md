@@ -23,12 +23,17 @@ that writes it:
 Historical knowledge fields are opaque data. Current writers preserve them and expose no native notes, todos, plans or agent-memory API.
 A project's environment variables and environment command are not in this file either: values can be secrets, so they live in `environment.json` (mode 0600, `packages/web/server/lib/environment`).
 
-A second, optional source is the team's shared file, `<repo>/.openchamber/project.json`
+A second, optional source is the team's shared file, `<repo>/.skynex/project.json`
 (`version: 1`; `setupWorktree`, `setupWorktreeWait`, `projectActions`, `draftStarters`,
-and `magicPrompts`, which `../magic-prompts` owns). The server reads it from the checkout the project id names
+and `magicPrompts`, which `../magic-prompts` owns). Legacy `<repo>/.openchamber/project.json` is read only when the canonical file is absent. The first write migrates its entire valid document to the canonical path; the legacy file is never changed. The server reads it from the checkout the project id names
 (`projectPathFromId`). `GET /api/projects/:projectId/config`
 returns one merged view: what runs at the top level, plus `shared` and `personal`
 blocks so a page can edit the personal file without copying a teammate's entry into it.
+
+`GET /api/projects/:projectId/config/shared-ignore` reports whether the shared
+file is ignored. `POST /api/projects/:projectId/config/shared-ignore/fix` is the
+explicit, click-authorized exception operation; it changes only exact root
+`.gitignore` rules `.skynex/` and `/.skynex/`, preserving unrelated bytes. Both routes require the normalized checkout path to match a project in authoritative settings before running Git or touching files.
 
 | Field | Merge rule |
 |---|---|
@@ -50,6 +55,8 @@ take the project's write lock (the in-process chain and the
 sibling, so a setup save and a prompt save never clobber each other. The lock
 covers only writers sharing one projects dir and project id; a server with
 another data dir, the VS Code extension host and a hand edit are last write wins.
+Before shared-config reads, writes, or removal, both runtimes reject symlinked/non-directory config folders and symlinked/non-regular files, and verify the resolved folder remains inside the checkout.
+Reads use no-follow file handles and pin the config directory's device/inode; writes use exclusive no-follow temporary files and recheck that identity and target around rename/removal. A same-user process can still race in the microseconds between the final identity check and rename: Node offers no directory-handle-relative rename, and the server already runs as that user, so this does not grant the racing process a privilege it lacks.
 
 `PUT /api/projects/:projectId/config/shared` (`updateSharedProjectSetup`) writes
 the setup keys. The patch replaces the keys it names over the current file
@@ -58,8 +65,8 @@ pretty-printed with `version` first and only the setup keys that carry something
 (`serializeSharedProjectConfig`), because the file is committed and reviewed.
 Every other key follows unchanged, also through a repair; only unparsable JSON,
 a non-object or another version is replaced whole. A result with nothing in it
-and no other key removes the file and the `.openchamber` folder
-when that leaves it empty, so unsharing the last item leaves no trace. The
+and no other key removes the file and the `.skynex` folder
+when that leaves it empty, so unsharing the last item leaves no trace. Writes always target `.skynex/project.json`; a legacy file remains untouched. The
 write refuses a checkout that does not exist. The writer has seen what it shared, so its personal trust record is set
 to the new hash; teammates still get the prompt. The shared UI moves an
 entry between the files as a write to the destination followed by a removal
@@ -100,4 +107,5 @@ UI (`packages/ui/src/lib/sharedTrustConfirmation.ts`).
 - **Historical storage folders stay in place.** Settings startup never reads, combines, remaps or moves retired context, plan or memory files. Project-id migration and orphan recovery still copy active configuration into the canonical config, preserving unknown fields. Their original config document is renamed to `<original>.json.<uuid>.retired`, retaining its bytes without rediscovering it as an active orphan. Existing historical paths remain unchanged.
 - **Retired shared fields stay opaque.** A saved `plansDir` is preserved as an unknown document key through setup and prompt writes. It is absent from parsed setup, cannot be changed through setup patches, and does not authorize filesystem access.
 - **The client never composes the path.** `packages/ui/src/lib/openchamberConfig.ts` speaks only HTTP; the same code serves web, desktop, VS Code, and the phone, including a phone on a remote instance.
+- **Ignore exceptions are explicit, never automatic.** The read route is diagnostic; only the separate POST operation may amend an eligible root ignore rule. Rules from exclude files or other sources remain manual-only, preventing a background read from changing a team's repository.
 - **`OPENCHAMBER_DATA_DIR` moves this directory too.** Every OpenChamber folder hangs off the one root; a custom root gets `projects/`, `themes/`, and `speech-models/` copied in from `~/.config/openchamber` once at startup (copied, not moved: a second instance beside the default one must not strip it) (`lib/data-dir-migration.js`). A scratch server started with its own data dir therefore never touches the real project configs.

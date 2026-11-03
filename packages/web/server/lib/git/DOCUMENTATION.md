@@ -15,7 +15,8 @@ This module provides Git repository operations for the web server runtime, inclu
   - `network-operation-registry.js`: bounded process-local operation state, execution joining, progress steps, cancellation, and terminal retention.
   - `network-operations.js`: transport resolution, Git process ownership, redaction, deadlines, clone checkout copying, cleanup, and execution.
    - `transport-config.js`: bounded effective Git transport and checkout-hydration configuration hashing for repository authority.
-   - `submodule-discovery.js`, `lfs-discovery.js`, and `discovery-endpoint.js`: bounded pure parsers for committed checkout metadata and endpoint resolution.
+    - `submodule-discovery.js`, `lfs-discovery.js`, and `discovery-endpoint.js`: bounded pure parsers for committed checkout metadata and endpoint resolution.
+  - `shared-config-ignore.js`: bounded Git diagnosis and the narrowly authorized root `.gitignore` exception for `.skynex/project.json`. Probes disable repository `core.fsmonitor`; only an exact root `.gitignore` rule at a registered checkout root can be repaired. The rewrite scopes ignores as `**/.skynex/*` (or `/.skynex/*`) and allows the root project file, preserving each line's terminator.
   - `contributor-provenance-storage.js`: strict bounded persistence for contributor-fork worktree identity and push-safety authority.
   - `worktree-creation.js`: worktree creation with the server's authority checks, including the change-request pipeline (resolve, exact account, managed head transfer, contributor remote and provenance). `POST /api/git/worktrees` and the session service (`session.create` with `pullRequest`) both create through it; `registerGitRoutes` returns its `createWorktree` for that.
   - `contributor-remote.js`: the `forkRemoteName` rule shared by change-request source construction and contributor transfer. It preserves the `pr-<owner>` normalization and `pr-head` fallback.
@@ -29,6 +30,7 @@ This module provides Git repository operations for the web server runtime, inclu
 The following functions are exported and used by the web server:
 
 ### Repository Operations
+- Shared project config ignore inspection is read-only. Its exception writer accepts only the exact root `.gitignore` patterns `.skynex/` and `/.skynex/`, refuses symlinked/non-regular files and concurrent content changes, and atomically adds an allow-rule for `.skynex/project.json`; exclude-file and other-source rules remain manual-only.
 - `isGitRepository(directory)`: Check if a directory is a Git repository. A repository whose root is the home directory or a filesystem root (`C:\`, `/`) answers `false` (`unsupportedRepositoryRootReason`): such a repository covers the whole disk, every status read would walk it, and it is nearly always an accidental `git init`. All Git surfaces then show the non-repository state for that directory.
 - `repository-root.js` owns that home/disk-root rule (`unsupportedRepositoryRootReason`) and `vcsInitRefusal`, which the OpenCode routes and the VS Code bridge use to refuse OpenCode's `POST /api/vcs/init` in those places. It has no Git dependency so the VS Code extension can import it.
 - `getGlobalIdentity()`: Get global Git user.name, user.email, and core.sshCommand.

@@ -15,6 +15,7 @@ import type {
   StructuredError,
 } from "@/lib/opencode/model"
 import { createEventPipeline } from "./event-pipeline"
+import { INTERRUPTED_TOOL_ERROR } from "./interrupted-tool"
 import { isVSCodeRuntime } from "@/lib/desktop"
 import { isSurfaceAttended } from "@/lib/surfaceAttention"
 import { isMobileSurfaceRuntime } from "@/lib/runtimeSurface"
@@ -2631,7 +2632,7 @@ export function interruptedTurnToolParts(
       state: {
         ...part.state,
         status: "error" as const,
-        error: "Interrupted",
+        error: INTERRUPTED_TOOL_ERROR,
         time: { start, end: now },
       },
     }

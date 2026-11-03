@@ -23,7 +23,7 @@ import {
 } from './projectSetupModel';
 import type { ProjectSetupState } from './useProjectSetup';
 
-const ActionsGrid: React.FC<{ setup: ProjectSetup; setupState: ProjectSetupState }> = ({ setup, setupState }) => {
+const ActionsGrid: React.FC<{ setup: ProjectSetup; setupState: ProjectSetupState; projectId: string }> = ({ setup, setupState, projectId }) => {
   const { t } = useI18n();
   const { write, reload } = setupState;
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
@@ -129,6 +129,7 @@ const ActionsGrid: React.FC<{ setup: ProjectSetup; setupState: ProjectSetupState
         </li>
       </ul>
       <ProjectActionEditorDialog
+        projectId={projectId}
         target={editing?.target ?? null}
         canShare={shareable}
         onOpenChange={(open) => {
@@ -142,7 +143,7 @@ const ActionsGrid: React.FC<{ setup: ProjectSetup; setupState: ProjectSetupState
   );
 };
 
-export const ProjectActionsTab: React.FC<{ setupState: ProjectSetupState }> = ({ setupState }) => {
+export const ProjectActionsTab: React.FC<{ setupState: ProjectSetupState; projectId: string }> = ({ setupState, projectId }) => {
   const { t } = useI18n();
   return (
     <SettingsSection
@@ -152,7 +153,7 @@ export const ProjectActionsTab: React.FC<{ setupState: ProjectSetupState }> = ({
       divider={false}
     >
       {setupState.load.state === 'ready'
-        ? <ActionsGrid setup={setupState.load.setup} setupState={setupState} />
+        ? <ActionsGrid setup={setupState.load.setup} setupState={setupState} projectId={projectId} />
         : <ProjectSetupUnavailable setupState={setupState} />}
     </SettingsSection>
   );

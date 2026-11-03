@@ -72,7 +72,7 @@ const isJsonObject = (value: JsonValue | undefined): value is JsonObject =>
 export type SharedProjectConfigRead =
   | { status: 'missing' }
   | { status: 'ok'; config: SharedProjectConfig; document: JsonObject }
-  | { status: 'invalid'; reason: string; document?: JsonObject };
+  | { status: 'invalid'; reason: string; document?: JsonObject; path?: string };
 
 export type ProjectSetupSource = 'shared' | 'personal';
 
@@ -89,7 +89,8 @@ export type ProjectSetupView = {
   personal: PersonalProjectSetup;
 };
 
-export const SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
+export const SHARED_CONFIG_RELATIVE_PATH = '.skynex/project.json';
+export const LEGACY_SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
 const SHARED_CONFIG_VERSION = 1;
 
 /**
@@ -327,7 +328,7 @@ export const mergeProjectSetup = (personal: PersonalProjectSetup, sharedRead: Sh
 };
 
 const sharedBlockOf = (sharedRead: SharedProjectConfigRead, shared: SharedProjectConfig): ProjectSetupView['shared'] => {
-  const block: ProjectSetupView['shared'] = { status: sharedRead.status, path: SHARED_CONFIG_RELATIVE_PATH, ...shared };
+  const block: ProjectSetupView['shared'] = { status: sharedRead.status, path: sharedRead.status === 'invalid' ? sharedRead.path ?? SHARED_CONFIG_RELATIVE_PATH : SHARED_CONFIG_RELATIVE_PATH, ...shared };
   if (sharedRead.status === 'invalid') block.reason = sharedRead.reason;
   return block;
 };

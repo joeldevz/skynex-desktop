@@ -7,7 +7,11 @@ description: Guarda acciones del proyecto, comandos de configuración de worktre
 
 Las acciones del proyecto, los comandos de configuración de worktree y los arranques de borrador viven por defecto en tus propios ajustes de OpenChamber. Nadie más los ve. Si quieres que quien clone el repositorio tenga la misma acción de servidor de desarrollo y el mismo `bun install` en cada worktree nuevo, mueve esos elementos al repositorio.
 
-OpenChamber los guarda en `.openchamber/project.json` en la raíz del repositorio. El archivo aparece solo cuando mueves allí el primer elemento y desaparece cuando sacas el último. Haz commit como con cualquier otro archivo.
+OpenChamber los guarda en `.skynex/project.json` en la raíz del repositorio. El archivo aparece cuando mueves allí el primer elemento. Si existe un `.openchamber/project.json` antiguo, Skynex conserva un `.skynex/project.json` vacío al sacar el último elemento, para que el archivo antiguo no vuelva. Haz commit como con cualquier otro archivo.
+
+Los repositorios que aún tienen `.openchamber/project.json` siguen funcionando. El primer guardado escribe `.skynex/project.json` y deja intacto el archivo anterior.
+
+Si Git ignora `.skynex/`, Settings muestra una advertencia con el botón **Add exception**. La excepción mantiene ignoradas las carpetas `.skynex/` anidadas.
 
 ## Qué va a cada sitio
 

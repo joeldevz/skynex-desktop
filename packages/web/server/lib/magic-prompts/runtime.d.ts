@@ -16,7 +16,7 @@ export type MagicPromptScopeState =
 export type MagicPromptProject = { id: string; path: string };
 
 /**
- * The owner of `<checkout>/.openchamber/project.json`. `updateSharedProjectEntry`
+ * The owner of `<checkout>/.skynex/project.json`. `updateSharedProjectEntry`
  * refuses an invalid file with `code: 'shared_config_invalid'` and a gone
  * checkout with the message `project checkout not found`.
  */

@@ -80,10 +80,11 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   },
   {
     slug: 'projects',
-    title: 'Projects',
+    title: 'Workspaces',
     group: 'projects',
     kind: 'split',
-    keywords: ['project', 'projects', 'worktree', 'worktrees', 'repo', 'repository', 'directory'],
+    description: 'Organize workspace folders and configure conversations without a workspace.',
+    keywords: ['project', 'projects', 'workspace', 'workspaces', 'folder', 'folders', 'chats', 'worktree', 'worktrees', 'repo', 'repository', 'directory'],
   },
   {
     slug: 'remote-instances',

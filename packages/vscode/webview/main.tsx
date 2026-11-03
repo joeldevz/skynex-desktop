@@ -497,6 +497,20 @@ const handleLocalApiRequest = async (input: RequestInfo | URL, url: URL, init: R
     }
   }
 
+  // Whether Git ignores the shared .skynex/project.json, and the opt-in fix;
+  // the extension host runs Git the way the server does elsewhere.
+  const sharedIgnoreMatch = normalizedPathname.match(/^\/api\/projects\/([^/]+)\/config\/shared-ignore(\/fix)?$/);
+  if (sharedIgnoreMatch && (sharedIgnoreMatch[2] ? method === 'POST' : method === 'GET')) {
+    const projectId = decodeURIComponent(sharedIgnoreMatch[1]);
+    try {
+      const data = await sendBridgeMessage(sharedIgnoreMatch[2] ? 'api:project-setup:ignore-fix' : 'api:project-setup:ignore-status', { projectId });
+      return jsonResponse(data, 200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Shared config ignore request failed';
+      return jsonResponse({ error: message }, /must be|is required|unsupported characters/.test(message) ? 400 : 500);
+    }
+  }
+
   if (normalizedPathname === '/api/fs/git-dirs') {
     return unsupportedWebRouteResponse('Nested git repository discovery');
   }

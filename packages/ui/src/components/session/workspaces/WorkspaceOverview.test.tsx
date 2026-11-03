@@ -111,17 +111,18 @@ function fixture() {
   const creates: Array<[FolderSelection, WorkspaceDefaults]> = [];
   const additions: string[] = [];
   const unlinks: string[] = [];
+  let failUpdate = false;
   const props: WorkspaceOverviewContract = {
     workspace,
     models: [{ label: 'Small', value: { providerID: 'test', id: 'small' } }, { label: 'Large', value: { providerID: 'test', id: 'large' } }],
     agents: [{ label: 'Build', value: 'build' }, { label: 'Plan', value: 'plan' }],
-    onUpdate: async (patch) => { updates.push(patch); },
+    onUpdate: async (patch) => { updates.push(patch); if (failUpdate) throw new Error('save failed'); },
     onCreateSession: async (selection, defaults) => { creates.push([selection, defaults]); },
     onAddFolders: async () => { additions.push('picker'); },
     onUnlinkFolder: async (folderId) => { unlinks.push(folderId); },
     renderWorkspaceHistory: () => <div>Workspace session list</div>,
   };
-  return { props, updates, creates, additions, unlinks };
+  return { props, updates, creates, additions, unlinks, setUpdateFailure: (value: boolean) => { failUpdate = value; } };
 }
 
 test('C1/C6 overview saves explicit documentation/default edits and unlinks without destructive controls', async () => {
@@ -171,5 +172,31 @@ test('C2 sessions start in the whole workspace or in one folder, never with no f
     await ui.render({ ...f.props, workspace: { ...workspace, folders: [] } });
     expect(ui.button('New session').disabled).toBe(true);
     expect(f.creates).toHaveLength(2);
+  });
+});
+
+test('hides Sessions and Scheduled tasks tabs when their handlers are absent', async () => {
+  await withOverview(async (ui) => {
+    const { props } = fixture();
+    delete props.renderWorkspaceHistory;
+    await ui.render(props);
+    const tabs = [...ui.container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent?.trim());
+    expect(tabs).not.toContain('Sessions');
+    expect(tabs).not.toContain('Scheduled tasks');
+  });
+});
+
+test('retry after a failed Save submits the current draft', async () => {
+  await withOverview(async (ui) => {
+    const f = fixture();
+    f.setUpdateFailure(true);
+    await ui.render(f.props);
+    await ui.edit('Workspace name', 'First edit');
+    await act(async () => ui.button('Save').click());
+    expect(ui.container.textContent).toContain('save failed');
+    await ui.edit('Workspace name', 'Latest edit');
+    f.setUpdateFailure(false);
+    await act(async () => ui.button('Try again').click());
+    expect(f.updates.at(-1)?.name).toBe('Latest edit');
   });
 });

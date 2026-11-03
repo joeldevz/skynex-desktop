@@ -57,10 +57,13 @@ export const toBackgroundShellPart = (part: ToolPart, phase: BackgroundShellPhas
         case 'finished': {
             const { completion } = phase;
             const time = { start, end: Math.max(start, completion.endedAt) };
+            const metadata = typeof completion.exit === 'number'
+                ? { ...(state.metadata ?? {}), exit: completion.exit }
+                : state.metadata;
             if (shellCompletionFailed(completion)) {
-                return { ...part, state: { status: 'error', input, error: failureReason(completion), output: completion.output, time } };
+                return { ...part, state: { status: 'error', input, error: failureReason(completion), output: completion.output, metadata, time } };
             }
-            return { ...part, state: { ...state, output: completion.output, time } };
+            return { ...part, state: { ...state, output: completion.output, metadata, time } };
         }
         case 'stopped':
             return { ...part, state: { ...state, output: phase.notice, time: { start, end: Math.max(start, phase.endedAt) } } };

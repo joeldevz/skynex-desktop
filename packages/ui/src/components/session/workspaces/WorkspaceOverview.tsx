@@ -41,6 +41,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
   const [basis, setBasis] = useState(workspace);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryAction, setRetryAction] = useState<(() => Promise<void>) | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (basis !== workspace) {
     const priorFolders = new Map(basis.folders.map((folder) => [folder.id, folder]));
@@ -58,12 +59,17 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
       }),
     });
   }
-  async function perform(action: () => Promise<void>) {
+  async function perform(action: () => Promise<void>, retryable = true) {
     if (pending) return;
     setPending(true);
     setError(null);
-    try { await action(); } catch (failure) { setError(failure instanceof Error ? failure.message : t('workspaces.actionFailed')); } finally { setPending(false); }
+    try { await action(); setRetryAction(null); } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t('workspaces.actionFailed'));
+      setRetryAction(retryable ? () => action : null);
+    } finally { setPending(false); }
   }
+  const saveDraft = () => perform(() => onUpdate({ name: draft.name, description: draft.description, folders: draft.folders, defaults: draft.defaults }), false);
+  const retry = () => retryAction ? perform(retryAction) : saveDraft();
   const modelIndex = models.findIndex(({ value }) => value.providerID === draft.defaults.model?.providerID && value.id === draft.defaults.model?.id);
   React.useEffect(() => {
     if (!scheduledTasksOpen && activeTab === 'scheduledTasks') setActiveTab('home');
@@ -75,7 +81,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
         <h1 dir="auto" className="oc-ui-start-align min-w-0 truncate typography-settings-page-title text-foreground" title={workspace.name}>{workspace.name}</h1>
         <div className="flex shrink-0 items-center gap-2">
         <Button variant="outline" aria-label={t('sessions.sidebar.header.actions.newSession')} disabled={pending || workspace.folders.length === 0} onClick={() => void perform(() => onCreateSession({ kind: 'workspace' }, workspace.defaults))}><Icon name="add" className="size-4 @md:hidden" /><span className="sr-only @md:not-sr-only">{t('sessions.sidebar.header.actions.newSession')}</span></Button>
-        <Button disabled={pending || !draft.name.trim()} onClick={() => void perform(() => onUpdate({ name: draft.name, description: draft.description, folders: draft.folders, defaults: draft.defaults }))}>{t('projectEditDialog.actions.save')}</Button>
+        <Button disabled={pending || !draft.name.trim()} onClick={() => void saveDraft()}>{t('projectEditDialog.actions.save')}</Button>
         {onDelete && <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" disabled={pending} aria-label={t('workspaces.moreActions')}><Icon name="more" className="size-4" /></Button>
@@ -93,12 +99,12 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
         if (nextTab === 'sourceBoard') onOpenSourceBoard?.();
       }} className="space-y-4">
         <Tabs.List activateOnFocus aria-label={t('sortableTabsStrip.aria.tabs')} className="pill-tabs__track oc-recessed flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-lg bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-0.5">
-          {[
-            { value: 'home', label: t('workspaces.home') },
-            { value: 'folders', label: t('workspaces.folders') },
-            { value: 'sessions', label: t('workspaces.sessions') },
-          ].map(({ value, label }) => <Tabs.Tab key={value} value={value} className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{label}</Tabs.Tab>)}
-          <Tabs.Tab value="scheduledTasks" className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{t('sessions.scheduledTasks.dialog.title')}</Tabs.Tab>
+            {[
+              { value: 'home', label: t('workspaces.home') },
+              { value: 'folders', label: t('workspaces.folders') },
+              ...(renderWorkspaceHistory ? [{ value: 'sessions', label: t('workspaces.sessions') }] : []),
+            ].map(({ value, label }) => <Tabs.Tab key={value} value={value} className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{label}</Tabs.Tab>)}
+          {onOpenScheduledTasks && <Tabs.Tab value="scheduledTasks" className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{t('sessions.scheduledTasks.dialog.title')}</Tabs.Tab>}
           {onOpenSourceBoard && <Tabs.Tab value="sourceBoard" className="pill-tabs__button h-7 shrink-0 whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground data-[active]:oc-raised data-[active]:bg-[var(--surface-background)] data-[active]:text-foreground dark:data-[active]:bg-[var(--surface-elevated)] [@media(pointer:coarse)]:min-h-11">{t('sourceBoard.title')}</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="home" keepMounted className="data-[hidden]:hidden">
@@ -125,9 +131,9 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
         </div>
       </SettingsSection>
         </Tabs.Panel>
-        <Tabs.Panel value="sessions" keepMounted className="data-[hidden]:hidden" render={(panelProps, { hidden }) => <div {...panelProps}><PauseClock paused={hidden}>{panelProps.children}</PauseClock></div>}>
-          {renderWorkspaceHistory?.()}
-        </Tabs.Panel>
+        {renderWorkspaceHistory && <Tabs.Panel value="sessions" keepMounted className="data-[hidden]:hidden" render={(panelProps, { hidden }) => <div {...panelProps}><PauseClock paused={hidden}>{panelProps.children}</PauseClock></div>}>
+          {renderWorkspaceHistory()}
+        </Tabs.Panel>}
         <Tabs.Panel value="folders" keepMounted className="data-[hidden]:hidden">
       <SettingsSection divider={false} description={t('workspaces.unlinkKeepsFiles')} headerAction={<Button variant="outline" size="sm" disabled={pending} onClick={() => void perform(onAddFolders)}><Icon name="add" className="size-4" />{t('workspaces.addFolders')}</Button>} contentClassName="space-y-2">
         {draft.folders.length === 0 && <div className="oc-tile rounded-lg p-6">
@@ -155,6 +161,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
         {onOpenSourceBoard && <Tabs.Panel value="sourceBoard" keepMounted className="data-[hidden]:hidden" />}
       </Tabs.Root>
       <div className="min-h-6 typography-meta text-[var(--status-error-text)]" role="alert">{error}</div>
+      {error && <Button variant="link" size="sm" disabled={pending} onClick={() => void retry()}>{t('directoryExplorerDialog.browse.retry')}</Button>}
       {onDelete && <Dialog open={confirmDelete} onOpenChange={(open) => { if (!pending) { setConfirmDelete(open); setError(null); } }}>
         <DialogContent showCloseButton={!pending}>
           <DialogHeader>

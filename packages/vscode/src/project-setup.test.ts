@@ -155,6 +155,15 @@ describe('project setup bridge', () => {
       await fs.promises.rm(dir, { recursive: true, force: true });
     }
   };
+  const assertSharedWriteRefused = async <T,>(write: () => Promise<T>): Promise<void> => {
+    try {
+      await write();
+      assert.fail('expected shared-config write to be refused');
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'shared_config_invalid') return;
+      throw error;
+    }
+  };
 
   test('stores a project whose id is too long for a file name under a bounded name', async () => {
     await withStore(async (store, dir) => {
@@ -239,8 +248,8 @@ describe('project setup bridge', () => {
   test('reads the shared file from the checkout the id names', async () => {
     await withStore(async (store, dir) => {
       const repo = path.join(dir, 'repo');
-      await fs.promises.mkdir(path.join(repo, '.openchamber'), { recursive: true });
-      await fs.promises.writeFile(path.join(repo, '.openchamber', 'project.json'), JSON.stringify({
+      await fs.promises.mkdir(path.join(repo, '.skynex'), { recursive: true });
+      await fs.promises.writeFile(path.join(repo, '.skynex', 'project.json'), JSON.stringify({
         version: 1,
         setupWorktree: ['bun install'],
         projectActions: [{ id: 'dev', name: 'Dev', command: 'bun run dev' }],
@@ -251,7 +260,7 @@ describe('project setup bridge', () => {
       assert.equal(view.shared.status, 'ok');
       assert.deepEqual(view.setupWorktree, ['bun install', 'mine']);
       assert.deepEqual(view.projectActions, []);
-      await fs.promises.writeFile(path.join(repo, '.openchamber', 'project.json'), '{ broken');
+      await fs.promises.writeFile(path.join(repo, '.skynex', 'project.json'), '{ broken');
       const broken = await store.read(projectId);
       assert.equal(broken.shared.status, 'invalid');
       assert.deepEqual(broken.setupWorktree, ['mine']);
@@ -271,12 +280,12 @@ describe('project setup bridge', () => {
       const view = shared?.data as { trust: { trusted: boolean }; shared: { status: string } };
       assert.equal(view.shared.status, 'ok');
       assert.equal(view.trust.trusted, true);
-      const raw = JSON.parse(await fs.promises.readFile(path.join(repo, '.openchamber', 'project.json'), 'utf8'));
+      const raw = JSON.parse(await fs.promises.readFile(path.join(repo, '.skynex', 'project.json'), 'utf8'));
       assert.deepEqual(raw, { version: 1, setupWorktree: ['bun install'] });
 
       const emptied = await store.updateShared(projectId, { setupWorktree: [] });
       assert.equal(emptied.shared.status, 'missing');
-      assert.equal(fs.existsSync(path.join(repo, '.openchamber')), false);
+      assert.equal(fs.existsSync(path.join(repo, '.skynex')), false);
 
       const missing = await handleProjectSetupBridgeMessage(
         { id: '2', type: 'api:project-setup:update-shared', payload: { projectId: projectIdFor(path.join(dir, 'nope')), patch: {} } },
@@ -284,6 +293,62 @@ describe('project setup bridge', () => {
       );
       assert.equal(missing?.success, false);
       assert.match(missing?.error ?? '', /checkout not found/);
+    });
+  });
+
+  test('refuses a symlinked .skynex directory without reading or writing outside the checkout', async () => {
+    await withStore(async (store, dir) => {
+      const repo = path.join(dir, 'repo');
+      const outside = path.join(dir, 'outside');
+      await fs.promises.mkdir(repo, { recursive: true });
+      await fs.promises.mkdir(outside);
+      const outsideFile = path.join(outside, 'project.json');
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await fs.promises.writeFile(outsideFile, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.skynex'), 'dir');
+      const projectId = projectIdFor(repo);
+      const shared = (await store.read(projectId)).shared;
+      assert.equal(shared.status, 'invalid');
+      assert.equal('path' in shared ? shared.path : undefined, '.skynex/project.json');
+      await assertSharedWriteRefused(() => store.updateShared(projectId, { setupWorktree: ['write'] }));
+      assert.equal(await fs.promises.readFile(outsideFile, 'utf8'), bytes);
+    });
+  });
+
+  test('refuses a symlinked canonical project.json without changing its target', async () => {
+    await withStore(async (store, dir) => {
+      const repo = path.join(dir, 'repo');
+      const outside = path.join(dir, 'outside.json');
+      await fs.promises.mkdir(path.join(repo, '.skynex'), { recursive: true });
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await fs.promises.writeFile(outside, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.skynex', 'project.json'), 'file');
+      const projectId = projectIdFor(repo);
+      const shared = (await store.read(projectId)).shared;
+      assert.equal(shared.status, 'invalid');
+      assert.equal('path' in shared ? shared.path : undefined, '.skynex/project.json');
+      await assertSharedWriteRefused(() => store.updateShared(projectId, { setupWorktree: ['write'] }));
+      assert.equal(await fs.promises.readFile(outside, 'utf8'), bytes);
+    });
+  });
+
+  test('refuses a symlinked legacy directory without falling back through it', async () => {
+    await withStore(async (store, dir) => {
+      const repo = path.join(dir, 'repo');
+      const outside = path.join(dir, 'outside');
+      await fs.promises.mkdir(repo, { recursive: true });
+      await fs.promises.mkdir(outside);
+      const outsideFile = path.join(outside, 'project.json');
+      const bytes = JSON.stringify({ version: 1, setupWorktree: ['outside'] });
+      await fs.promises.writeFile(outsideFile, bytes);
+      fs.symlinkSync(outside, path.join(repo, '.openchamber'), 'dir');
+      const projectId = projectIdFor(repo);
+      const shared = (await store.read(projectId)).shared;
+      assert.equal(shared.status, 'invalid');
+      assert.equal('path' in shared ? shared.path : undefined, '.openchamber/project.json');
+      await assertSharedWriteRefused(() => store.updateShared(projectId, { setupWorktree: ['write'] }));
+      assert.equal(await fs.promises.readFile(outsideFile, 'utf8'), bytes);
+      await assert.rejects(fs.promises.readFile(path.join(repo, '.skynex', 'project.json'), 'utf8'), { code: 'ENOENT' });
     });
   });
 
@@ -308,8 +373,8 @@ describe('shared file keys owned by other writers', () => {
     const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oc-vscode-shared-keys-'));
     try {
       const repo = path.join(dir, 'repo');
-      await fs.promises.mkdir(path.join(repo, '.openchamber'), { recursive: true });
-      const sharedPath = path.join(repo, '.openchamber', 'project.json');
+      await fs.promises.mkdir(path.join(repo, '.skynex'), { recursive: true });
+      const sharedPath = path.join(repo, '.skynex', 'project.json');
       if (content !== undefined) await fs.promises.writeFile(sharedPath, content);
       await run({ store: createProjectSetupStore(path.join(dir, 'projects')), repo, sharedPath, projectId: projectIdFor(repo) });
     } finally {
@@ -344,6 +409,71 @@ describe('shared file keys owned by other writers', () => {
         await assert.rejects(store.updateSharedEntry(repo, 'magicPrompts', () => ({ 'a.visible': 'A' })), { code: 'shared_config_invalid' });
         assert.equal(await fs.promises.readFile(sharedPath, 'utf8'), content);
       }
+    });
+  });
+
+  test('reads legacy config and migrates its full document on the first write', async () => {
+    await withRepo(undefined, async ({ store, repo, sharedPath, projectId }) => {
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await fs.promises.mkdir(path.dirname(legacyPath), { recursive: true });
+      const legacyBytes = JSON.stringify({ version: 1, setupWorktree: ['legacy'], magicPrompts: { 'plan.todo.instructions': 'keep' }, unknown: { nested: true } });
+      await fs.promises.writeFile(legacyPath, legacyBytes);
+
+      const read = await store.read(projectId);
+      assert.deepEqual(read.setupWorktree, ['legacy']);
+      assert.equal(read.shared.path, '.skynex/project.json');
+      await store.updateShared(projectId, { setupWorktree: ['updated'] });
+      assert.deepEqual(await readJson(sharedPath), { version: 1, setupWorktree: ['updated'], magicPrompts: { 'plan.todo.instructions': 'keep' }, unknown: { nested: true } });
+      assert.equal(await fs.promises.readFile(legacyPath, 'utf8'), legacyBytes);
+    });
+  });
+
+  test('canonical config wins and invalid legacy config is not overwritten', async () => {
+    await withRepo(undefined, async ({ store, repo, sharedPath, projectId }) => {
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await fs.promises.mkdir(path.dirname(legacyPath), { recursive: true });
+      const legacyBytes = '{ broken';
+      await fs.promises.writeFile(legacyPath, legacyBytes);
+      await fs.promises.writeFile(sharedPath, JSON.stringify({ version: 1, setupWorktree: ['canonical'] }));
+      assert.deepEqual((await store.read(projectId)).setupWorktree, ['canonical']);
+
+      await fs.promises.rm(sharedPath);
+      await assert.rejects(store.updateShared(projectId, { setupWorktree: ['x'] }));
+      assert.equal(await fs.promises.readFile(legacyPath, 'utf8'), legacyBytes);
+    });
+  });
+
+  test('keeps a version-only canonical file when the last setup key is removed from legacy config', async () => {
+    await withRepo(undefined, async ({ store, repo, sharedPath, projectId }) => {
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await fs.promises.mkdir(path.dirname(legacyPath), { recursive: true });
+      const legacyBytes = '{"version":1,"setupWorktree":["legacy"]}\n';
+      await fs.promises.writeFile(legacyPath, legacyBytes);
+      await store.updateShared(projectId, { setupWorktree: [] });
+      assert.equal(await fs.promises.readFile(sharedPath, 'utf8'), '{"version":1}\n');
+      assert.equal(await fs.promises.readFile(legacyPath, 'utf8'), legacyBytes);
+      assert.equal((await store.read(projectId)).shared.status, 'ok');
+
+      await store.updateShared(projectId, { setupWorktree: ['migrated'] });
+      await store.updateShared(projectId, { setupWorktree: [] });
+      assert.equal(await fs.promises.readFile(sharedPath, 'utf8'), '{"version":1}\n');
+      assert.equal(await fs.promises.readFile(legacyPath, 'utf8'), legacyBytes);
+      assert.equal((await store.read(projectId)).shared.status, 'ok');
+    });
+  });
+
+  test('reports the actual legacy path for invalid shared reads and errors', async () => {
+    await withRepo(undefined, async ({ store, repo, projectId }) => {
+      const legacyPath = path.join(repo, '.openchamber', 'project.json');
+      await fs.promises.mkdir(path.dirname(legacyPath), { recursive: true });
+      await fs.promises.writeFile(legacyPath, '{ broken');
+      const read = await store.read(projectId);
+      assert.equal(read.shared.status, 'invalid');
+      assert.equal(read.shared.path, '.openchamber/project.json');
+      await assert.rejects(store.updateShared(projectId, {}), /\.openchamber\/project\.json is invalid/);
+      const fileRead = await store.readSharedFile(repo);
+      assert.equal(fileRead.status, 'invalid');
+      if (fileRead.status === 'invalid') assert.equal(fileRead.path, '.openchamber/project.json');
     });
   });
 });

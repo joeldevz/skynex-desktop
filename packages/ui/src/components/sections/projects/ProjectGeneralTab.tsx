@@ -22,6 +22,7 @@ import { Icon } from '@/components/icon/Icon';
 import type { useProjectIdentityForm } from './useProjectIdentityForm';
 import type { ProjectSetupState } from './useProjectSetup';
 import { ProjectSetupUnavailable } from './ProjectSettingsBits';
+import { SharedConfigIgnoreNotice } from './SharedConfigIgnoreNotice';
 
 type ProjectIdentityFormState = ReturnType<typeof useProjectIdentityForm>;
 
@@ -140,6 +141,7 @@ const TeamFileSection: React.FC<{ projectRef: ProjectRef; setupState: ProjectSet
         <ProjectSetupUnavailable setupState={setupState} />
       ) : (
         <>
+          <SharedConfigIgnoreNotice projectId={projectRef.id} />
           {/* What the file is and what it holds, said once in a sentence. */}
           <p className={cn('max-w-[40rem]', setup.shared.status === 'invalid' ? 'typography-meta text-[var(--status-warning)]' : SETTINGS_HELPER_CLASS)}>
             {setup.shared.status === 'invalid'
@@ -148,6 +150,7 @@ const TeamFileSection: React.FC<{ projectRef: ProjectRef; setupState: ProjectSet
                 ? t('settings.projects.team.description.ok', { path: setup.shared.path })
                 : t('settings.projects.team.description.missing', { path: setup.shared.path })}
           </p>
+
 
           {setup.trust.hash !== null ? (
             <div

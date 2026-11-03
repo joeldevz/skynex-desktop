@@ -4,7 +4,7 @@
  *
  * A project's setup is the merge of two files the server (or the VS Code
  * extension host) owns: the personal one in `~/.config/openchamber/projects/`
- * and, when a team shares it, `<repo>/.openchamber/project.json`. The merged
+ * and, when a team shares it, `<repo>/.skynex/project.json`. The merged
  * view says what runs; its `shared` and `personal` blocks say where each
  * entry came from, so a Settings page edits the personal block and never
  * copies a teammate's entry into it. This module only speaks HTTP: it
@@ -110,6 +110,19 @@ const projectSetupSchema = z.object({
 
 export type ProjectSetup = z.infer<typeof projectSetupSchema>;
 
+/** Whether Git ignores the shared `.skynex/project.json`, as the server or the VS Code host reports it. */
+const sharedConfigIgnoreStatusSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('committable') }),
+  z.object({ kind: z.literal('ignored'), source: z.string(), line: z.number().int().positive(), pattern: z.string(), fixable: z.boolean() }),
+  z.object({ kind: z.literal('unknown'), reason: z.enum(['not-a-repository', 'git-unavailable', 'timeout']) }),
+]);
+const sharedConfigIgnoreFixResultSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('updated'), status: sharedConfigIgnoreStatusSchema }),
+  z.object({ kind: z.literal('refused'), reason: z.enum(['not-fixable', 'changed', 'unsafe-file', 'write-failed']) }),
+]);
+export type SharedConfigIgnoreStatus = z.infer<typeof sharedConfigIgnoreStatusSchema>;
+export type SharedConfigIgnoreFixResult = z.infer<typeof sharedConfigIgnoreFixResultSchema>;
+
 /** What a client may change: the personal file only. */
 export type ProjectSetupPatch = Partial<{
   setupWorktree: string[];
@@ -132,7 +145,7 @@ const EMPTY_PROJECT_SETUP: ProjectSetup = {
   draftStarters: [],
   shared: {
     status: 'missing',
-    path: '.openchamber/project.json',
+    path: '.skynex/project.json',
     setupWorktree: [],
     setupWorktreeWait: null,
     projectActions: [],
@@ -161,6 +174,25 @@ const resolveProjectSetupId = (project: ProjectRef): string => {
 };
 
 const endpointFor = (projectId: string): string => `/api/projects/${encodeURIComponent(projectId)}/config`;
+const sharedIgnoreEndpointFor = (projectId: string): string => `/api/projects/${encodeURIComponent(projectId)}/config/shared-ignore`;
+
+export async function getSharedConfigIgnoreStatus(project: ProjectRef): Promise<SharedConfigIgnoreStatus> {
+  const projectId = resolveProjectSetupId(project);
+  if (!projectId) throw new Error('Project path is missing');
+  const response = await runtimeFetch(sharedIgnoreEndpointFor(projectId), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return sharedConfigIgnoreStatusSchema.parse(await response.json());
+}
+
+export async function fixSharedConfigIgnore(project: ProjectRef): Promise<SharedConfigIgnoreFixResult> {
+  const projectId = resolveProjectSetupId(project);
+  if (!projectId) throw new Error('Project path is missing');
+  const response = await runtimeFetch(`${sharedIgnoreEndpointFor(projectId)}/fix`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{}',
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return sharedConfigIgnoreFixResultSchema.parse(await response.json());
+}
 
 const parseSetupResponse = async (response: Response): Promise<ProjectSetup> => {
   const parsed = projectSetupSchema.safeParse(await response.json());
@@ -228,7 +260,7 @@ export type SharedProjectSetupPatch = Partial<{
 }>;
 
 /**
- * Change the team's shared file in the checkout (`<repo>/.openchamber/project.json`).
+ * Change the team's shared file in the checkout (`<repo>/.skynex/project.json`).
  * The server removes the file when nothing is left in it, and records trust
  * for the commands this instance just shared. Resolves the merged view, or
  * `null` on failure so a caller can tell "saved nothing" from "saved and empty".

@@ -78,7 +78,7 @@ token, PATH entries it needs) are applied after the user's variables and win.
   `isUserAction`, so the Git service needs no extra argument between route
   and spawn.
 - **The command is personal.** It is read only from `environment.json`, never
-  from the repository's shared `.openchamber/project.json`, so a cloned
+  from the repository's shared `.skynex/project.json`, so a cloned
   repository cannot make the server run anything. Who can set it: anyone
   signed in to the UI, the same people who can open a terminal.
 - **Git keeps its protections.** Names simple-git refuses in an environment

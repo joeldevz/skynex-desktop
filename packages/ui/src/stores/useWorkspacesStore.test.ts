@@ -63,6 +63,7 @@ describe('acknowledged workspace catalog baseline', () => {
     });
     expect((await useWorkspacesStore.getState().load()).kind).toBe('retained');
     expect(useWorkspacesStore.getState().status).toBe('failed');
+    expect(useWorkspacesStore.getState().hasBaseline).toBe(false);
     const result = await useWorkspacesStore.getState().create({ name: 'New', description: '', folders: [], defaults: {} });
     expect(saves).toEqual([]);
     expect(result.kind).toBe('retained');
@@ -81,9 +82,11 @@ describe('acknowledged workspace catalog baseline', () => {
       },
     });
     expect(await useWorkspacesStore.getState().load()).toEqual({ kind: 'saved' });
+    expect(useWorkspacesStore.getState().hasBaseline).toBe(true);
     expect((await useWorkspacesStore.getState().update('workspace-a', { name: 'Edited' })).kind).toBe('retained');
     expect(useWorkspacesStore.getState().catalog).toEqual(baseline);
     expect(useWorkspacesStore.getState().status).toBe('failed');
+    expect(useWorkspacesStore.getState().hasBaseline).toBe(true);
     fail = false;
     expect(await useWorkspacesStore.getState().update('workspace-a', { name: 'Edited' })).toEqual({ kind: 'saved' });
     const edited = { version: 1, workspaces: [{ ...baseline.workspaces[0], name: 'Edited' }] };

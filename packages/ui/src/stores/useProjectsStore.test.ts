@@ -99,6 +99,30 @@ describe("useProjectsStore settings synchronization", () => {
 })
 
 describe("useProjectsStore selection identity", () => {
+  test("registers a settings folder without changing the active project or directory", async () => {
+    const previousProjects = useProjectsStore.getState()
+    const previousDirectory = useDirectoryStore.getState()
+    const previousSdkDirectory = opencodeClient.getDirectory()
+    const active = { id: "active-project", path: "/active", label: "Active" } as ProjectEntry
+    try {
+      useProjectsStore.setState({ projects: [active], activeProjectId: active.id })
+      useDirectoryStore.setState({ currentDirectory: "/active" })
+      opencodeClient.setDirectory("/active")
+
+      const added = await useProjectsStore.getState().addProject("/repo/settings-only", { activate: false })
+
+      expect(added?.path).toBe("/repo/settings-only")
+      expect(useProjectsStore.getState().projects.filter((project) => project.path === "/repo/settings-only")).toHaveLength(1)
+      expect(useProjectsStore.getState().activeProjectId).toBe(active.id)
+      expect(useDirectoryStore.getState().currentDirectory).toBe("/active")
+      expect(opencodeClient.getDirectory()).toBe("/active")
+    } finally {
+      useProjectsStore.setState(previousProjects, true)
+      useDirectoryStore.setState(previousDirectory, true)
+      opencodeClient.setDirectory(previousSdkDirectory)
+    }
+  })
+
   test("changes only the active project id", () => {
     const first = { id: "project-a", path: "/repo-a", lastOpenedAt: 10 } as ProjectEntry
     const second = { id: "project-b", path: "/repo-b", lastOpenedAt: 20 } as ProjectEntry

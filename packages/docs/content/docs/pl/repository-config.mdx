@@ -7,7 +7,11 @@ description: Trzymaj akcje projektu, polecenia konfiguracji worktree, startery i
 
 Akcje projektu, polecenia konfiguracji worktree i startery szkicu domyślnie żyją w Twoich własnych ustawieniach OpenChamber. Nikt inny ich nie widzi. Jeśli chcesz, aby osoba z zespołu, która sklonuje repozytorium, dostała tę samą akcję serwera deweloperskiego i to samo `bun install` w każdym nowym worktree, przenieś te elementy do repozytorium.
 
-OpenChamber zapisuje je w pliku `.openchamber/project.json` w katalogu głównym repozytorium. Plik pojawia się dopiero wtedy, gdy przeniesiesz tam pierwszy element, i znika, gdy zabierzesz ostatni. Commituj go jak każdy inny plik.
+OpenChamber zapisuje je w pliku `.skynex/project.json` w katalogu głównym repozytorium. Plik pojawia się po przeniesieniu tam pierwszego elementu. Jeśli istnieje stary `.openchamber/project.json`, po zabraniu ostatniego elementu Skynex pozostawia pusty `.skynex/project.json`, aby stary plik nie wrócił. Commituj go jak każdy inny plik.
+
+Repozytoria, w których nadal znajduje się `.openchamber/project.json`, nadal działają. Pierwszy zapis tworzy `.skynex/project.json` i pozostawia stary plik bez zmian.
+
+Jeśli Git ignoruje `.skynex/`, Settings wyświetla ostrzeżenie z przyciskiem **Add exception**. Wyjątek nadal ignoruje zagnieżdżone foldery `.skynex/`.
 
 ## Co gdzie trafia
 

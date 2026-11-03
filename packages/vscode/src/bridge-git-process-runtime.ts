@@ -88,7 +88,7 @@ export const stopGitProcesses = (): Promise<void> => {
 };
 
 export const execGit = async (
-  args: string[], cwd: string, options: { binary?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  args: string[], cwd: string, options: { binary?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; maxOutputBytes?: number } = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
   const env = { ...(await buildGitEnv()), ...options.env };
   if (shutdown) return { stdout: '', stderr: 'Git runtime is shutting down', exitCode: 1 };
@@ -96,11 +96,20 @@ export const execGit = async (
   activeProcesses.add(process);
   let stdout = '';
   let stderr = '';
+  let outputBytes = 0;
+  const appendBounded = (target: 'stdout' | 'stderr', data: Buffer): void => {
+    const limit = options.maxOutputBytes ?? Number.POSITIVE_INFINITY;
+    const remaining = Math.max(0, limit - outputBytes);
+    const chunk = data.subarray(0, remaining).toString();
+    if (target === 'stdout') stdout += chunk;
+    else stderr += chunk;
+    outputBytes += Math.min(data.length, remaining);
+  };
   let timedOut = false;
   let termination: Promise<void> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  process.child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-  process.child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+  process.child.stdout.on('data', (data: Buffer) => { appendBounded('stdout', data); });
+  process.child.stderr.on('data', (data: Buffer) => { appendBounded('stderr', data); });
   try {
     const exit = await new Promise<Awaited<typeof process.closed>>((resolve, reject) => {
       void process.closed.then(resolve);

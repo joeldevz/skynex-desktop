@@ -430,10 +430,24 @@ spellings, and mutations answer with the `path` they wrote.
 `shared/SettingsLegacyFormatNote.tsx` turns that into one quiet line at the top
 of the page; the file is never moved, so the note has no action.
 
-## The project page
+## Workspaces and folder settings
 
-`projects/ProjectSettingsPanel.tsx` is one project's page, shown by Settings →
-Projects (`frame="page"`) and by the sidebar's project edit dialog
+Settings → Workspaces (`projects`) is catalog-driven: the sidebar lists each workspace followed by its folders and one Chats target. It never derives rows from the project registry. Managed chat roots and their descendants are hidden from the folder list, and a workspace with only hidden folders is omitted. The Projects page is not in VS Code's Settings navigation; VS Code keeps its workspace-folder project selection elsewhere.
+
+Selecting a folder resolves its normalized path against `useProjectsStore`. A missing entry is registered only after selection; folder listing never calls `addProject`. The existing `ProjectSettingsPanel` then uses the real project ID for project-scoped APIs. “Unlink from workspace” removes only the catalog link after acknowledgment and leaves the independent project registry entry and files intact.
+
+### Why register on selection
+
+Project-scoped settings APIs address entries by their real project ID. Registering while listing would add every catalog folder to shared project pickers and other consumers, even when the person only browses Settings. On-demand registration keeps the ID contract intact while limiting that side effect to opening a folder's settings.
+
+The workspace target selection in `useUIStore` is in-memory. Existing persisted project IDs still seed the initial folder target when their normalized path matches a catalog folder; otherwise the page starts at the first workspace or Chats.
+
+`WorkspaceSettingsView` reuses `WorkspaceOverview` for workspace metadata, defaults, folder management and confirmed deletion. Chats reuses the global new-session defaults controls; it adds no preference of its own.
+
+## Folder project settings
+
+`projects/ProjectSettingsPanel.tsx` is one folder's project settings, shown by Settings →
+Workspaces (`frame="page"`) and by the sidebar's project edit dialog
 (`frame="dialog"`). The header holds the icon, colour and name: the icon opens a
 popover with the colour (`shared/SettingsColorField.tsx`, the same field the
 Agents page uses) and the symbol or image, and the name is edited in place. Below
@@ -441,14 +455,13 @@ it a tab strip splits the rest: General (new-chat defaults, the team file, trust
 commands and a link to the worktrees page) and Environment (not in VS Code).
 Identity fields autosave through `useProjectIdentityAutoSave`, as before.
 
-The Settings page also carries Close project in its header. It calls the same
-`removeProject` as the sidebar's Close project, after a confirm dialog like the
-other removals in Settings: a header button is easier to hit by accident than a
-menu item. The edit dialog leaves it out, because the menu that opens the dialog
-already holds Close project. VS Code shows no Projects page in Settings: its
-projects are the workspace folders VS Code has open.
+The Workspaces page frame replaces Close project with Unlink from workspace.
+That action calls `unlinkFolder` for the selected catalog IDs; it does not call
+`removeProject`. The edit dialog keeps its existing menu-owned Close project
+behavior. VS Code uses its existing project selection and title rather than the
+workspace catalog view.
 
-A project's setup lives in two files: the team's `.openchamber/project.json` in
+A project's setup lives in two files: the team's `.skynex/project.json` in
 the repo and the user's own config (`packages/web/server/lib/projects`). The page
 shows one list per kind with every entry marked Team or Only me, and
 `projects/projectSetupModel.ts` maps each edit onto the file the entry lives in:

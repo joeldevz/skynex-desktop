@@ -1,6 +1,5 @@
 import { MagicPromptStorageError, MagicPromptValidationError, mergeEffectiveOverrides } from './runtime.js';
-
-const PROJECT_FILE = '.openchamber/project.json';
+const PROJECT_FILE = '.skynex/project.json';
 
 class SelectorError extends Error {
   constructor(status, message, code) {
@@ -92,7 +91,7 @@ export const createMagicPromptService = ({ path, runtime, projectRuntime, listPr
     ]);
     if (projectState?.status === 'invalid') {
       throw new MagicPromptStorageError(
-        `Magic prompts in ${path.join(owner.path, PROJECT_FILE)} cannot be read: ${projectState.reason}`,
+        `Magic prompts in ${path.join(owner.path, projectState.path || PROJECT_FILE)} cannot be read: ${projectState.reason}`,
         'project_prompts_invalid',
       );
     }

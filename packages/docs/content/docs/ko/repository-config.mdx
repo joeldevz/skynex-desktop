@@ -7,7 +7,11 @@ description: 프로젝트 작업, 워크트리 설정 명령, 스타터, 플랜�
 
 프로젝트 작업, 워크트리 설정 명령, 초안 스타터는 기본적으로 자신의 OpenChamber 설정에 저장됩니다. 다른 사람에게는 보이지 않습니다. 저장소를 클론한 팀원도 같은 개발 서버 작업과 새 워크트리마다 같은 `bun install`을 쓰게 하고 싶다면, 해당 항목을 저장소로 옮기세요.
 
-OpenChamber는 이를 저장소 루트의 `.openchamber/project.json`에 저장합니다. 이 파일은 첫 항목을 옮길 때 처음 만들어지고, 마지막 항목을 빼면 사라집니다. 다른 파일과 똑같이 커밋하면 됩니다.
+OpenChamber는 이를 저장소 루트의 `.skynex/project.json`에 저장합니다. 이 파일은 첫 항목을 옮길 때 만들어집니다. 기존 `.openchamber/project.json`이 있으면 마지막 항목을 빼도 Skynex는 빈 `.skynex/project.json`을 남겨 기존 파일이 다시 적용되지 않게 합니다. 다른 파일과 똑같이 커밋하면 됩니다.
+
+`.openchamber/project.json`이 남아 있는 저장소도 계속 작동합니다. 처음 저장할 때 `.skynex/project.json`에 기록하며 기존 파일은 그대로 둡니다.
+
+Git이 `.skynex/`을 무시하면 Settings에 **Add exception** 버튼이 있는 경고가 표시됩니다. 이 수정은 중첩된 `.skynex/` 폴더를 계속 무시합니다.
 
 ## 무엇이 어디에 있는가
 

@@ -23,6 +23,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useDeviceInfo } from '@/lib/device';
 import { PROJECT_ACTION_PLATFORMS as PLATFORMS, projectActionIconName, type ProjectActionPlatform as Platform } from './projectSetupModel';
+import { SharedConfigIgnoreNotice } from './SharedConfigIgnoreNotice';
 
 const NO_SSH_FORWARD = '__none__';
 
@@ -46,11 +47,12 @@ export type ProjectActionEditorTarget = {
  */
 export const ProjectActionEditorDialog: React.FC<{
   target: ProjectActionEditorTarget | null;
+  projectId: string;
   canShare: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (action: OpenChamberProjectAction, to: ProjectSetupSource) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
-}> = ({ target, canShare, onOpenChange, onSave, onDelete }) => {
+}> = ({ target, projectId, canShare, onOpenChange, onSave, onDelete }) => {
   const { t } = useI18n();
   const { isMobile } = useDeviceInfo();
   const isDesktopShellApp = React.useMemo(() => isDesktopShell(), []);
@@ -163,6 +165,7 @@ export const ProjectActionEditorDialog: React.FC<{
                   className="min-h-[132px] w-full font-mono text-xs"
                 />
               </SettingsStackedField>
+              {source === 'shared' ? <SharedConfigIgnoreNotice projectId={projectId} /> : null}
               <SettingsStackedField
                 label={t('settings.projects.actionEditor.savedIn')}
                 descriptionPlacement="after"

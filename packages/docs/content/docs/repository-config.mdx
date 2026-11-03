@@ -7,7 +7,11 @@ description: Keep project actions, worktree setup commands, starters, and plans 
 
 Project actions, worktree setup commands, and draft starters live in your own OpenChamber settings by default. Nobody else sees them. If you want a teammate who clones the repository to get the same dev server action and the same `bun install` on every new worktree, move those items into the repository.
 
-OpenChamber stores them in `.openchamber/project.json` at the repository root. The file appears only when you move the first item there, and it goes away again when you move the last one out. Commit it like any other file.
+OpenChamber stores them in `.skynex/project.json` at the repository root. The file appears when you move the first item there. If an old `.openchamber/project.json` exists, Skynex keeps an empty `.skynex/project.json` when you move the last item out, so the old file does not come back. Commit it like any other file.
+
+Repositories that still have `.openchamber/project.json` keep working. The first save writes `.skynex/project.json` and leaves the old file untouched.
+
+If Git ignores `.skynex/`, Settings shows a warning with an **Add exception** button. The fix keeps nested `.skynex/` folders ignored.
 
 ## What goes where
 

@@ -37,6 +37,10 @@ subscription are retained.
 
 `useWorkspacesStore` owns the acknowledged instance catalog. Its actions serialize edits per captured runtime through the settings persistence owner. Missing catalogs migrate singleton workspaces from existing projects; valid empty catalogs remain empty. Failed loads and saves preserve acknowledged data. Folder unlinking performs no project cleanup.
 
+`hasBaseline` records whether the current runtime has supplied an acknowledged catalog. A failed initial load leaves it false; a failed catalog write sets operation status to failed while preserving the true baseline. Runtime reset clears both.
+
+`settingsWorkspaceTarget` in `useUIStore` coordinates the Workspaces Settings sidebar and detail. It is in-memory only and is deliberately excluded from the persisted slice and `LOCAL_DEVICE_KEYS`; the legacy persisted `settingsProjectsSelectedId` seeds the initial target when its project path matches a catalog folder.
+
 Edits require a successful baseline for their captured runtime inside the write queue. An initial failed load grants no write authority. A failed save retains the acknowledged baseline so the same edit can be retried. Runtime reset clears that authority.
 
 Workspace removal uses that same queue and publishes only the acknowledged catalog. After acknowledgment it clears the overview selection only when the captured runtime remains current and the deleted workspace is still selected. A settings adapter may adopt the acknowledged catalog before the save promise resolves, so selection cleanup belongs to the completing edit. Restoration accepts only IDs still present in the catalog.

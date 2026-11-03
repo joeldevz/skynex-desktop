@@ -33,6 +33,7 @@ import {
   SettingsStackedField,
 } from '@/components/sections/shared/SettingsSection';
 import { SettingsInfoHint } from '@/components/sections/shared/SettingsInfoHint';
+import { SharedConfigIgnoreNotice } from '@/components/sections/projects/SharedConfigIgnoreNotice';
 
 type PromptBlock = {
   id: MagicPromptId;
@@ -612,6 +613,8 @@ export const MagicPromptsPage: React.FC = () => {
             ]}
           />
         </SettingsStackedField>
+        {/* A sibling of the field: its description renders inside a <p>. */}
+        {scope === 'project' && projectId ? <SharedConfigIgnoreNotice projectId={projectId} /> : null}
       </SettingsSection>
       {renderBody()}
     </SettingsPageLayout>

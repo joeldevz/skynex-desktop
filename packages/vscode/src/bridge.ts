@@ -99,7 +99,10 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
     if (smallModelResponse) {
       return smallModelResponse;
     }
-    const projectSetupResponse = await handleProjectSetupBridgeMessage({ id, type, payload }, projectSetupStore);
+    const projectSetupResponse = await handleProjectSetupBridgeMessage({ id, type, payload }, projectSetupStore, {
+      workspaceRoots: (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
+      execGit,
+    });
     if (projectSetupResponse) {
       return projectSetupResponse;
     }

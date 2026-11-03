@@ -12,6 +12,7 @@ type WorkspacesState = {
   runtimeKey: string | null;
   catalog: WorkspaceCatalog;
   status: 'unloaded' | 'loading' | 'ready' | 'failed';
+  hasBaseline: boolean;
   error: string | null;
   selectedWorkspaceId: string | null;
   selectWorkspace(id: string | null): void;
@@ -77,7 +78,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
         revision++;
         const clearSelection = removedId !== undefined && get().selectedWorkspaceId === removedId;
         if (clearSelection) selectionRevision++;
-        const state = { catalog: acknowledged, status: 'ready' as const, error: null };
+        const state = { catalog: acknowledged, status: 'ready' as const, hasBaseline: true, error: null };
         if (clearSelection) set({ ...state, selectedWorkspaceId: null });
         else set(state);
         if (clearSelection && current(key) && get().selectedWorkspaceId === null) {
@@ -89,7 +90,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
     });
   };
   return {
-    runtimeKey: null, catalog: emptyCatalog, status: 'unloaded', error: null, selectedWorkspaceId: null,
+    runtimeKey: null, catalog: emptyCatalog, status: 'unloaded', hasBaseline: false, error: null, selectedWorkspaceId: null,
     selectWorkspace: (id) => {
       const key = getRuntimeKey();
       if (isTransientRuntimeKey(key)) throw new Error('Runtime is unavailable');
@@ -102,7 +103,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
       const restoreSelection = acknowledgedRuntimeKey !== key;
       revision++;
       acknowledgedRuntimeKey = key;
-      set({ runtimeKey: key, catalog, status: 'ready', error: null });
+      set({ runtimeKey: key, catalog, status: 'ready', hasBaseline: true, error: null });
       if (restoreSelection && selectionRevision === 0) {
         try {
           const raw = getDurableStorage().getItem(`openchamber.workspaceOverview.v1:${key}`);
@@ -118,7 +119,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
       if (get().runtimeKey !== key) {
         acknowledgedRuntimeKey = null;
         selectionRevision = 0;
-        set({ runtimeKey: key, catalog: emptyCatalog, selectedWorkspaceId: null });
+        set({ runtimeKey: key, catalog: emptyCatalog, hasBaseline: false, selectedWorkspaceId: null });
       }
       const started = revision;
       const selectionStarted = selectionRevision;
@@ -137,7 +138,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
           if (!current(key)) return { kind: 'retained', reason: 'runtime-changed' };
           if (revision === started) {
             acknowledgedRuntimeKey = key;
-            set({ catalog, status: 'ready', error: null });
+            set({ catalog, status: 'ready', hasBaseline: true, error: null });
             if (selectionRevision === selectionStarted) {
               const raw = getDurableStorage().getItem(`openchamber.workspaceOverview.v1:${key}`);
               const selected = z.string().nullable().safeParse(raw === null ? null : JSON.parse(raw));
@@ -161,7 +162,7 @@ export const useWorkspacesStore = create<WorkspacesState>()((set, get) => {
       revision++;
       selectionRevision = 0;
       acknowledgedRuntimeKey = null;
-      set({ runtimeKey: null, catalog: emptyCatalog, status: 'unloaded', error: null, selectedWorkspaceId: null });
+      set({ runtimeKey: null, catalog: emptyCatalog, status: 'unloaded', hasBaseline: false, error: null, selectedWorkspaceId: null });
     },
   };
 });

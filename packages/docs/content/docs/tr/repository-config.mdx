@@ -7,7 +7,11 @@ description: Proje eylemlerini, worktree kurulum komutlarını, başlatıcılar�
 
 Proje eylemleri, worktree kurulum komutları ve taslak başlatıcıları varsayılan olarak kendi OpenChamber ayarlarında yaşar. Başka kimse görmez. Depoyu klonlayan bir ekip arkadaşının aynı geliştirme sunucusu eylemini ve her yeni worktree'de aynı `bun install` komutunu almasını istiyorsan, bu öğeleri depoya taşı.
 
-OpenChamber bunları deponun kökündeki `.openchamber/project.json` dosyasında saklar. Dosya, ilk öğeyi oraya taşıdığında ortaya çıkar ve son öğeyi geri aldığında kaybolur. Diğer dosyalar gibi commit'le.
+OpenChamber bunları deponun kökündeki `.skynex/project.json` dosyasında saklar. Dosya, ilk öğeyi oraya taşıdığında oluşur. Eski bir `.openchamber/project.json` varsa, son öğeyi geri aldığında Skynex boş bir `.skynex/project.json` dosyasını korur; böylece eski dosya geri gelmez. Diğer dosyalar gibi commit'le.
+
+`.openchamber/project.json` dosyası hâlâ bulunan depolar çalışmaya devam eder. İlk kaydetme `.skynex/project.json` dosyasına yazar ve eski dosyayı değiştirmez.
+
+Git `.skynex/` yolunu yok sayıyorsa Settings, **Add exception** düğmesiyle bir uyarı gösterir. Bu düzeltme iç içe `.skynex/` klasörlerini yok saymaya devam eder.
 
 ## Ne nereye gider
 

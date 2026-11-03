@@ -27,7 +27,11 @@ Bir istemin tek bir projeye ait override'ı da olabilir. OpenChamber varsa proje
 
 Eklemek için kenar çubuğunun üstündeki seçiciden projeyi seçin, sonra **Kapsam** altında **Proje**'yi seçin. Değiştirdiğiniz her bloğun altındaki **Kaydet** düğmesine tıklayın. Sıfırlama düğmeleri yalnızca açık olan kapsamı değiştirir. **Proje** kapsamında **Proje override'ını kaldır** ve **Tüm proje override'larını kaldır**, genel override'ınızı ya da yerleşik metni geri getirir. **Genel** kapsamda yerleşik metni kaydetmek genel override'ınızı kaldırır. **Proje** kapsamında bu metin kayıtlı kalır. Böylece genel override'ınız başka bir şey söylese de proje yerleşik metni korur.
 
-Proje override'ları, projenin checkout'undaki `.openchamber/project.json` dosyasının `magicPrompts` anahtarında saklanır. Bu, [depo yapılandırması](/tr/repository-config/) ile aynı dosyadır. İstemleri ekibinizle paylaşmak için dosyayı commit edin. Genel override'lar sunucunun veri klasöründeki `magic-prompts.json` dosyasında kalır.
+Proje override'ları, projenin checkout'undaki `.skynex/project.json` dosyasının `magicPrompts` anahtarında saklanır. Bu, [depo yapılandırması](/tr/repository-config/) ile aynı dosyadır. İstemleri ekibinizle paylaşmak için dosyayı commit edin. Genel override'lar sunucunun veri klasöründeki `magic-prompts.json` dosyasında kalır.
+
+`.openchamber/project.json` dosyası hâlâ bulunan depolar çalışmaya devam eder. İlk kaydetme `.skynex/project.json` dosyasına yazar ve eski dosyayı değiştirmez.
+
+Git `.skynex/` yolunu yok sayıyorsa Settings, **Add exception** düğmesiyle bir uyarı gösterir.
 
 Bir worktree, ana checkout'undaki projenin istemlerini kullanır. Worktree'yi ayrı bir proje olarak eklediyseniz kendi istemlerini kullanır. Projesi olmayan bir sohbet, hiçbir projeye ait olmayan bir klasör ve yalıtılmış bir alandaki çalışma yalnızca genel istemleri kullanır. VS Code eklentisinde Magic Prompts sayfası yoktur. Orada dosyaları elle düzenlersiniz ve genel dosya her zaman `~/.config/openchamber/magic-prompts.json` olur.
 

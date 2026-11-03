@@ -7,7 +7,11 @@ description: Projektaktionen, Worktree-Setup-Befehle, Starter und Pläne im Repo
 
 Projektaktionen, Worktree-Setup-Befehle und Entwurfs-Starter liegen standardmäßig in deinen eigenen OpenChamber-Einstellungen. Niemand sonst sieht sie. Wenn jemand im Team, der das Repository klont, dieselbe Dev-Server-Aktion und dasselbe `bun install` in jedem neuen Worktree bekommen soll, verschiebe diese Einträge ins Repository.
 
-OpenChamber legt sie in `.openchamber/project.json` im Wurzelverzeichnis des Repositorys ab. Die Datei entsteht erst, wenn du den ersten Eintrag dorthin verschiebst, und verschwindet wieder, wenn du den letzten herausnimmst. Committe sie wie jede andere Datei.
+OpenChamber legt sie in `.skynex/project.json` im Wurzelverzeichnis des Repositorys ab. Die Datei entsteht, wenn du den ersten Eintrag dorthin verschiebst. Gibt es eine alte `.openchamber/project.json`, behält Skynex eine leere `.skynex/project.json`, wenn du den letzten Eintrag herausnimmst, damit die alte Datei nicht zurückkommt. Committe sie wie jede andere Datei.
+
+Repositories mit einer vorhandenen `.openchamber/project.json` funktionieren weiterhin. Beim ersten Speichern wird `.skynex/project.json` geschrieben und die alte Datei bleibt unverändert.
+
+Wenn Git `.skynex/` ignoriert, zeigt Settings eine Warnung mit der Schaltfläche **Add exception**. Die Ausnahme lässt verschachtelte `.skynex/`-Ordner weiterhin ignoriert.
 
 ## Was wohin gehört
 

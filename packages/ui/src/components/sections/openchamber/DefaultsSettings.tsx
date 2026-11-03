@@ -77,7 +77,7 @@ const ModelVariantSelect: React.FC<{
   );
 };
 
-export const DefaultsSettings: React.FC = () => {
+export const DefaultsSettings: React.FC<{ onlyNewSessionDefaults?: boolean }> = ({ onlyNewSessionDefaults = false }) => {
   const { t } = useI18n();
   const setProvider = useConfigStore((state) => state.setProvider);
   const setModel = useConfigStore((state) => state.setModel);
@@ -427,10 +427,11 @@ export const DefaultsSettings: React.FC = () => {
             />
           </SettingsFieldRow>
 
-          {isVSCode ? null : <PermissionDefaultModeField agentName={defaultAgent} />}
+          {isVSCode || onlyNewSessionDefaults ? null : <PermissionDefaultModeField agentName={defaultAgent} />}
         </div>
       </SettingsSection>
 
+      {!onlyNewSessionDefaults && <>
       {/* Models the app runs on its own: summaries, titles, the changes walkthrough. */}
       <SettingsSection title={t('settings.layout.sessions.helperModels.title')} contentClassName="space-y-2">
         <SettingsCheckboxRow
@@ -525,6 +526,7 @@ export const DefaultsSettings: React.FC = () => {
         {/* VS Code has no OpenChamber server to warm chosen sessions: OpenCode's switch for all of them only. */}
         {isVSCode ? <SessionWarmingCheckbox /> : <SessionWarmingModeField />}
       </SettingsSection>
+      </>}
     </>
   );
 };

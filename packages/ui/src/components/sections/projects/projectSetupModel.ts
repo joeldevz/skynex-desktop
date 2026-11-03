@@ -1,6 +1,6 @@
 /**
  * What the project page edits in a project's setup, and how each edit maps
- * onto the two files behind it: the team's `.openchamber/project.json` in the
+ * onto the two files behind it: the team's `.skynex/project.json` in the
  * repo (`shared`) and the user's own config (`personal`).
  *
  * The page shows one list per kind with every entry marked by where it lives,

@@ -24,6 +24,7 @@ const directoryRequestSchema = z.object({
 
 const respondWithError = (res, error, fallbackMessage) => {
   const message = error instanceof Error ? error.message : fallbackMessage;
+  if (error?.code === 'project_not_found') return res.status(404).json({ error: message, code: error.code });
   if (isProjectSetupValidationError(error)) {
     return res.status(400).json({ error: message });
   }
@@ -95,6 +96,25 @@ export const registerProjectSetupRoutes = (app, dependencies) => {
       return res.json(await projectConfigRuntime.readProjectSetup(req.params.projectId));
     } catch (error) {
       return respondWithError(res, error, 'Failed to read project config');
+    }
+  });
+
+  app.get('/api/projects/:projectId/config/shared-ignore', async (req, res) => {
+    try {
+      return res.json(await projectConfigRuntime.sharedConfigIgnoreStatus(req.params.projectId));
+    } catch (error) {
+      return respondWithError(res, error, 'Failed to inspect shared project config ignore status');
+    }
+  });
+
+  app.post('/api/projects/:projectId/config/shared-ignore/fix', async (req, res) => {
+    if (!isObjectRecord(req.body) || Object.keys(req.body).length !== 0) {
+      return res.status(400).json({ error: 'Body must be an empty object' });
+    }
+    try {
+      return res.json(await projectConfigRuntime.fixSharedConfigIgnore(req.params.projectId));
+    } catch (error) {
+      return respondWithError(res, error, 'Failed to update shared project config ignore rule');
     }
   });
 

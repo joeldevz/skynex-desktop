@@ -4,7 +4,7 @@
 // - the personal file `~/.config/openchamber/projects/<projectId>.json`
 //   (client-owned keys; server-owned `version` / `scheduledTasks` live beside
 //   them and are never touched here), and
-// - the shared file `<repo>/.openchamber/project.json`, committed by a team so
+// - the shared file `<repo>/.skynex/project.json`, committed by a team so
 //   a teammate who pulls the code gets the setup without configuring anything.
 //
 // This module knows both shapes and the one merge rule per field. The route
@@ -203,7 +203,8 @@ export const projectSetupPatchToStored = (patch) => {
 
 // ── Shared file ──
 
-export const SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
+export const SHARED_CONFIG_RELATIVE_PATH = '.skynex/project.json';
+export const LEGACY_SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
 const SHARED_CONFIG_VERSION = 1;
 /**
  * The keys of the shared file the setup writer owns. Every other key
@@ -328,7 +329,11 @@ export const mergeProjectSetup = (personal, sharedRead) => {
 };
 
 const sharedBlockOf = (sharedRead, shared) => {
-  const block = { status: sharedRead.status, path: SHARED_CONFIG_RELATIVE_PATH, ...shared };
+  const block = {
+    status: sharedRead.status,
+    path: sharedRead.status === 'invalid' ? sharedRead.path || SHARED_CONFIG_RELATIVE_PATH : SHARED_CONFIG_RELATIVE_PATH,
+    ...shared,
+  };
   if (sharedRead.status === 'invalid') block.reason = sharedRead.reason;
   return block;
 };

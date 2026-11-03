@@ -1,8 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/icon/Icon';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { openSessionsStore, useOpenSessionsStore } from '@/stores/useOpenSessionsStore';
@@ -15,6 +14,7 @@ import { WorkspaceSurface } from './WorkspaceSurface';
 import { getRuntimeKey, isTransientRuntimeKey } from '@/lib/runtime-switch';
 import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
 import { startSubagentMembershipCleanup } from '@/sync/subagent-membership';
+import { WorkspaceCreateDialog } from './WorkspaceCreateDialog';
 
 const INITIAL_COLORS = ['bg-primary', 'bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4', 'bg-chart-5'] as const;
 
@@ -47,7 +47,6 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
   const currentId = useSessionUIStore((state) => state.currentSessionId);
   const openFailure = useSessionUIStore((state) => state.openSessionFailure);
   const [creating, setCreating] = React.useState(false);
-  const [name, setName] = React.useState('');
   const [pending, setPending] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
   React.useEffect(() => {
@@ -73,7 +72,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
       <section className="space-y-1 pb-5" aria-label={t('workspaces.title')}>
         <div className="flex items-center justify-between gap-2 ps-2">
           <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.title')}</h2>
-          <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setName(''); setFailed(false); setCreating(true); }}>
+          <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setFailed(false); setCreating(true); }}>
             <Icon name="add" className="size-4" />
           </Button>
         </div>
@@ -107,29 +106,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
     </div>
     {footer}
     <div role="alert" className="min-h-6 px-2 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>
-    <Dialog open={creating} onOpenChange={(open) => { if (!pending) setCreating(open); }}>
-      <DialogContent>
-        <DialogTitle>{t('workspaces.newWorkspace')}</DialogTitle>
-        <Input aria-label={t('workspaces.name')} dir="auto" value={name} disabled={pending} onChange={(event) => setName(event.currentTarget.value)} />
-        <DialogFooter>
-          <Button variant="outline" disabled={pending} onClick={() => setCreating(false)}>{t('dialog.common.actions.cancel')}</Button>
-          <Button disabled={pending || !name.trim()} onClick={() => {
-            setPending(true);
-            setFailed(false);
-            const captured = getRuntimeKey();
-            void useWorkspacesStore.getState().create({ name: name.trim(), description: '', folders: [], defaults: {} }).then((result) => {
-              if (captured !== getRuntimeKey()) return;
-              if (result.kind === 'saved') {
-                const created = useWorkspacesStore.getState().catalog.workspaces.at(-1);
-                if (created) useWorkspacesStore.getState().selectWorkspace(created.id);
-                setCreating(false);
-              } else setFailed(true);
-            }).catch(() => setFailed(true)).finally(() => setPending(false));
-          }}>{t('projectEditDialog.actions.save')}</Button>
-        </DialogFooter>
-        <div role="alert" className="min-h-6 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>
-      </DialogContent>
-    </Dialog>
+    <WorkspaceCreateDialog open={creating} onOpenChange={setCreating} onCreated={(workspaceId) => useWorkspacesStore.getState().selectWorkspace(workspaceId)} />
     {inlineOverview && <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) useWorkspacesStore.getState().selectWorkspace(null); }}>
       <DialogContent className="max-w-3xl"><DialogTitle>{catalog.workspaces.find((workspace) => workspace.id === selected)?.name}</DialogTitle><WorkspaceSurface /></DialogContent>
     </Dialog>}

@@ -697,6 +697,8 @@ const projectConfigRuntime = createProjectConfigRuntime({
   fsPromises,
   path,
   projectsDirPath: OPENCHAMBER_PROJECTS_CONFIG_DIR,
+  readSettingsFromDisk,
+  sanitizeProjects,
 });
 
 // HMR-persistent state via globalThis

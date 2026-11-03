@@ -31,6 +31,7 @@ type ProjectSettingsPanelProps = {
   onOpenWorktrees?: () => void;
   /** Closes the project, as the sidebar's "Close project" does; shown only in the page frame. */
   onCloseProject?: () => void;
+  closeActionLabel?: string;
 };
 
 const isProjectSettingsTab = (id: string): id is ProjectSettingsTab => (
@@ -50,6 +51,7 @@ export const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
   frame,
   onOpenWorktrees,
   onCloseProject,
+  closeActionLabel,
 }) => {
   const { t } = useI18n();
   const form = useProjectIdentityForm(project);
@@ -85,7 +87,7 @@ export const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
   const tabContent = (
     <>
       {activeTab === 'general' ? <ProjectGeneralTab form={form} projectRef={projectRef} setupState={setupState} /> : null}
-      {activeTab === 'actions' ? <ProjectActionsTab setupState={setupState} /> : null}
+      {activeTab === 'actions' ? <ProjectActionsTab projectId={project.id} setupState={setupState} /> : null}
       {activeTab === 'worktrees' ? <ProjectWorktreesTab projectRef={projectRef} setupState={setupState} onOpenWorktrees={onOpenWorktrees} /> : null}
       {activeTab === 'environment' ? <ProjectEnvironmentSection projectRef={projectRef} /> : null}
     </>
@@ -97,11 +99,11 @@ export const ProjectSettingsPanel: React.FC<ProjectSettingsPanelProps> = ({
         variant="ghost"
         size="xs"
         className="!font-normal text-[var(--status-error)] hover:text-[var(--status-error)]"
-        data-settings-item="projects.close"
+        data-settings-item={closeActionLabel ? 'projects.unlink' : 'projects.close'}
         onClick={onCloseProject}
       >
         <Icon name="close" className="size-3.5" />
-        {t('settings.projects.page.actions.closeProject')}
+        {closeActionLabel ?? t('settings.projects.page.actions.closeProject')}
       </Button>
     ) : null;
     return (

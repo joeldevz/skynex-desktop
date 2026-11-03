@@ -17,6 +17,7 @@ import { saveWorktreeSetupWaitEnabled, updateProjectSetup, type ProjectRef, type
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { ProjectScopeChip, ProjectSetupUnavailable } from './ProjectSettingsBits';
+import { SharedConfigIgnoreNotice } from './SharedConfigIgnoreNotice';
 import {
   addSetupCommand,
   canWriteShared,
@@ -209,6 +210,7 @@ export const ProjectWorktreesTab: React.FC<{
           </SettingsInfoHint>
         )}
       >
+        {setupState.load.state === 'ready' && canWriteShared(setupState.load.setup) ? <SharedConfigIgnoreNotice projectId={projectRef.id} /> : null}
         {setupState.load.state === 'ready'
           ? <SetupCommands projectRef={projectRef} setup={setupState.load.setup} setupState={setupState} />
           : <ProjectSetupUnavailable setupState={setupState} />}

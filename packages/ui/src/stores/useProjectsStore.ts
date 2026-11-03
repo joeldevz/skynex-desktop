@@ -55,7 +55,7 @@ interface ProjectsStore {
   projects: ProjectEntry[];
   activeProjectId: string | null;
 
-  addProject: (path: string, options?: { label?: string; id?: string }) => Promise<ProjectEntry | null>;
+  addProject: (path: string, options?: { label?: string; id?: string; activate?: boolean }) => Promise<ProjectEntry | null>;
   addProjects: (paths: string[]) => Promise<ProjectEntry[]>;
   removeProject: (id: string) => void;
   setActiveProject: (id: string) => void;
@@ -582,7 +582,7 @@ export const useProjectsStore = create<ProjectsStore>()(
       return { ok: true, normalizedPath: normalized };
     },
 
-    addProject: async (path: string, options?: { label?: string; id?: string }) => {
+    addProject: async (path: string, options?: { label?: string; id?: string; activate?: boolean }) => {
       if (isVSCodeProjectsRuntime) {
         // Projects are scoped to VS Code workspace folders in this runtime.
         // Adding a folder through the extension host makes the project appear
@@ -616,7 +616,7 @@ export const useProjectsStore = create<ProjectsStore>()(
       const normalizedPath = validation.normalizedPath;
       const existing = get().projects.find((project) => project.path === normalizedPath);
       if (existing) {
-        get().setActiveProject(existing.id);
+        if (options?.activate !== false) get().setActiveProject(existing.id);
         return existing;
       }
 
@@ -639,8 +639,11 @@ export const useProjectsStore = create<ProjectsStore>()(
         console.info('[ProjectsStore] Added project', entry);
       }
 
-      get().setActiveProject(entry.id);
-      void get().discoverProjectIcon(entry.id);
+      if (options?.activate === false) persistProjects(nextProjects, get().activeProjectId);
+      else {
+        get().setActiveProject(entry.id);
+        void get().discoverProjectIcon(entry.id);
+      }
       return entry;
     },
 

@@ -3,6 +3,7 @@ import { mergeMessages } from "./optimistic"
 import type { SessionMaterializationReason } from "./event-reducer"
 import { sortMessagesChronologically } from "./message-ordering"
 import { toolContentShellChars } from "@/lib/opencode/toolContentShells"
+import { INTERRUPTED_TOOL_ERROR } from "./interrupted-tool"
 
 const STREAMING_PART_FIELDS = ["text", "output"] as const
 const ACTIVE_TOOL_STATUSES = new Set(["pending", "running"])
@@ -115,7 +116,7 @@ function finalizeActiveToolsInCompletedMessage(message: Message, parts: Part[]):
       state: {
         ...part.state,
         status: "error" as const,
-        error: "Interrupted",
+        error: INTERRUPTED_TOOL_ERROR,
         time: { start, end: completedAt },
       },
     }
