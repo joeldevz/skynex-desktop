@@ -1,6 +1,6 @@
 {
   "name": "@openchamber/electron",
-  "version": "2.5.2",
+  "version": "0.1.0",
   "private": true,
   "description": "Electron desktop runtime for OpenChamber",
   "author": "OpenChamber",
@@ -206,8 +206,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "openchamber",
-      "repo": "openchamber"
+      "owner": "joeldevz",
+      "repo": "skynex-desktop"
     }
   }
 }

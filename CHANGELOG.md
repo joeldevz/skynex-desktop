@@ -4312,3 +4312,16 @@
 - Initial public release of OpenChamber web and desktop packages in a unified monorepo.
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
+
+## [0.1.0] - 2026-11-03
+
+### New
+
+- **Workspaces:** Keep open sessions in named workspaces and switch between them from the sidebar.
+- **Issues and pull requests:** Browse project work and open linked items from the sidebar.
+- **Skynex tools:** Manage saved project instructions, memory, and scheduled tasks in the app.
+- Browser panel: Inspect page elements and use press, hover, and wait actions while working with a page.
+
+### Improvements
+
+- Mobile: Move between workspaces and open sessions with a simpler sidebar.

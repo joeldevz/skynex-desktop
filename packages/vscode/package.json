@@ -2,7 +2,7 @@
   "name": "openchamber",
   "displayName": "Skynex",
   "description": "%extension.description%",
-  "version": "2.5.2",
+  "version": "0.1.0",
   "publisher": "fedaykindev",
   "private": true,
   "repository": {

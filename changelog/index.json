@@ -7299,5 +7299,30 @@
       "misc": []
     },
     "vscode": null
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-11-03",
+    "title": "Meet Skynex",
+    "intro": null,
+    "app": {
+      "new": [
+        "**Workspaces:** Keep open sessions in named workspaces and switch between them from the sidebar.",
+        "**Issues and pull requests:** Browse project work and open linked items from the sidebar.",
+        "**Skynex tools:** Manage saved project instructions, memory, and scheduled tasks in the app.",
+        "Browser panel: Inspect page elements and use press, hover, and wait actions while working with a page."
+      ],
+      "improvements": [
+        "Mobile: Move between workspaces and open sessions with a simpler sidebar."
+      ],
+      "fixes": [],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
   }
 ]
