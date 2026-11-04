@@ -591,11 +591,11 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
 
     if (action === 'browser.press') {
       const key = String(parameters.key ?? '');
-      const emulated = await invokeDesktopCommand<{ focused: boolean }>('desktop_browser_keep_page_focused', {
-        webContentsId: webview.getWebContentsId(),
-      }).then((reply) => reply.focused === true).catch(() => false);
-      const releaseFocus = emulated ? () => {} : holdPageFocus();
-      if (!emulated) webview.focus({ preventScroll: true });
+      // Emulated focus is not enough here: Chromium routes key events only to
+      // the view that really has focus, so the page takes it for the key alone
+      // and hands it back to the app right after.
+      const releaseFocus = holdPageFocus();
+      webview.focus({ preventScroll: true });
       try {
         const selector = asOptionalString(parameters.selector);
         if (selector) {
