@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { buildStartupProbeSource, STARTUP_PROBE_GLOBAL } from '../../../scripts/perf/startup-probe.mjs';
 import { MODULE_EVALUATION_GLOBAL } from './smoke-module-evaluation.mjs';
-import { createSmokeHmrServer } from './smoke-hmr-server.mjs';
+import { startSmokeHmrServer } from './smoke-hmr-server.mjs';
 import { getSmokeModelsDevAsset, getSmokeOpenCodeResponse } from './smoke-opencode-fixture.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -361,6 +361,7 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
   let state;
   const mountDeadline = Date.now() + timeoutMs;
   while (Date.now() < mountDeadline) {
+    if (vite.failure) throw vite.failure;
     state = await cdp.call('Runtime.evaluate', {
       expression: `({url:location.href, ready:document.readyState, root:!!document.querySelector('#root')?.childElementCount, text:(document.body?.innerText||'').slice(0,800), theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'})`,
       returnByValue: true,
@@ -431,11 +432,13 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     activeCdp = undefined;
     throw new Error(`Synthetic OpenCode fixture has unimplemented requests in ${mode}/${theme}: ${JSON.stringify(fixtureErrors)}`);
   }
+  const title = await cdp.call('Runtime.evaluate', { expression: 'document.title', returnByValue: true }).then((response) => response.result.value);
+  if (vite.failure) throw vite.failure;
   results.push({
     mode,
     theme,
     origin: new URL(state.url).origin,
-    title: await cdp.call('Runtime.evaluate', { expression: 'document.title', returnByValue: true }).then((response) => response.result.value),
+    title,
     mountedText: redact(state.text),
     screenshot: screenshotPath,
     rendererExceptions: cdp.exceptions.slice(-100),
@@ -478,9 +481,8 @@ async function run() {
   await mkdir('/tmp/opencode', { recursive: true });
   tempRoot = await mkdtemp(path.join('/tmp/opencode', 'skynex-native-ui-'));
   const backendPort = await reservePort();
-  vite = await createSmokeHmrServer(backendPort);
-  await vite.listen();
-  const vitePort = vite.httpServer.address().port;
+  vite = await startSmokeHmrServer(backendPort);
+  const vitePort = vite.port;
   const stagedUi = path.join(electronDir, 'resources/web-dist/index.html');
   const { access } = await import('node:fs/promises');
   await access(stagedUi).catch(() => {
@@ -532,6 +534,9 @@ async function run() {
   if (noExternalRequests.length) {
     throw new Error(`Blocked non-loopback renderer requests: ${[...new Set(noExternalRequests)].join(', ')}`);
   }
+  if (vite.failure) throw vite.failure;
+  await vite.close();
+  if (vite.failure) throw vite.failure;
   const summary = {
     status: 'passed',
     display: process.env.DISPLAY,

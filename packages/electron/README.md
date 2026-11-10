@@ -164,6 +164,9 @@ changing the production build or swallowing module errors.
 Its Vite server and Electron child use `OPENCHAMBER_DISABLE_PWA_DEV=1`, matching
 `electron-dev.mjs`; desktop HMR does not run the development PWA worker. The server
 fixture restores its process environment after resolving the Vite configuration.
+Vite runs in an owned worker with a separate event loop from CDP interception and
+readiness polling. Cold module transforms cannot block the controller that resumes
+paused browser requests. Cleanup closes the server and joins the worker.
 The source-entry smoke also requires the prepared and verified pinned OpenCode CLI
 under `resources/opencode-cli`, passed through the same bundled-CLI directory
 variable as the normal development launcher. It exercises the CLI readiness check

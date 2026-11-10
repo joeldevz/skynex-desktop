@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createSmokeHmrServer } from './smoke-hmr-server.mjs';
+import { createSmokeHmrServer, startSmokeHmrServer } from './smoke-hmr-server.mjs';
 
 test('the former web-default PWA setup pulls workbox into development startup', async () => {
   const previousPwa = process.env.OPENCHAMBER_DISABLE_PWA_DEV;
@@ -41,4 +41,19 @@ test('uses normal Electron HMR PWA configuration and the reserved API proxy', as
   } finally {
     await server.close();
   }
+});
+
+test('owns Vite in a separate event loop and closes its listening socket', async () => {
+  const server = await startSmokeHmrServer(45678);
+  const url = `http://127.0.0.1:${server.port}/@id/__x00__virtual:pwa-register`;
+  try {
+    assert.ok(server.threadId > 0);
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(await response.text(), /workbox-window/);
+    assert.equal(server.failure, undefined);
+  } finally {
+    await server.close();
+  }
+  await assert.rejects(fetch(url, { signal: AbortSignal.timeout(1_000) }));
 });
