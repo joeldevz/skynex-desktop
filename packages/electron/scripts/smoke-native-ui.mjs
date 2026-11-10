@@ -64,6 +64,7 @@ const createProfile = async (name) => {
       PATH: process.env.PATH || '/usr/bin:/bin',
       LANG: process.env.LANG || 'C.UTF-8',
       DISPLAY: process.env.DISPLAY,
+      XAUTHORITY: process.env.XAUTHORITY,
       HOME: home,
       XDG_CONFIG_HOME: path.join(home, 'config'),
       XDG_DATA_HOME: path.join(home, 'data'),
