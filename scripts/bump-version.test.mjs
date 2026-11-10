@@ -32,7 +32,13 @@ test('a release bump packs workspace dependencies at the new version after a fro
   const bun = process.execPath;
   const runBun = (args, cwd = root) => execFileSync(bun, args, { cwd, encoding: 'utf8', stdio: 'pipe' });
   runBun(['install', '--ignore-scripts']);
+  runBun(['run', 'scripts/bump-version.mjs', '1.23.2']);
   runBun(['run', 'scripts/bump-version.mjs', '1.24.0']);
+  for (const workspace of ['web', 'electron']) {
+    const manifest = JSON.parse(await fs.readFile(path.join(root, 'packages', workspace, 'package.json'), 'utf8'));
+    const dependency = workspace === 'web' ? '@openchamber/sdk' : '@openchamber/web';
+    expect(manifest.dependencies[dependency]).toBe('workspace:1.24.0');
+  }
   // CI uses a frozen install. It must not need to repair release metadata.
   const lockBeforeInstall = await fs.readFile(path.join(root, 'bun.lock'), 'utf8');
   runBun(['install', '--frozen-lockfile', '--ignore-scripts']);
