@@ -132,11 +132,16 @@ xvfb-run -a packages/electron/node_modules/.bin/electron --no-sandbox packages/e
 ```
 
 The desktop release smoke workflow runs `scripts/smoke-native-ui.mjs` under Xvfb after installing
-Electron, staging the web assets and rebuilding native modules. The smoke starts
+Electron, staging the web assets and rebuilding native modules. It starts
 the real in-process OpenChamber server with isolated HOME/XDG directories and a
 loopback synthetic OpenCode health endpoint, then checks HMR and staged UI in light
-and dark themes. It verifies the normal `/auth/session` bootstrap, renderer content,
-origin and theme. On failure it saves bounded renderer errors, loopback request
+and dark themes. It verifies a React commit, the usable editable composer, a real
+pointer hit-test and keyboard insertion, the normal `/auth/session` bootstrap,
+renderer content, origin and theme. The Linux x64 packaging job repeats that
+interaction against the generated AppImage payload under Xvfb. It extracts the
+exact archive into a disposable runner directory, configures its sandbox helper
+and launches its AppRun with the sandbox active. Both checks use isolated
+profiles and a loopback synthetic OpenCode health endpoint. On failure it saves bounded renderer errors, loopback request
 statuses and a screenshot to `SMOKE_OUTPUT_DIR` for artifact upload. The synthetic
 OpenCode fixture does not provide real sessions, providers or external services.
 
@@ -146,6 +151,9 @@ entry-module requests retain request/response/completion timestamps and pending
 requests. The bounded records report dropped entries; network observations start
 after CDP attaches, so an absent event does not prove a request never happened.
 These diagnostics leave the readiness deadline and authentication checks unchanged.
+The HMR test additionally records module evaluation boundaries through a test-only
+Vite transform. It reports unfinished modules and recent completed modules without
+changing the production build or swallowing module errors.
 
 Run locally with an installed Linux Electron runtime and an active X display after
 building staged web assets and native modules:

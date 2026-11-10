@@ -377,6 +377,10 @@ jobs:
       - name: Install rpmbuild for the .rpm package
         run: sudo apt-get update && sudo apt-get install -y rpm
 
+      - name: Install Xvfb for the x64 AppImage runtime check
+        if: ${{ matrix.arch == 'x64' }}
+        run: sudo apt-get install -y xvfb
+
       - name: Get build versions
         id: versions
         shell: bash
@@ -413,6 +417,35 @@ jobs:
           node ./scripts/package.mjs --linux --${{ matrix.arch }} --publish=never
           bun run verify:opencode-cli:packaged
           bun run verify:linux-appimage -- "dist/Skynex-$(node -p "require('./package.json').version")-linux-${{ matrix.artifact_arch }}.AppImage"
+
+      - name: Open the built x64 AppImage and exercise its composer
+        if: ${{ matrix.arch == 'x64' }}
+        working-directory: packages/electron
+        env:
+          SMOKE_APPIMAGE_ONLY: '1'
+          SMOKE_APPIMAGE_PATH: ${{ github.workspace }}/packages/electron/dist/Skynex-${{ steps.versions.outputs.app }}-linux-${{ matrix.artifact_arch }}.AppImage
+          SMOKE_OUTPUT_DIR: ${{ github.workspace }}/artifacts/appimage-graphical
+        run: |
+          set -euo pipefail
+          extracted="$(mktemp -d "$RUNNER_TEMP/skynex-appimage.XXXXXX")"
+          trap 'rm -rf -- "$extracted"' EXIT
+          (cd "$extracted" && "$SMOKE_APPIMAGE_PATH" --appimage-extract > /dev/null)
+          sandbox="$extracted/squashfs-root/chrome-sandbox"
+          test -f "$sandbox" && test ! -L "$sandbox"
+          sudo chown root:root -- "$sandbox"
+          sudo chmod 4755 -- "$sandbox"
+          test "$(stat -c '%u:%g:%a' "$sandbox")" = '0:0:4755'
+          export SMOKE_APPIMAGE_EXECUTABLE="$extracted/squashfs-root/AppRun"
+          xvfb-run -a node scripts/smoke-native-ui.mjs
+
+      - name: Upload AppImage graphical evidence
+        if: ${{ always() && matrix.arch == 'x64' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-release-smoke-appimage-graphical-linux-x64
+          path: artifacts/appimage-graphical
+          if-no-files-found: warn
+          retention-days: ${{ fromJSON(inputs.retention_days) }}
 
       - name: Validate Linux update manifest
         working-directory: packages/electron

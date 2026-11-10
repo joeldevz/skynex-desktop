@@ -7,6 +7,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildStartupProbeSource, STARTUP_PROBE_GLOBAL } from '../../../scripts/perf/startup-probe.mjs';
+import { instrumentModuleEvaluation, MODULE_EVALUATION_GLOBAL } from './smoke-module-evaluation.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
@@ -16,6 +17,8 @@ const outputDir = path.resolve(process.env.SMOKE_OUTPUT_DIR || process.argv[2] |
 const timeoutMs = 60_000;
 const requireElectron = createRequire(path.join(electronDir, 'package.json'));
 const electronBinary = requireElectron('electron');
+const appImagePath = process.env.SMOKE_APPIMAGE_PATH ? path.resolve(process.env.SMOKE_APPIMAGE_PATH) : undefined;
+const appImageExecutable = process.env.SMOKE_APPIMAGE_EXECUTABLE ? path.resolve(process.env.SMOKE_APPIMAGE_EXECUTABLE) : undefined;
 const requireWeb = createRequire(path.join(webDir, 'package.json'));
 if (process.platform !== 'linux') throw new Error('This graphical smoke runner requires Linux.');
 if (!process.env.DISPLAY) throw new Error('DISPLAY is required. Run this script under the CI Xvfb display.');
@@ -217,6 +220,42 @@ async function readStartupSnapshot(cdp) {
   }
 }
 
+async function readModuleEvaluation(cdp) {
+  const response = await cdp.call('Runtime.evaluate', {
+    expression: `(() => { const state = window[${JSON.stringify(MODULE_EVALUATION_GLOBAL)}]; if (!state) return null; const started = Object.entries(state.started); const finished = Object.entries(state.finished); return { startedCount: started.length, finishedCount: finished.length, unfinished: started.filter(([name]) => state.finished[name] === undefined).slice(0, 100), lastFinished: finished.sort((a,b) => b[1]-a[1]).slice(0,30) }; })()`,
+    returnByValue: true,
+  });
+  return response.result.value;
+}
+
+async function exerciseComposer(cdp) {
+  const point = await cdp.call('Runtime.evaluate', {
+    expression: `(() => { const host = document.querySelector('[data-chat-input="true"]'); if (!host) return null; const rect = host.getBoundingClientRect(); return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}; })()`,
+    returnByValue: true,
+  }).then((response) => response.result.value);
+  if (!point || point.x <= 0 || point.y <= 0) throw new Error('The usable composer has no on-screen hit target.');
+  await cdp.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+  await cdp.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+  await cdp.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+  const focused = await cdp.call('Runtime.evaluate', {
+    expression: `(() => { const host = document.querySelector('[data-chat-input="true"]'); const editor = host?.querySelector('[contenteditable="true"], textarea') ?? (host?.isContentEditable ? host : null); return !!editor && (editor === document.activeElement || editor.contains(document.activeElement)); })()`,
+    returnByValue: true,
+  }).then((response) => response.result.value);
+  if (!focused) throw new Error('A real pointer click did not focus the composer editor.');
+  const marker = `native-smoke-${Date.now()}`;
+  await cdp.call('Input.insertText', { text: marker });
+  const entered = await cdp.call('Runtime.evaluate', {
+    expression: `(() => { const host = document.querySelector('[data-chat-input="true"]'); const editor = host?.querySelector('[contenteditable="true"], textarea') ?? (host?.isContentEditable ? host : null); return (editor?.value ?? editor?.textContent ?? '').includes(${JSON.stringify(marker)}); })()`,
+    returnByValue: true,
+  }).then((response) => response.result.value);
+  if (!entered) throw new Error('The composer did not accept native keyboard input.');
+  await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2 });
+  await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2 });
+  await cdp.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace' });
+  await cdp.call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace' });
+  return { pointerClickFocusedEditor: true, insertedTextObserved: true };
+}
+
 function readApiTimeline(cdp) {
   return { afterCdpAttachOnly: true, clock: 'milliseconds since first selected CDP network event',
     events: [...cdp.apiTimeline.events], droppedEvents: cdp.apiTimeline.droppedEvents,
@@ -226,6 +265,9 @@ function readApiTimeline(cdp) {
 async function captureFailureEvidence({ cdp, mode, theme, state }) {
   const startup = await readStartupSnapshot(cdp);
   const evidence = { mode, theme, state: state ? { ...state, url: redact(state.url), text: redact(state.text) } : state, rendererExceptions: cdp.exceptions.slice(-100), consoleErrors: cdp.consoleErrors.slice(-100), requests: cdp.requests.slice(-100), responses: cdp.responses.slice(-100), startup, apiTimeline: readApiTimeline(cdp) };
+  try { evidence.moduleEvaluation = await readModuleEvaluation(cdp); } catch (error) {
+    evidence.moduleEvaluationError = redact(String(error));
+  }
   try {
     const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}-failure.png`);
@@ -278,7 +320,9 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     const expectedUrl = mode === 'hmr'
       ? state.url.startsWith(`http://127.0.0.1:${vitePort}/`)
       : state.url.startsWith('openchamber-ui://app/');
-    if (state.root && state.text.trim().length > 15 && state.theme === theme && expectedUrl) break;
+    const readiness = await readStartupSnapshot(cdp);
+    if (state.root && state.text.trim().length > 15 && state.theme === theme && expectedUrl
+      && readiness.available && readiness.marks.usable !== undefined) break;
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   if (!state?.root || state.text.trim().length <= 15 || state.theme !== theme) {
@@ -293,7 +337,7 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     activeCdp = undefined;
     throw new Error(`HMR loaded from an unexpected origin: ${state.url}`);
   }
-  if (mode === 'bundled' && !state.url.startsWith('openchamber-ui://app/')) {
+  if (mode !== 'hmr' && !state.url.startsWith('openchamber-ui://app/')) {
     await captureFailureEvidence(activeCdp);
     cdp.socket.close();
     activeCdp = undefined;
@@ -304,6 +348,22 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     cdp.socket.close();
     activeCdp = undefined;
     throw new Error(`Renderer exception in ${mode}/${theme}: ${cdp.exceptions.join('; ')}`);
+  }
+  const startup = await readStartupSnapshot(cdp);
+  if (!startup.available || startup.marks.reactMounted === undefined || startup.marks.usable === undefined) {
+    await captureFailureEvidence(activeCdp);
+    cdp.socket.close();
+    activeCdp = undefined;
+    throw new Error(`Renderer did not prove a React commit and usable composer for ${mode}/${theme}: ${JSON.stringify(startup)}`);
+  }
+  let inputEvidence;
+  try {
+    inputEvidence = await exerciseComposer(cdp);
+  } catch (error) {
+    await captureFailureEvidence(activeCdp);
+    cdp.socket.close();
+    activeCdp = undefined;
+    throw error;
   }
   const sessionBootstrap = cdp.responses.filter(({ url }) => new URL(url).pathname === '/auth/session');
   if (!sessionBootstrap.some(({ status }) => status >= 200 && status < 300)) {
@@ -328,7 +388,8 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     fixtureApiNonSuccess: fixtureErrors,
     requestCount: cdp.requests.length,
     sessionBootstrap,
-    startup: await readStartupSnapshot(cdp),
+    startup,
+    inputEvidence,
     apiTimeline: readApiTimeline(cdp),
   });
   cdp.socket.close();
@@ -368,6 +429,16 @@ async function run() {
   vite = await createViteServer({
     configFile: path.join(webDir, 'vite.config.ts'),
     envFile: false,
+    plugins: [{
+      name: 'smoke-module-evaluation',
+      enforce: 'post',
+      transform(code, id) {
+        const source = id.split('?')[0];
+        if (!source.startsWith(`${path.join(repoRoot, 'packages')}${path.sep}`)
+          || !/\.[cm]?[jt]sx?$/.test(source)) return null;
+        return { code: instrumentModuleEvaluation(code, path.relative(repoRoot, source)), map: null };
+      },
+    }],
     server: { host: '127.0.0.1', port: 0, strictPort: false },
   });
   await vite.listen();
@@ -378,14 +449,16 @@ async function run() {
     throw new Error(`${stagedUi} is missing. Build staged web assets before running this smoke.`);
   });
 
-  for (const mode of ['hmr', 'bundled']) {
+  const modes = process.env.SMOKE_APPIMAGE_ONLY === '1' ? ['appimage'] : ['hmr', 'bundled'];
+  if (modes.includes('appimage') && (!appImagePath || !appImageExecutable)) throw new Error('SMOKE_APPIMAGE_PATH and its sandbox-configured extracted SMOKE_APPIMAGE_EXECUTABLE are required.');
+  for (const mode of modes) {
     for (const theme of ['light', 'dark']) {
       const { env } = await createProfile(`${mode}-${theme}`, backendPort);
       const fixtureRequestStart = fixtureRequests.length;
       const debugPort = await reservePort();
       const runEnv = {
         ...env,
-        OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort),
+        ...(mode === 'appimage' ? { APPIMAGE: appImagePath } : { OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort) }),
         OPENCHAMBER_STARTUP_PERF: '1',
         OPENCHAMBER_PORT: String(backendPort),
         OPENCHAMBER_HMR_API_PORT: String(backendPort),
@@ -394,7 +467,8 @@ async function run() {
           : { OPENCHAMBER_ELECTRON_USE_BUNDLED_UI: '1' }),
       };
       childOutput = '';
-      child = spawn(electronBinary, [path.join(electronDir, 'entry.mjs')], {
+      child = spawn(mode === 'appimage' ? appImageExecutable : electronBinary,
+        mode === 'appimage' ? [`--remote-debugging-port=${debugPort}`] : [path.join(electronDir, 'entry.mjs')], {
         cwd: repoRoot,
         env: runEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
