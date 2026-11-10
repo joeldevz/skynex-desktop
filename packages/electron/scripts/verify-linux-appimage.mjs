@@ -111,7 +111,7 @@ export const verifyExtractedPayload = ({
   if (!/^Exec=AppRun(?:\s|$)/m.test(desktop)) throw new Error('Desktop identity mismatch: expected AppImage AppRun entrypoint');
   assertThemeIcon(root);
 
-  assertElfArchitecture(path.join(root, 'openchamber'), targetArchitecture, 'Electron executable');
+  assertElfArchitecture(path.join(root, 'skynex-app'), targetArchitecture, 'Electron executable');
   const cliPath = path.join(root, 'resources', 'opencode-cli', 'opencode');
   assertElfArchitecture(cliPath, targetArchitecture, 'OpenCode CLI');
   const actualVersion = runCliVersion(cliPath);

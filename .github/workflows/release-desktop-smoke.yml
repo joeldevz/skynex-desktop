@@ -463,6 +463,20 @@ jobs:
           bun run --cwd packages/electron ensure:electron
           bun run --cwd packages/electron build:web-assets
           bun run --cwd packages/electron rebuild:native
+      - name: Configure Electron sandbox on the disposable runner
+        working-directory: packages/electron
+        run: |
+          set -euo pipefail
+          sandbox="$(realpath "$(node -p "require('node:path').join(require('node:path').dirname(require('electron')), 'chrome-sandbox')")")"
+          case "$sandbox" in
+            "$GITHUB_WORKSPACE"/*/chrome-sandbox) ;;
+            *) echo "Sandbox helper is outside the checked-out runtime" >&2; exit 1 ;;
+          esac
+          test -f "$sandbox"
+          test ! -L "$sandbox"
+          sudo chown root:root -- "$sandbox"
+          sudo chmod 4755 -- "$sandbox"
+          test "$(stat -c '%u:%g:%a' "$sandbox")" = '0:0:4755'
       - name: Run native graphical smoke
         env:
           SMOKE_OUTPUT_DIR: ${{ github.workspace }}/artifacts/graphical

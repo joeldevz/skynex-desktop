@@ -26,7 +26,7 @@ const createPayload = () => {
   fs.writeFileSync(path.join(root, 'skynex-app.desktop'), [
     '[Desktop Entry]', 'Name=Skynex', 'Exec=AppRun --no-sandbox %U', 'Icon=skynex-app', 'StartupWMClass=skynex-app', '',
   ].join('\n'));
-  writeElf(path.join(root, 'openchamber'), 'x64');
+  writeElf(path.join(root, 'skynex-app'), 'x64');
   writeElf(path.join(root, 'resources/opencode-cli/opencode'), 'x64');
   writeElf(path.join(root, 'resources/ripgrep/rg'), 'x64');
   for (const name of ['pty.node', 'sherpa-onnx.node']) {
@@ -85,6 +85,16 @@ test('fails on a missing native module', () => {
       expectedOpenCodeVersion: '1.17.18',
       runCliVersion: () => '1.17.18',
     }), /Missing packaged native module: pty\.node/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('requires the Skynex executable instead of the legacy name', () => {
+  const root = createPayload();
+  try {
+    fs.renameSync(path.join(root, 'skynex-app'), path.join(root, 'openchamber'));
+    assert.throws(() => verify(root), /Missing Electron executable: .*skynex-app/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
