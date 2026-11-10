@@ -14,6 +14,7 @@ import { getSmokeModelsDevAsset, getSmokeOpenCodeResponse } from './smoke-openco
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
 const electronDir = path.resolve(scriptDir, '..');
+const stagedOpenCodeDir = path.join(electronDir, 'resources', 'opencode-cli');
 const outputDir = path.resolve(process.env.SMOKE_OUTPUT_DIR || process.argv[2] || '/tmp/opencode/skynex-native-ui-smoke');
 const timeoutMs = 60_000;
 const requireElectron = createRequire(path.join(electronDir, 'package.json'));
@@ -104,7 +105,11 @@ const createProfile = async (name, backendPort, development = true) => {
       OPENCHAMBER_DATA_DIR: path.join(home, 'data', 'openchamber'),
       OPENCHAMBER_RELAY_HOST: 'off',
       OPENCHAMBER_DESKTOP_USER_DATA_DIR: path.join(home, 'electron-profile'),
-      ...(development ? { OPENCHAMBER_ELECTRON_DEV: '1', OPENCHAMBER_DISABLE_PWA_DEV: '1' } : {}),
+      ...(development ? {
+        OPENCHAMBER_ELECTRON_DEV: '1',
+        OPENCHAMBER_DISABLE_PWA_DEV: '1',
+        OPENCHAMBER_BUNDLED_OPENCODE_CLI_DIR: stagedOpenCodeDir,
+      } : {}),
       OPENCODE_CONFIG_DIR: path.join(home, 'opencode'),
       OPENCODE_PORT: String(fixturePort),
       OPENCODE_HOST: '127.0.0.1',
@@ -483,6 +488,11 @@ async function run() {
   });
 
   const modes = process.env.SMOKE_APPIMAGE_ONLY === '1' ? ['appimage'] : ['hmr', 'bundled'];
+  if (!modes.includes('appimage')) {
+    await access(path.join(stagedOpenCodeDir, 'opencode')).catch(() => {
+      throw new Error('The native development smoke requires the staged OpenCode CLI. Run prepare:opencode-cli and verify:opencode-cli first.');
+    });
+  }
   if (modes.includes('appimage') && (!appImagePath || !appImageExecutable || !appImageDirectory)) {
     throw new Error('SMOKE_APPIMAGE_PATH, extracted SMOKE_APPIMAGE_EXECUTABLE and SMOKE_APPIMAGE_DIR are required.');
   }

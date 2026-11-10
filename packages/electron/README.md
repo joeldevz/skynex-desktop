@@ -164,6 +164,10 @@ changing the production build or swallowing module errors.
 Its Vite server and Electron child use `OPENCHAMBER_DISABLE_PWA_DEV=1`, matching
 `electron-dev.mjs`; desktop HMR does not run the development PWA worker. The server
 fixture restores its process environment after resolving the Vite configuration.
+The source-entry smoke also requires the prepared and verified pinned OpenCode CLI
+under `resources/opencode-cli`, passed through the same bundled-CLI directory
+variable as the normal development launcher. It exercises the CLI readiness check
+instead of skipping first-run setup. The AppImage uses its own packaged CLI.
 
 Run locally with an installed Linux Electron runtime and an active X display after
 building staged web assets and native modules:
