@@ -436,6 +436,7 @@ jobs:
           sudo chmod 4755 -- "$sandbox"
           test "$(stat -c '%u:%g:%a' "$sandbox")" = '0:0:4755'
           export SMOKE_APPIMAGE_EXECUTABLE="$extracted/squashfs-root/AppRun"
+          export SMOKE_APPIMAGE_DIR="$extracted/squashfs-root"
           xvfb-run -a node scripts/smoke-native-ui.mjs
 
       - name: Upload AppImage graphical evidence

@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildStartupProbeSource, STARTUP_PROBE_GLOBAL } from '../../../scripts/perf/startup-probe.mjs';
 import { instrumentModuleEvaluation, MODULE_EVALUATION_GLOBAL } from './smoke-module-evaluation.mjs';
+import { getSmokeModelsDevResponse, getSmokeOpenCodeResponse } from './smoke-opencode-fixture.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
@@ -19,6 +20,7 @@ const requireElectron = createRequire(path.join(electronDir, 'package.json'));
 const electronBinary = requireElectron('electron');
 const appImagePath = process.env.SMOKE_APPIMAGE_PATH ? path.resolve(process.env.SMOKE_APPIMAGE_PATH) : undefined;
 const appImageExecutable = process.env.SMOKE_APPIMAGE_EXECUTABLE ? path.resolve(process.env.SMOKE_APPIMAGE_EXECUTABLE) : undefined;
+const appImageDirectory = process.env.SMOKE_APPIMAGE_DIR ? path.resolve(process.env.SMOKE_APPIMAGE_DIR) : undefined;
 const requireWeb = createRequire(path.join(webDir, 'package.json'));
 if (process.platform !== 'linux') throw new Error('This graphical smoke runner requires Linux.');
 if (!process.env.DISPLAY) throw new Error('DISPLAY is required. Run this script under the CI Xvfb display.');
@@ -28,12 +30,18 @@ const fixture = createServer((request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1');
   const method = request.method || 'GET';
   const route = `${method} ${url.pathname}`;
-  const body = route === 'GET /global/health'
-    ? { healthy: true, version: '2.1.0' }
-    : route === 'GET /api/info'
-      ? { version: '2.1.0' }
-      : null;
-  const status = body ? 200 : 404;
+  if (route === 'GET /api/event') {
+    fixtureRequests.push({ method, path: url.pathname, status: 200 });
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+    response.write(': synthetic OpenCode event stream ready\n\n');
+    return;
+  }
+  let directory = request.headers['x-opencode-directory'];
+  if (typeof directory === 'string') {
+    try { directory = decodeURIComponent(directory); } catch {}
+  }
+  const body = getSmokeOpenCodeResponse(method, url.pathname, directory || '/smoke/project');
+  const status = body === undefined ? 404 : 200;
   fixtureRequests.push({ method, path: url.pathname, status });
   if (fixtureRequests.length > 500) fixtureRequests.shift();
   response.setHeader('access-control-allow-origin', '*');
@@ -50,6 +58,7 @@ let tempRoot;
 let childOutput = '';
 const results = [];
 const noExternalRequests = [];
+const fulfilledMetadataRequests = [];
 const rendererDiagnostics = [];
 let activeCdp;
 
@@ -72,7 +81,7 @@ const reservePort = async () => {
   return port;
 };
 
-const createProfile = async (name, backendPort) => {
+const createProfile = async (name, backendPort, development = true) => {
   const home = path.join(tempRoot, name);
   for (const dir of ['config', 'data', 'cache', 'runtime', 'tmp', 'opencode']) {
     await mkdir(path.join(home, dir), { recursive: true, mode: 0o700 });
@@ -94,8 +103,9 @@ const createProfile = async (name, backendPort) => {
       TMPDIR: path.join(home, 'tmp'),
       SHELL: '/bin/false',
       OPENCHAMBER_DATA_DIR: path.join(home, 'data', 'openchamber'),
+      OPENCHAMBER_RELAY_HOST: 'off',
       OPENCHAMBER_DESKTOP_USER_DATA_DIR: path.join(home, 'electron-profile'),
-      OPENCHAMBER_ELECTRON_DEV: '1',
+      ...(development ? { OPENCHAMBER_ELECTRON_DEV: '1' } : {}),
       OPENCODE_CONFIG_DIR: path.join(home, 'opencode'),
       OPENCODE_PORT: String(fixturePort),
       OPENCODE_HOST: '127.0.0.1',
@@ -164,12 +174,28 @@ function makeCdpClient(webSocketUrl) {
     if (message.method === 'Fetch.requestPaused') {
       let allowed = false;
       let origin = 'invalid-url';
+      let metadata;
       try {
         const url = new URL(message.params.request.url);
         origin = url.origin;
+        metadata = getSmokeModelsDevResponse(url.href);
         allowed = ['127.0.0.1', 'localhost'].includes(url.hostname)
           || ['file:', 'data:', 'blob:', 'openchamber-ui:', 'devtools:'].includes(url.protocol);
       } catch {}
+      if (metadata) {
+        fulfilledMetadataRequests.push(message.params.request.url);
+        socket.send(JSON.stringify({
+          id: ++nextId,
+          method: 'Fetch.fulfillRequest',
+          params: {
+            requestId: message.params.requestId,
+            responseCode: 200,
+            responseHeaders: [{ name: 'content-type', value: 'application/json' }, { name: 'access-control-allow-origin', value: '*' }],
+            body: Buffer.from(JSON.stringify(metadata)).toString('base64'),
+          },
+        }));
+        return;
+      }
       if (!allowed) noExternalRequests.push(origin);
       const method = allowed ? 'Fetch.continueRequest' : 'Fetch.failRequest';
       const params = allowed
@@ -376,6 +402,12 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
   const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}.png`);
   await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
   const fixtureErrors = fixtureRequests.slice(fixtureRequestStart).filter((request) => request.status >= 400);
+  if (fixtureErrors.length) {
+    await captureFailureEvidence(activeCdp);
+    cdp.socket.close();
+    activeCdp = undefined;
+    throw new Error(`Synthetic OpenCode fixture has unimplemented requests in ${mode}/${theme}: ${JSON.stringify(fixtureErrors)}`);
+  }
   results.push({
     mode,
     theme,
@@ -450,21 +482,25 @@ async function run() {
   });
 
   const modes = process.env.SMOKE_APPIMAGE_ONLY === '1' ? ['appimage'] : ['hmr', 'bundled'];
-  if (modes.includes('appimage') && (!appImagePath || !appImageExecutable)) throw new Error('SMOKE_APPIMAGE_PATH and its sandbox-configured extracted SMOKE_APPIMAGE_EXECUTABLE are required.');
+  if (modes.includes('appimage') && (!appImagePath || !appImageExecutable || !appImageDirectory)) {
+    throw new Error('SMOKE_APPIMAGE_PATH, extracted SMOKE_APPIMAGE_EXECUTABLE and SMOKE_APPIMAGE_DIR are required.');
+  }
   for (const mode of modes) {
     for (const theme of ['light', 'dark']) {
-      const { env } = await createProfile(`${mode}-${theme}`, backendPort);
+      const { env } = await createProfile(`${mode}-${theme}`, backendPort, mode !== 'appimage');
       const fixtureRequestStart = fixtureRequests.length;
       const debugPort = await reservePort();
       const runEnv = {
         ...env,
-        ...(mode === 'appimage' ? { APPIMAGE: appImagePath } : { OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort) }),
+        ...(mode === 'appimage'
+          ? { APPIMAGE: appImagePath, APPDIR: appImageDirectory }
+          : { OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort) }),
         OPENCHAMBER_STARTUP_PERF: '1',
         OPENCHAMBER_PORT: String(backendPort),
         OPENCHAMBER_HMR_API_PORT: String(backendPort),
         ...(mode === 'hmr'
           ? { OPENCHAMBER_HMR_UI_PORT: String(vitePort) }
-          : { OPENCHAMBER_ELECTRON_USE_BUNDLED_UI: '1' }),
+          : mode === 'bundled' ? { OPENCHAMBER_ELECTRON_USE_BUNDLED_UI: '1' } : {}),
       };
       childOutput = '';
       child = spawn(mode === 'appimage' ? appImageExecutable : electronBinary,
@@ -496,6 +532,8 @@ async function run() {
     backendPort,
     results,
     blockedExternalRequests: [...new Set(noExternalRequests)],
+    fulfilledMetadataRequests: [...new Set(fulfilledMetadataRequests)],
+    fixtureRequests,
   };
   await writeFile(path.join(outputDir, 'native-ui-smoke.json'), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(JSON.stringify(summary, null, 2));
@@ -511,6 +549,8 @@ try {
     childOutput: redact(childOutput.slice(-8_000)),
     fixtureApiNonSuccess: fixtureRequests.filter((request) => request.status >= 400),
     blockedExternalRequests: [...new Set(noExternalRequests)],
+    fulfilledMetadataRequests: [...new Set(fulfilledMetadataRequests)],
+    fixtureRequests,
     rendererDiagnostics,
     results,
   };
