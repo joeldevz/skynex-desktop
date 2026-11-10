@@ -5,15 +5,15 @@ import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { buildStartupProbeSource, STARTUP_PROBE_GLOBAL } from '../../../scripts/perf/startup-probe.mjs';
-import { instrumentModuleEvaluation, MODULE_EVALUATION_GLOBAL } from './smoke-module-evaluation.mjs';
-import { getSmokeModelsDevResponse, getSmokeOpenCodeResponse } from './smoke-opencode-fixture.mjs';
+import { MODULE_EVALUATION_GLOBAL } from './smoke-module-evaluation.mjs';
+import { createSmokeHmrServer } from './smoke-hmr-server.mjs';
+import { getSmokeModelsDevAsset, getSmokeOpenCodeResponse } from './smoke-opencode-fixture.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
 const electronDir = path.resolve(scriptDir, '..');
-const webDir = path.join(repoRoot, 'packages/web');
 const outputDir = path.resolve(process.env.SMOKE_OUTPUT_DIR || process.argv[2] || '/tmp/opencode/skynex-native-ui-smoke');
 const timeoutMs = 60_000;
 const requireElectron = createRequire(path.join(electronDir, 'package.json'));
@@ -21,7 +21,6 @@ const electronBinary = requireElectron('electron');
 const appImagePath = process.env.SMOKE_APPIMAGE_PATH ? path.resolve(process.env.SMOKE_APPIMAGE_PATH) : undefined;
 const appImageExecutable = process.env.SMOKE_APPIMAGE_EXECUTABLE ? path.resolve(process.env.SMOKE_APPIMAGE_EXECUTABLE) : undefined;
 const appImageDirectory = process.env.SMOKE_APPIMAGE_DIR ? path.resolve(process.env.SMOKE_APPIMAGE_DIR) : undefined;
-const requireWeb = createRequire(path.join(webDir, 'package.json'));
 if (process.platform !== 'linux') throw new Error('This graphical smoke runner requires Linux.');
 if (!process.env.DISPLAY) throw new Error('DISPLAY is required. Run this script under the CI Xvfb display.');
 
@@ -105,7 +104,7 @@ const createProfile = async (name, backendPort, development = true) => {
       OPENCHAMBER_DATA_DIR: path.join(home, 'data', 'openchamber'),
       OPENCHAMBER_RELAY_HOST: 'off',
       OPENCHAMBER_DESKTOP_USER_DATA_DIR: path.join(home, 'electron-profile'),
-      ...(development ? { OPENCHAMBER_ELECTRON_DEV: '1' } : {}),
+      ...(development ? { OPENCHAMBER_ELECTRON_DEV: '1', OPENCHAMBER_DISABLE_PWA_DEV: '1' } : {}),
       OPENCODE_CONFIG_DIR: path.join(home, 'opencode'),
       OPENCODE_PORT: String(fixturePort),
       OPENCODE_HOST: '127.0.0.1',
@@ -125,6 +124,7 @@ function makeCdpClient(webSocketUrl) {
   const consoleErrors = [];
   const requests = [];
   const responses = [];
+  const moduleRequests = { started: 0, finished: 0, failed: 0, dropped: 0, pending: new Map() };
   const apiTimeline = { events: [], pending: new Map(), droppedEvents: 0, origin: null };
   const recordApi = (kind, params, request, details = {}) => {
     apiTimeline.origin ??= params.timestamp;
@@ -144,6 +144,13 @@ function makeCdpClient(webSocketUrl) {
     if (message.method === 'Network.requestWillBeSent') {
       const params = message.params;
       requests.push(redact(params.request.url));
+      if (params.type === 'Script') {
+        moduleRequests.started += 1;
+        if (moduleRequests.pending.size < 512) moduleRequests.pending.set(params.requestId, {
+          path: redact(new URL(params.request.url).pathname).slice(0, 500), timestamp: params.timestamp,
+        });
+        else moduleRequests.dropped += 1;
+      }
       const previous = apiTimeline.pending.get(params.requestId);
       if (previous && params.redirectResponse) recordApi('redirect', params, previous, { status: params.redirectResponse.status });
       const pathname = new URL(params.request.url).pathname;
@@ -164,6 +171,10 @@ function makeCdpClient(webSocketUrl) {
       if (request) recordApi('response', message.params, request, { status: message.params.response.status });
     }
     if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+      if (moduleRequests.pending.delete(message.params.requestId)) {
+        if (message.method === 'Network.loadingFinished') moduleRequests.finished += 1;
+        else moduleRequests.failed += 1;
+      }
       const request = apiTimeline.pending.get(message.params.requestId);
       if (request) {
         recordApi(message.method === 'Network.loadingFinished' ? 'finished' : 'failed', message.params, request,
@@ -178,7 +189,7 @@ function makeCdpClient(webSocketUrl) {
       try {
         const url = new URL(message.params.request.url);
         origin = url.origin;
-        metadata = getSmokeModelsDevResponse(url.href);
+        metadata = message.params.request.method === 'GET' ? getSmokeModelsDevAsset(url.href) : undefined;
         allowed = ['127.0.0.1', 'localhost'].includes(url.hostname)
           || ['file:', 'data:', 'blob:', 'openchamber-ui:', 'devtools:'].includes(url.protocol);
       } catch {}
@@ -190,8 +201,8 @@ function makeCdpClient(webSocketUrl) {
           params: {
             requestId: message.params.requestId,
             responseCode: 200,
-            responseHeaders: [{ name: 'content-type', value: 'application/json' }, { name: 'access-control-allow-origin', value: '*' }],
-            body: Buffer.from(JSON.stringify(metadata)).toString('base64'),
+            responseHeaders: [{ name: 'content-type', value: metadata.contentType }, { name: 'access-control-allow-origin', value: '*' }],
+            body: Buffer.from(metadata.body).toString('base64'),
           },
         }));
         return;
@@ -222,7 +233,7 @@ function makeCdpClient(webSocketUrl) {
     socket.send(JSON.stringify({ id, method, params }));
   });
 
-  return { socket, ready, call, exceptions, consoleErrors, requests, responses, apiTimeline };
+  return { socket, ready, call, exceptions, consoleErrors, requests, responses, apiTimeline, moduleRequests };
 }
 
 async function readStartupSnapshot(cdp) {
@@ -294,6 +305,13 @@ async function captureFailureEvidence({ cdp, mode, theme, state }) {
   try { evidence.moduleEvaluation = await readModuleEvaluation(cdp); } catch (error) {
     evidence.moduleEvaluationError = redact(String(error));
   }
+  evidence.moduleRequests = {
+    started: cdp.moduleRequests.started, finished: cdp.moduleRequests.finished,
+    failed: cdp.moduleRequests.failed, dropped: cdp.moduleRequests.dropped,
+    afterCdpAttachOnly: true,
+    pending: [...cdp.moduleRequests.pending.values()].slice(0, 50),
+    pendingTruncated: Math.max(0, cdp.moduleRequests.pending.size - 50),
+  };
   try {
     const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}-failure.png`);
@@ -455,24 +473,7 @@ async function run() {
   await mkdir('/tmp/opencode', { recursive: true });
   tempRoot = await mkdtemp(path.join('/tmp/opencode', 'skynex-native-ui-'));
   const backendPort = await reservePort();
-  const previousOpenChamberPort = process.env.OPENCHAMBER_PORT;
-  process.env.OPENCHAMBER_PORT = String(backendPort);
-  const { createServer: createViteServer } = await import(pathToFileURL(requireWeb.resolve('vite')).href);
-  vite = await createViteServer({
-    configFile: path.join(webDir, 'vite.config.ts'),
-    envFile: false,
-    plugins: [{
-      name: 'smoke-module-evaluation',
-      enforce: 'post',
-      transform(code, id) {
-        const source = id.split('?')[0];
-        if (!source.startsWith(`${path.join(repoRoot, 'packages')}${path.sep}`)
-          || !/\.[cm]?[jt]sx?$/.test(source)) return null;
-        return { code: instrumentModuleEvaluation(code, path.relative(repoRoot, source)), map: null };
-      },
-    }],
-    server: { host: '127.0.0.1', port: 0, strictPort: false },
-  });
+  vite = await createSmokeHmrServer(backendPort);
   await vite.listen();
   const vitePort = vite.httpServer.address().port;
   const stagedUi = path.join(electronDir, 'resources/web-dist/index.html');
@@ -518,8 +519,6 @@ async function run() {
       if (residual) throw new Error(`Electron debugging endpoint remained after cleanup for ${mode}/${theme}.`);
     }
   }
-  if (previousOpenChamberPort === undefined) delete process.env.OPENCHAMBER_PORT;
-  else process.env.OPENCHAMBER_PORT = previousOpenChamberPort;
   if (noExternalRequests.length) {
     throw new Error(`Blocked non-loopback renderer requests: ${[...new Set(noExternalRequests)].join(', ')}`);
   }

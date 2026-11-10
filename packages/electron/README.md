@@ -144,11 +144,13 @@ and launches its AppRun with the sandbox active. Both checks use isolated
 profiles and a loopback synthetic OpenCode health endpoint. On failure it saves bounded renderer errors, loopback request
 statuses and a screenshot to `SMOKE_OUTPUT_DIR` for artifact upload. The synthetic
 OpenCode fixture returns pinned 2.1.4 wire shapes for the boot-time credential,
-provider, model, agent, session, integration and web-search reads. Unknown fixture
-routes remain 404 and fail the smoke. The exact `https://models.dev/api.json`
-request receives synthetic model metadata through CDP; other external requests
-remain blocked and fail the smoke. It does not provide real sessions or call a
-model provider.
+provider, model, agent, session, location, config, form, project, permission, VCS,
+shell, command, skill, MCP, integration and web-search reads. Unknown fixture routes
+remain 404 and fail the smoke. The exact `https://models.dev/api.json` request and
+canonical public provider-logo paths receive synthetic JSON or SVG through CDP;
+other external requests remain blocked and fail the smoke. It does not provide
+real sessions or call a model provider. The pinned OpenCode client exercises the
+bootstrap response envelopes over a loopback HTTP server in the fixture tests.
 
 Evidence also uses the existing startup recorder to distinguish the HTML splash,
 the first React commit and an editable composer. Selected authentication, home and
@@ -159,6 +161,9 @@ These diagnostics leave the readiness deadline and authentication checks unchang
 The HMR test additionally records module evaluation boundaries through a test-only
 Vite transform. It reports unfinished modules and recent completed modules without
 changing the production build or swallowing module errors.
+Its Vite server and Electron child use `OPENCHAMBER_DISABLE_PWA_DEV=1`, matching
+`electron-dev.mjs`; desktop HMR does not run the development PWA worker. The server
+fixture restores its process environment after resolving the Vite configuration.
 
 Run locally with an installed Linux Electron runtime and an active X display after
 building staged web assets and native modules:
