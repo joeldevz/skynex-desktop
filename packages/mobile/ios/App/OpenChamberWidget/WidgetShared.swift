@@ -44,16 +44,16 @@ enum WidgetStore {
 // MARK: - Deep links (mirror packages/ui/src/apps/deepLinks.ts)
 
 enum WidgetDeepLink {
-    static func newSession() -> URL { URL(string: "openchamber://new")! }
-    static func attention() -> URL { URL(string: "openchamber://sessions?filter=attention")! }
-    static func status() -> URL { URL(string: "openchamber://status")! }
-    static func settings() -> URL { URL(string: "openchamber://settings")! }
-    static func changes() -> URL { URL(string: "openchamber://changes")! }
-    static func files() -> URL { URL(string: "openchamber://view/files")! }
-    static func instances() -> URL { URL(string: "openchamber://view/instances")! }
+    static func newSession() -> URL { URL(string: "skynex-app://new")! }
+    static func attention() -> URL { URL(string: "skynex-app://sessions?filter=attention")! }
+    static func status() -> URL { URL(string: "skynex-app://status")! }
+    static func settings() -> URL { URL(string: "skynex-app://settings")! }
+    static func changes() -> URL { URL(string: "skynex-app://changes")! }
+    static func files() -> URL { URL(string: "skynex-app://view/files")! }
+    static func instances() -> URL { URL(string: "skynex-app://view/instances")! }
     static func session(_ id: String) -> URL {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
-        return URL(string: "openchamber://session/\(encoded)") ?? newSession()
+        return URL(string: "skynex-app://session/\(encoded)") ?? newSession()
     }
 }
 

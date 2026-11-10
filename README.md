@@ -1,15 +1,12 @@
-# <picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/badges/openchamber-logo-dark.svg"><img src="docs/references/badges/openchamber-logo-light.svg" width="32" height="32" align="absmiddle" /></picture> OpenChamber
+# Skynex
 
-[![GitHub stars](https://img.shields.io/github/stars/openchamber/openchamber?style=flat&labelColor=100F0F&color=66800B)](https://github.com/openchamber/openchamber/stargazers)
-[![GitHub release](https://img.shields.io/github/v/release/openchamber/openchamber?style=flat&labelColor=100F0F&color=205EA6)](https://github.com/openchamber/openchamber/releases/latest)
-[![Discord](https://img.shields.io/badge/Discord-join.svg?style=flat&labelColor=100F0F&color=8B7EC8&logo=discord&logoColor=FFFCF0)](https://discord.gg/ZYRSdnwwKA)
-[![Support the project](https://img.shields.io/badge/Support-Project-black?style=flat&labelColor=100F0F&color=EC8B49&logo=patreon&logoColor=FFFCF0)](https://www.patreon.com/openchamber)
+[![GitHub release](https://img.shields.io/github/v/release/joeldevz/skynex-desktop?style=flat&labelColor=100F0F&color=205EA6)](https://github.com/joeldevz/skynex-desktop/releases/latest)
 
-<a href="https://www.blacksmith.sh/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/badges/blacksmith-dark.svg"><img src="docs/references/badges/blacksmith-light.svg" height="28" alt="CI powered by Blacksmith" /></picture></a>
+Skynex is a fork of [OpenChamber](https://github.com/openchamber/openchamber). Upstream credits and the MIT license are preserved.
 
 ## Run agent work. Keep control. Ship from anywhere.
 
-**OpenChamber is an open-source workspace for running and reviewing AI coding work on desktop, web, VS Code, and mobile.**
+Skynex is an open-source workspace for running and reviewing AI coding work on desktop, web, VS Code, and mobile.
 
 Start agent work, see what changed, and take it through review and release. Your projects and sessions remain available when you switch devices or step away.
 
@@ -28,11 +25,11 @@ Start agent work, see what changed, and take it through review and release. Your
 
 </details>
 
-## What you can do with OpenChamber
+## What you can do with Skynex
 
 ### Goals that continue on their own
 
-Give a session a finish line with **Session Goals**. OpenChamber checks the result after every turn and keeps the agent working until it completes the goal, gets blocked, or reaches the limit you set. It can continue after you close the app.
+Give a session a finish line with **Session Goals**. Skynex checks the result after every turn and keeps the agent working until it completes the goal, gets blocked, or reaches the limit you set. It can continue after you close the app.
 
 ### Compare and combine runs
 
@@ -48,7 +45,7 @@ Open your app beside the conversation with **Preview**. Point at an element to s
 
 ### GitHub context from issue to pull request
 
-Start a session from a GitHub issue or pull request with its context attached. Send failed checks or review comments back to the agent, then update or merge the pull request from OpenChamber.
+Start a session from a GitHub issue or pull request with its context attached. Send failed checks or review comments back to the agent, then update or merge the pull request from Skynex.
 
 ### Continue on another device
 
@@ -74,60 +71,68 @@ Run a prompt once, daily, weekly, or on a cron schedule. Scheduled tasks can use
 | **Web / PWA** | Open your workspace in a browser, install it as an app, and stay up to date through background notifications |
 | **VS Code** | Keep sessions beside your code, send selections to the agent, open results in the editor, and compare parallel runs |
 | **iOS / Android** | Review and steer work away from your desk, receive completion alerts, and use the terminal with touch controls |
-| **CLI / Server** | Run OpenChamber on a workstation or server, schedule work, manage remote access, and keep it available after login |
+| **CLI / Server** | Run Skynex on a workstation or server, schedule work, manage remote access, and keep it available after login |
 
 ## Quick start
 
 ### Desktop for macOS, Windows, and Linux
 
-Download the latest release from [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest). Desktop bundles the matching OpenCode CLI, so no separate OpenCode installation is required.
+Download an available build from [Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest). Desktop bundles the matching OpenCode CLI, so no separate OpenCode installation is required. Available platforms are listed with each release.
 
-Linux releases come for x86_64 and ARM64 as a `.deb` (Debian, Ubuntu), an `.rpm` (Fedora, openSUSE) and an AppImage. The packages install OpenChamber into the app menu, and in-app updates ask for your password to install the new package:
+Linux releases come for x86_64 and ARM64 as a `.deb` (Debian, Ubuntu), an `.rpm` (Fedora, openSUSE) and an AppImage. The packages install Skynex into the app menu, and in-app updates ask for your password to install the new package:
 
 ```bash
-sudo apt install ./OpenChamber-*-linux-amd64.deb    # Debian, Ubuntu
-sudo dnf install ./OpenChamber-*-linux-x86_64.rpm   # Fedora
+sudo apt install ./Skynex-*-linux-amd64.deb    # Debian, Ubuntu
+sudo dnf install ./Skynex-*-linux-x86_64.rpm   # Fedora
 ```
 
 The AppImage needs no install. Make it executable and keep it in a writable location for in-app updates; on its first start it adds itself to the app menu:
 
 ```bash
-chmod +x OpenChamber-*.AppImage
-./OpenChamber-*.AppImage
+chmod +x Skynex-*.AppImage
+./Skynex-*.AppImage
 ```
 
 Linux AppImages require FUSE (`libfuse.so.2`). Without FUSE, run with `APPIMAGE_EXTRACT_AND_RUN=1`.
 
 ### VS Code
 
-Install [OpenChamber from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber), or search for "OpenChamber" in Extensions.
+The [OpenChamber extension](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) is maintained by upstream. Skynex does not publish to that listing.
 
 ### CLI for Web and PWA
 
-Requires Node.js 24.14+. CLI/Web and VS Code use your installed [OpenCode CLI](https://opencode.ai).
+Requires Node.js 24.14+ and an installed [OpenCode CLI](https://opencode.ai). The application command is `skynex-app`. The separate `skynex` command manages agent tooling. The `openchamber` executable remains available for existing SSH integrations and services.
+
+The release installer requires a Skynex release containing CLI assets. Published version 0.1.1 has no CLI assets or `skynex-app://` links. The changes in this checkout are not published. Use this command only after a release includes `install.sh`, `skynex-app-install.mjs`, and the bundle for your platform:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
 Common operations:
 
 ```bash
-openchamber status
-openchamber connect-url --qr
-openchamber tunnel start --provider cloudflare --mode quick --qr
-openchamber startup enable
-openchamber logs
-openchamber stop
-openchamber update
+skynex-app status
+skynex-app connect-url --qr
+skynex-app tunnel start --provider cloudflare --mode quick --qr
+skynex-app startup enable
+skynex-app logs
+skynex-app stop
+skynex-app update
 ```
 
-OpenChamber binds to localhost by default. Use `--lan` only on a trusted network and protect browser access with `--ui-password`.
+The installer offers a per-user managed installation with a stable launcher. It downloads the standalone installer and native bundle from the same GitHub release. Bundles include application dependencies and the SDK.
+
+Managed updates verify SHA256 before activating the staged version and preserve the previous version. Running servers keep running until you explicitly run `skynex-app restart`. Source and unmanaged installations refuse `update` without changing files or running servers. There is no npm fallback. Web users may need to run the update command manually.
+
+New connection links use `skynex-app://`. Old `openchamber://` links are not accepted. Existing profiles, storage paths, and environment variables keep their technical names.
+
+Skynex binds to localhost by default. Use `--lan` only on a trusted network and protect browser access with `--ui-password`.
 
 ## Guides
 
-Go deeper with the OpenChamber guides:
+Use the repository guides. Pages outside installation and quickstart may still describe upstream OpenChamber:
 
 - [Quick start](packages/docs/content/docs/quickstart.mdx)
 - [Installation](packages/docs/content/docs/install.mdx)
@@ -146,22 +151,23 @@ For self-hosting details, see the [reverse proxy guide](docs/REVERSE_PROXY.md). 
 
 ## Why OpenCode?
 
-OpenChamber uses [OpenCode](https://opencode.ai) to run coding agents. We chose it because it is open source, has a solid API, and is easy to extend.
+Skynex uses [OpenCode](https://opencode.ai) to run coding agents.
 
-OpenChamber handles the rest of the workflow. You can decide what to try, keep the agent on track, review the result, connect from another device, and ship the change.
+Skynex handles the rest of the workflow. You can decide what to try, keep the agent on track, review the result, connect from another device, and ship the change.
 
-OpenChamber is an independent project and is not affiliated with the OpenCode team.
+Skynex is an independent project and is not affiliated with the OpenCode team.
 
 ## Contributing
 
 Bug fixes and small improvements are welcome as PRs. Features and behavior changes start in an [Ideas discussion](https://github.com/openchamber/openchamber/discussions/categories/ideas) so we agree on the product side before anyone writes code. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR; it has the setup, the review contract, and what happens to large unplanned PRs. Documentation authoring guidance lives in [`packages/docs`](packages/docs/README.md).
 
-Bugs go to [issues](https://github.com/openchamber/openchamber/issues/new/choose). Questions go to [Q&A discussions](https://github.com/openchamber/openchamber/discussions/categories/q-a).
+Bugs and questions about Skynex go to [Skynex issues](https://github.com/joeldevz/skynex-desktop/issues).
 
 ## Acknowledgments
 
 Special thanks to:
 
+- [OpenChamber](https://github.com/openchamber/openchamber) and its contributors for the original application
 - [OpenCode](https://opencode.ai) for the API and open-source architecture OpenChamber builds on
 - [Pierre](https://pierrejs-docs.vercel.app/) for the diff viewer and syntax highlighting
 - The [T3 Code](https://github.com/pingdotgg/t3code) team for their browser adapter for [libghostty-vt](https://github.com/ghostty-org/ghostty), which our terminal is built on

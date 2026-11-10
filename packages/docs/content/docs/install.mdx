@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Install OpenChamber on desktop, web, VS Code, or your phone.
+description: Install Skynex on desktop or run its web app.
 ---
 
 # Install
@@ -9,41 +9,47 @@ Pick the app that fits how you work:
 
 - desktop app for macOS, Windows, and Linux
 - web app run by the CLI, which you can install like a phone app (a PWA)
-- VS Code extension, also for Cursor, Windsurf, and Trae
-- mobile apps for iPhone and Android, in public beta
 
 ## Desktop
 
-Download the latest build from the [download page](https://openchamber.dev/download/) or [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest), then open it. Linux builds come as `.deb`, `.rpm`, and AppImage.
+Download an available build from [Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest), then open it. Check the release assets for supported platforms and formats.
 
-The desktop app brings its own copy of [OpenCode](https://opencode.ai) (the AI coding agent OpenChamber runs on), so there is nothing else to install.
+The desktop app includes [OpenCode](https://opencode.ai), the coding agent Skynex uses.
 
 ## Web + PWA
 
 The web app needs [OpenCode](https://opencode.ai) and Node.js 24.14 or newer on the machine that runs it.
 
+The installer requires a release containing CLI assets. Published 0.1.1 has no CLI assets or `skynex-app://` links. These checkout changes are not published. Run this command only after a release includes the CLI assets:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
-Open the URL the CLI prints (usually `http://localhost:3000`). You should see the OpenChamber session list. To keep it handy, use your browser's "Install" option in the address bar to add it as an app.
+The installer offers a per-user managed installation with a stable launcher. It downloads `skynex-app-install.mjs` from the same release. Native bundles include application dependencies and the SDK. The application command is `skynex-app`; the separate `skynex` command manages agent tooling. Existing SSH integrations and services can keep using the `openchamber` executable alias.
+
+Open the URL the CLI prints, usually `http://localhost:3000`. You should see the Skynex session list. Use your browser's "Install" option to add it as a PWA.
+
+Run `skynex-app update` for a managed installation. It stages and verifies SHA256 before activation and preserves the previous version. Running servers continue until an explicit `skynex-app restart`. Source and unmanaged installs refuse updates without modifying files or running servers. There is no npm fallback. Web updates may require the manual CLI command.
+
+New connection links use only `skynex-app://`. Old `openchamber://` links are not accepted. Profiles, storage paths, and environment variables retain their existing technical names.
 
 ## VS Code
 
-Install OpenChamber from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber). Cursor, Windsurf, and Trae install it from [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber). The extension needs [OpenCode](https://opencode.ai) installed; the OpenChamber view then opens in the sidebar.
+The OpenChamber listings in [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) and [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) belong to upstream. They do not distribute Skynex.
 
 ## Mobile
 
-Install the iPhone app through TestFlight or the Android app from the latest release, then pair it with your computer. [Mobile Apps](/mobile/) walks through both.
+The linked [mobile guide](/mobile/) describes upstream apps. No Skynex mobile publication is confirmed here. Use the web app in your phone's browser or as a PWA.
 
 ## Nix
 
-On NixOS, or any Linux with Nix, the flake in the OpenChamber repository builds the same apps:
+The repository includes a Nix flake. Source builds of this fork have not been verified here:
 
 ```bash
-nix run github:openchamber/openchamber        # web server on http://localhost:3000
-nix run github:openchamber/openchamber#gui    # desktop app
+nix run github:joeldevz/skynex-desktop        # web server on http://localhost:3000
+nix run github:joeldevz/skynex-desktop#gui    # desktop app
 ```
 
 The flake also exposes `packages.openchamber` and `packages.openchamber-desktop`, and a `nixosModules.openchamber` systemd module with `host`, `port`, `openFirewall` and `uiPasswordFile`. The password file is read through systemd's `LoadCredential`, so a root-owned 0400 secret works with the default dynamic user.

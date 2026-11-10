@@ -4,6 +4,8 @@ One directory per Settings page. `shared/` holds the page chrome and controls
 every page is built from; see `.agents/skills/settings-ui-patterns/SKILL.md` for
 which primitive to reach for.
 
+About uses the Skynex GitHub repository for product links on desktop and mobile. OpenChamber attribution remains in the footer; upstream social accounts are not Skynex support links.
+
 ## Autosave on the OpenCode configuration pages
 
 `agents/`, `commands/`, `skills/`, `mcp/`, `plugins/` and `behavior/` edit files
@@ -429,6 +431,14 @@ Config reads report `legacy: true` when the entity's file still uses v1
 spellings, and mutations answer with the `path` they wrote.
 `shared/SettingsLegacyFormatNote.tsx` turns that into one quiet line at the top
 of the page; the file is never moved, so the note has no action.
+
+## Remote instances
+
+The SSH instance form keeps remote server behavior and networking settings in
+`remote-instances/RemoteInstancesPage.tsx`. Managed OpenChamber distribution is
+fixed to the matching Skynex Desktop GitHub release; old persisted
+`remoteOpenchamber.installMethod` values remain readable for saved profiles,
+but the page no longer offers a package-manager choice.
 
 ## Workspaces and folder settings
 

@@ -6,6 +6,8 @@
 
 ## Invariants
 
+- Native links use only `skynex-app://`. Pairing encoding belongs to `lib/connectionPayload.ts`; session/message link generation and markdown recognition belong to `lib/sessionLinks.ts`. Generic external-app opening blocks both `skynex-app://` and the rejected legacy `openchamber://`, so pairing and session navigation keep their own confirmation and validation paths. `openchamber-ui://` remains the desktop's internal storage origin.
+
 - `MobileApp` owns mobile app-level surfaces such as scheduled tasks. Shared surfaces use `MobileAppActions` to request those pages so they appear above mobile drawers; workspace selection remains in the shared store for scheduler preselection.
 - `MobileSessionsSheet` owns the phone drawer and iPad sidebar shell. Opening it hydrates explicit open-session membership through the shared serialized store; failures retain existing rows and use its retry path. Selecting a session closes the phone drawer only after the shared navigation accepts the row. Its header keeps Close and New chat on one row. Its footer owns Settings and More; secondary pages and help actions stay in More. Selecting a More item closes the sheet before opening its host surface. Mobile mounts `HelpDialog`; About opens the Settings About page. The workspace overview remains in `SessionSidebar`. `SessionDialogs` owns the shared New worktree dialog. Sheet open/close and edge-swipe behavior stay here.
 - Chat-side Settings entry points request the native Settings tab through `RuntimeAPIs.vscode`. They preserve chat selection, drafts and the current layout. The source's in-page dialog flag is cleared so it cannot block chat shortcuts.

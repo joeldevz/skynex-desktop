@@ -1,13 +1,41 @@
 import { describe, expect, test } from 'bun:test';
-import { commandMatchesSearch, mergeCommandAutocompleteItems, rankCommandAutocompleteItems } from '../commandAutocompleteItems';
+import { commandMatchesSearch, filterCommandSuggestions, mergeCommandAutocompleteItems, rankCommandAutocompleteItems } from '../commandAutocompleteItems';
 
 interface Item {
   name: string;
-  source: 'openchamber' | 'opencode';
+  source: 'openchamber' | 'opencode' | 'extension';
   description?: string;
   searchAliases?: string[];
   isBuiltIn?: boolean;
 }
+
+describe('filterCommandSuggestions', () => {
+  const items: Item[] = [
+    { name: 'summary', source: 'openchamber' },
+    { name: 'btw', source: 'openchamber' },
+    { name: 'review', source: 'opencode' },
+    { name: 'triage', source: 'extension' },
+  ];
+
+  test('hides OpenChamber commands by default without hiding other sources', () => {
+    expect(filterCommandSuggestions(items, new Set()).map(({ name }) => name)).toEqual(['review', 'triage']);
+  });
+
+  test('keeps a same-named OpenCode command when its OpenChamber suggestion is hidden', () => {
+    const openCodeSummary: Item = { name: 'summary', source: 'opencode' };
+    const builtInSummary: Item = { name: 'summary', source: 'openchamber' };
+    const suggestions = mergeCommandAutocompleteItems(
+      filterCommandSuggestions([builtInSummary], new Set()),
+      [openCodeSummary],
+    );
+
+    expect(suggestions).toEqual([openCodeSummary]);
+  });
+
+  test('allows OpenChamber commands to be enabled one at a time', () => {
+    expect(filterCommandSuggestions(items, new Set(['btw'])).map(({ name }) => name)).toEqual(['btw', 'review', 'triage']);
+  });
+});
 
 describe('mergeCommandAutocompleteItems', () => {
   test('built-ins win collisions with commands without losing search aliases', () => {

@@ -79,6 +79,13 @@ test('v1 recovery replaces the application once the check confirms an incompatib
   expect(requests[0]).toContain('/api/opencode/compatibility');
 });
 
+test('bundled recovery points to the Skynex release instead of an upstream installer', async () => {
+  respond = async () => Response.json({ state: 'incompatible', version: '1.18.30', installation: 'bundled', canInstall: false });
+  await render();
+  expect(host.querySelector('a')?.href).toBe('https://github.com/joeldevz/skynex-desktop/releases/latest');
+  expect(host.textContent).not.toContain('Application mounted');
+});
+
 test('the application mounts while the check runs and stays mounted for v2', async () => {
   let complete: (response: Response) => void = () => { throw new Error('Missing request'); };
   respond = () => new Promise<Response>((resolve) => { complete = resolve; });

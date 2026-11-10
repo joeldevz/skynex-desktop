@@ -45,13 +45,13 @@ description: 1 回限りの QR コードで、スマートフォン、デスク�
 同じネットワーク上のデバイス用にはこちらです。
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 **どこからでも**接続するデバイス用 — ダイアログで **どこでも** を選ぶのと同等 — にはこちらです。
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 `--relay` リンクには、ダイアログと同様に両方の経路が含まれます。デバイスはサーバーに到達できるときはローカルネットワーク経由で直接接続し、外出先では [Private Relay](/private-relay/) にフォールバックします。リレーは自動的に起動します。実行中のインスタンスは 1 分以内にリンクを拾い、停止中のインスタンスは次回の起動時に拾います。
@@ -63,7 +63,7 @@ openchamber connect-url --relay --qr
 デスクトップアプリを接続するには、そのアプリが動いているマシンで出力されたリンクを開きます。アプリが確認を求めてから接続します。macOS では:
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## 関連

@@ -1,6 +1,6 @@
 ---
 title: インストール
-description: デスクトップ、Web、VS Code、スマートフォンに OpenChamber をインストールします。
+description: Skynex をデスクトップにインストールするか、Web アプリを実行します。
 ---
 
 # インストール
@@ -9,30 +9,36 @@ description: デスクトップ、Web、VS Code、スマートフォンに OpenC
 
 - macOS、Windows、Linux 用のデスクトップアプリ
 - CLI が動かす Web アプリ。スマートフォンアプリのようにインストールできます（PWA）
-- VS Code 拡張機能。Cursor、Windsurf、Trae でも使えます
-- iPhone と Android 用のモバイルアプリ（公開ベータ）
 
 ## デスクトップ
 
-[ダウンロードページ](https://openchamber.dev/download/)または [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest) から最新版をダウンロードして開きます。Linux 向けには `.deb`、`.rpm`、AppImage があります。
+[Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest) から利用可能なビルドをダウンロードします。対応する OS と形式は各リリースのファイルを確認してください。
 
-デスクトップアプリには [OpenCode](https://opencode.ai)（OpenChamber の土台になっている AI コーディングエージェント）が同梱されているので、ほかに何もインストールする必要はありません。
+デスクトップアプリにはコーディングエージェント [OpenCode](https://opencode.ai) が同梱されています。
 
 ## Web + PWA
 
 Web アプリを動かすマシンには [OpenCode](https://opencode.ai) と Node.js 24.14 以降が必要です。
 
+インストーラーには CLI ファイルを含むリリースが必要です。公開済みの 0.1.1 には CLI ファイルも `skynex-app://` リンクもありません。このチェックアウトの変更は未公開です。CLI ファイルを含むリリースの公開後に実行してください。
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
-CLI が表示した URL（通常は `http://localhost:3000`）を開きます。OpenChamber のセッション一覧が表示されれば準備完了です。すぐ開けるようにするには、ブラウザのアドレスバーにある「インストール」からアプリとして追加します。
+インストールは任意で、ユーザーごとの管理領域と固定のランチャーを使います。インストーラーとネイティブバンドルは同じリリースから取得します。バンドルにはアプリの依存関係と SDK が含まれます。アプリ用は `skynex-app`、エージェントツール用は `skynex` です。SSH やサービス向けに `openchamber` 別名も残ります。
+
+表示された URL、通常は `http://localhost:3000` を開くと Skynex のセッション一覧が表示されます。ブラウザのインストール機能で PWA を追加できます。
+
+`skynex-app update` は有効化の前に SHA256 を検証し、旧バージョンを保持します。実行中のサーバーは停止しません。明示的に `skynex-app restart` を実行してください。ソースや管理対象外のインストールでは、ファイルやサーバーを変更せず更新を拒否します。npm へのフォールバックはありません。Web では CLI コマンドの手動実行が必要な場合があります。
+
+新しいリンクは `skynex-app://` のみです。旧 `openchamber://` リンクは受け付けません。プロファイル、保存先、環境変数の技術名は維持します。
 
 ## VS Code
 
-[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) から OpenChamber をインストールします。Cursor、Windsurf、Trae では [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) からインストールします。拡張機能を使うには [OpenCode](https://opencode.ai) のインストールが必要です。インストール後、サイドバーに OpenChamber のビューが開きます。
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) と [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) の OpenChamber は上流プロジェクトの公開物です。Skynex の配布ではありません。
 
 ## モバイル
 
-iPhone アプリは TestFlight から、Android アプリは最新リリースからインストールし、コンピューターとペアリングします。手順は [モバイルアプリと PWA](/ja/mobile/) にあります。
+[モバイルガイド](/ja/mobile/) は上流のアプリを説明しています。Skynex モバイル版の公開はここでは確認されていません。スマートフォンでは Web アプリか PWA を使ってください。

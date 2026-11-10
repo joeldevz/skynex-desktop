@@ -3,6 +3,14 @@
 The chat composer: the prompt language, the editor that renders it, and
 everything between typing and sending.
 
+Slash autocomplete keeps OpenCode and extension commands available while
+OpenChamber-owned commands are enabled through the allowlist in
+`CommandAutocomplete.tsx`. Keep local slash-command routing intact when hiding
+suggestions so a command can still be used deliberately before it is rolled out
+to the picker.
+`/btw` is currently enabled and displays the Skynex badge, like `catch-up`;
+its slash-command behavior remains the existing BTW side session.
+
 `ChatInput.tsx` (one directory up) is the orchestrator. It holds the composer's
 own state and wires these modules together; it should not grow logic that
 belongs to one of them.
@@ -718,7 +726,7 @@ the row's parts and the absent popup on selection.
 ## Other sessions as context
 
 Another session, or one message of it, is mentioned in the text itself: as
-its link (`openchamber://session/<id>`, `?message=<id>` for a message, or a
+its link (`skynex-app://session/<id>`, `?message=<id>` for a message, or a
 web link to this server), which the composer draws as a chip with the
 session's title or the start of the message, like a file mention
 (`sessionLinkChips` in the language context, `composerLanguage.ts`). The

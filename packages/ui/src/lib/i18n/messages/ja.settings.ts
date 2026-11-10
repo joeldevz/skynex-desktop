@@ -363,7 +363,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': 'サーバーを追加',
   'settings.remoteInstances.direct.import.description': '別の Skynex サーバーからの接続リンクを貼り付けてください。',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'リンクをインポート',
   'settings.remoteInstances.direct.error.invalidConnectLink': '無効な Skynex 接続リンクです。',
   'settings.remoteInstances.direct.state.loading': 'インスタンスを読み込み中...',

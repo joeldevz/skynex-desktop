@@ -8,6 +8,15 @@ export interface CommandAutocompleteSearchItem {
   isBuiltIn?: boolean;
 }
 
+/** Keep OpenChamber's own slash commands opt-in in the suggestion list. */
+export function filterCommandSuggestions<T extends { name: string; source: string }>(
+  commands: T[],
+  enabledOpenChamberCommands: ReadonlySet<string>,
+): T[] {
+  return commands.filter((command) => command.source !== 'openchamber'
+    || enabledOpenChamberCommands.has(command.name));
+}
+
 function addSearchAliases<T extends CommandAutocompleteSearchItem>(winner: T, duplicate: T): T {
   const existingAliases = winner.searchAliases ?? [];
   const aliases = [

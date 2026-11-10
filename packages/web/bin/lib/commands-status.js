@@ -93,7 +93,7 @@ async function statusCommand(options = {}) {
     return;
   }
 
-  clackIntro('OpenChamber Status');
+  clackIntro('Skynex Status');
 
   if (runningCount === 0) {
     logStatus('warning', 'stopped');

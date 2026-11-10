@@ -2003,7 +2003,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': 'Dodaj serwer',
   'settings.remoteInstances.direct.import.description': 'Wklej link połączenia z innego serwera Skynex.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'Importuj link',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'Nieprawidłowy link połączenia Skynex.',
   'settings.remoteInstances.direct.state.loading': 'Ładowanie serwerów...',

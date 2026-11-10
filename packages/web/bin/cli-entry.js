@@ -42,6 +42,10 @@ function isModuleCliExecution(
       const parsedEntryName = path.parse(normalizedEntryPath).name.toLowerCase();
       return parsedEntryName === expectedBinName.trim().toLowerCase();
     }
+    if (Array.isArray(expectedBinName)) {
+      const parsedEntryName = path.parse(normalizedEntryPath).name.toLowerCase();
+      return expectedBinName.some((name) => typeof name === 'string' && parsedEntryName === name.trim().toLowerCase());
+    }
 
     return false;
   } catch {

@@ -1,6 +1,12 @@
 # CLI Module Map
 
-This directory contains the non-entrypoint implementation for the OpenChamber CLI. `packages/web/bin/cli.js` should stay thin: it owns bootstrap, command wiring, top-level dispatch, signal/cancel handling, and compatibility exports. Domain logic belongs in these modules.
+This directory contains the non-entrypoint implementation for the Skynex application CLI. `packages/web/bin/cli.js` owns bootstrap, command wiring, top-level dispatch, signal/cancel handling, and compatibility exports. Domain logic belongs in these modules.
+
+The canonical executable is `skynex-app`; `openchamber` remains a compatibility alias for existing services and Electron SSH integration. Both names dispatch through the same entrypoint. Help, completions, and command hints use `skynex-app`. Package identity, service identifiers, profiles, storage paths, and environment variables remain unchanged. New protocol URLs use only `skynex-app://`; there is no `openchamber://` alias. The separate `skynex` command manages agent tooling.
+
+Standalone CLI distribution uses GitHub Releases in `joeldevz/skynex-desktop`. It requires Node.js 24.14+ and installed OpenCode. Each release must contain `install.sh`, `skynex-app-install.mjs`, and native `skynex-app-<version>-<platform>-<arch>.tar.gz` bundles with matching `.sha256` files. The shell installer downloads the standalone installer from the same release. Bundles include complete application dependencies and the SDK. Published 0.1.1 has no CLI assets or new scheme; the checkout changes are unpublished.
+
+The distribution contract is an opt-in per-user managed root with a stable launcher and active-version pointer. Managed updates stage and verify SHA256 before activation, preserve the old version, and leave running instances alone. Restart is explicit. Source and unmanaged installs refuse updates before changing files or running servers. There is no npm fallback. Web UI update guidance may be manual.
 
 ## Entrypoint Boundary
 
@@ -14,19 +20,19 @@ This directory contains the non-entrypoint implementation for the OpenChamber CL
 Command modules implement user-facing commands and preserve output contracts across interactive, non-TTY, `--quiet`, and `--json` modes. They should use `../cli-output.js` for presentation helpers and keep safety validation in command logic, not prompts.
 
 - `commands-serve.js`
-  - Implements `openchamber serve`.
+   - Implements `skynex-app serve`.
   - Owns OpenCode CLI checks, port resolution, log rotation, PID/instance registry writes, foreground/background server launch, startup summaries, and foreground shutdown behavior.
 
 - `commands-lifecycle.js`
-  - Implements `openchamber stop` and `openchamber restart`.
+   - Implements `skynex-app stop` and `skynex-app restart`.
   - Owns lifecycle stop/restart semantics, desktop-managed port rejection, unmanaged instance shutdown attempts, PID/instance cleanup, and restart reuse of stored instance options.
 
 - `commands-status.js`
-  - Implements `openchamber status`.
+   - Implements `skynex-app status`.
   - Formats discovered instances and tunnel readiness/status for human, quiet, and JSON output.
 
 - `commands-session.js`
-  - Implements `openchamber session create`, `send`, `fork`, `list`, `status`, and `messages`.
+   - Implements `skynex-app session create`, `send`, `fork`, `list`, `status`, and `messages`.
   - Maps CLI options to shared control-service inputs and owns only human, quiet, and JSON presentation.
   - Message projection matches Export Markdown semantics: only ordered `text` parts are exposed; tool, reasoning, file, and other parts are omitted.
   - The server control service owns create/worktree/prompt orchestration, official OpenCode reads, Goal Mode, wait semantics, and partial failures.
@@ -42,27 +48,27 @@ Command modules implement user-facing commands and preserve output contracts acr
   - Prints configured project labels, ids, and directories for later control-plane calls.
 
 - `commands-logs.js`
-  - Implements `openchamber logs`.
+   - Implements `skynex-app logs`.
   - Resolves log files, tails recent lines, and follows log output.
 
 - `commands-startup.js`
-  - Implements `openchamber startup`.
+   - Implements `skynex-app startup`.
   - Handles startup subcommand dispatch and presentation around the lower-level startup service helpers.
 
 - `commands-connect-url.js`
-  - Implements `openchamber connect-url`.
+   - Implements `skynex-app connect-url`.
   - Finds or starts a local instance and prints the browser/connect URL according to the selected output mode.
-  - Emits a **pairing v2** link (`openchamber://connect?v=2&p=<base64url>`): it creates a one-time pairing session in the shared store (`client-pairing-sessions.json`) and encodes the pairing id + secret + transport candidates. The client redeems the secret over whichever candidate connects first (`/api/client-auth/pairing/redeem`). No standalone token is embedded — the QR itself is the single-use credential.
+   - Emits a **pairing v2** link (`skynex-app://connect?v=2&p=<base64url>`). It creates a one-time pairing session in the shared store (`client-pairing-sessions.json`) and encodes the pairing id, secret, and transport candidates. The client redeems the secret over whichever candidate connects first (`/api/client-auth/pairing/redeem`). The QR itself is the single-use credential.
   - The default form advertises the resolved server URL as a direct (lan/tunnel) candidate and folds in a relay candidate when the host relay is enabled, so one link works on-LAN and off-network.
   - `--relay` builds a relay-only pairing link (the sole candidate is the relay transport), for sharing with a device that is not on the host's network — no server URL, no auto-start. The relay endpoint follows the administrator's pin (`pinnedRelayUrl`: policy file, then `OPENCHAMBER_RELAY_URL`) / the stored setting / the default, matching the running host; the host must be running with the relay enabled to serve the redeem over the tunnel.
 
 - `commands-update.js`
-  - Implements `openchamber update`.
-  - Loads the package-manager helper, performs update flow, and coordinates restart behavior after updates.
-  - Installs the exact version returned by the update check and verifies the globally installed version after the package manager exits; a zero exit status without the target version is a loud failure, not a success report (#3083).
+   - Implements `skynex-app update` for managed release installations.
+   - Stages the release bundle, verifies SHA256, and activates it while preserving the previous version.
+   - Leaves running instances untouched. Users restart explicitly. Source and unmanaged installations fail without modifying files or stopping servers; no package-manager fallback is allowed.
 
 - `commands-tunnel.js`
-  - Implements `openchamber tunnel` and its subcommands: `profile`, `providers`, `ready`, `doctor`, `status`, `start`, `stop`, and `completion`.
+   - Implements `skynex-app tunnel` and its subcommands: `profile`, `providers`, `ready`, `doctor`, `status`, `start`, `stop`, and `completion`.
   - Owns tunnel-specific command flow, interactive prompt decisions, managed-local/managed-remote startup, QR display rules, tunnel start/stop API calls, and tunnel profile command handling.
   - Receives `serveCommand` and `stopCommand` by dependency injection. Do not reach back into `cli.js` command globals from this module.
 
@@ -128,6 +134,7 @@ These modules hold reusable, non-presentational logic for commands.
 - `cli-startup.js`
   - Native startup service detection, install/uninstall/status helpers, and platform-specific startup command execution.
   - The service runs the CLI by its resolved path. A pnpm global install resolves into a versioned `.pnpm` store directory that an update leaves behind, so the entrypoint is mapped back to the stable `node_modules/@openchamber/web` link when it exists.
+  - Managed Skynex installs register the install-root `launcher.mjs`, which reads `active.json` on every launch. It must be an owned regular file; if it is missing or modified, `startup enable` fails with installer repair guidance rather than registering the physical release entrypoint.
   - The macOS LaunchAgent leaves `ProcessType` unset so launchd does not force the managed OpenCode child into background-tier scheduling. Re-running `startup enable` replaces an existing plist.
   - The environment snapshot drops the variables a running OpenChamber put into the enabling shell, read from the `OPENCHAMBER_INJECTED_ENV` record (`server/lib/injected-env.js`), so a service enabled from the desktop app's terminal or an agent's shell does not inherit that instance's runtime flags, UI password, or managed OpenCode password (#4604). The user's own exports, `OPENCODE_HOST` included, still carry over. `cli-args.js` applies the same record to the `OPENCHAMBER_UI_PASSWORD` default.
 

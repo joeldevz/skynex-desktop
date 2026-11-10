@@ -35,6 +35,11 @@ if (isDirectRun) {
     const pkg = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
     const oldVersion = pkg.version;
     pkg.version = newVersion;
+    for (const section of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+      for (const [name, range] of Object.entries(pkg[section] ?? {})) {
+        if (range === 'workspace:*') pkg[section][name] = `workspace:${newVersion}`;
+      }
+    }
     fs.writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + '\n');
     console.log(`  ${pkgPath}: ${oldVersion} -> ${newVersion}`);
   }

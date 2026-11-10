@@ -330,7 +330,7 @@ export const settingsDict = {
   "settings.remoteInstances.direct.headers.removeAria": "Remove header",
   "settings.remoteInstances.direct.actions.add": "Додати сервер",
   "settings.remoteInstances.direct.import.description": "Вставте посилання для підключення з іншого сервера Skynex.",
-  "settings.remoteInstances.direct.import.placeholder": "openchamber://connect?...",
+  "settings.remoteInstances.direct.import.placeholder": "skynex-app://connect?...",
   "settings.remoteInstances.direct.import.action": "Імпортувати посилання",
   "settings.remoteInstances.direct.error.invalidConnectLink": "Недійсне посилання підключення Skynex.",
   "settings.remoteInstances.direct.state.loading": "Завантаження серверів...",

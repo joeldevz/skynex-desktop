@@ -65,7 +65,7 @@ const collectFiles = (root, predicate) => {
   return matches;
 };
 
-// Launchers resolve `Icon=openchamber` through the hicolor theme, which only
+// Launchers resolve `Icon=skynex-app` through the hicolor theme, which only
 // reads `<size>/apps/` directories it declares: `scalable` and square sizes up
 // to 512. A file one level up, or at 1024x1024, is never found (#4766, #2934).
 const isHicolorAppsDirectory = (sizeName) => {
@@ -78,11 +78,11 @@ const assertThemeIcon = (root) => {
   const hicolorRoot = path.join(root, 'usr', 'share', 'icons', 'hicolor');
   const sizeNames = fs.existsSync(hicolorRoot) ? fs.readdirSync(hicolorRoot) : [];
   const themeIcon = sizeNames.filter(isHicolorAppsDirectory).some((sizeName) => (
-    ['openchamber.png', 'openchamber.svg'].some((fileName) => (
+    ['skynex-app.png', 'skynex-app.svg'].some((fileName) => (
       fs.existsSync(path.join(hicolorRoot, sizeName, 'apps', fileName))
     ))
   ));
-  if (!themeIcon) throw new Error('Missing theme icon: no openchamber icon under usr/share/icons/hicolor/<size>/apps');
+  if (!themeIcon) throw new Error('Missing theme icon: no skynex-app icon under usr/share/icons/hicolor/<size>/apps');
   if (!fs.existsSync(path.join(root, '.DirIcon'))) throw new Error('Missing AppImage icon: .DirIcon does not resolve');
 };
 
@@ -102,10 +102,10 @@ export const verifyExtractedPayload = ({
   expectedOpenCodeVersion,
   runCliVersion = defaultCliVersion,
 }) => {
-  const desktopPath = path.join(root, 'openchamber.desktop');
+  const desktopPath = path.join(root, 'skynex-app.desktop');
   if (!fs.existsSync(desktopPath)) throw new Error(`Missing desktop entry: ${desktopPath}`);
   const desktop = fs.readFileSync(desktopPath, 'utf8');
-  for (const entry of ['Name=OpenChamber', 'Icon=openchamber', 'StartupWMClass=openchamber']) {
+  for (const entry of ['Name=Skynex', 'Icon=skynex-app', 'StartupWMClass=skynex-app']) {
     if (!desktop.split(/\r?\n/).includes(entry)) throw new Error(`Desktop identity mismatch: missing ${entry}`);
   }
   if (!/^Exec=AppRun(?:\s|$)/m.test(desktop)) throw new Error('Desktop identity mismatch: expected AppImage AppRun entrypoint');
@@ -139,7 +139,7 @@ export const verifyExtractedPayload = ({
 
 const findAppImage = (version, architecture) => {
   const suffix = linuxAppImageArchSuffix(architecture);
-  const expected = path.join(electronRoot, 'dist', `OpenChamber-${version}-linux-${suffix}.AppImage`);
+  const expected = path.join(electronRoot, 'dist', `Skynex-${version}-linux-${suffix}.AppImage`);
   if (!fs.existsSync(expected)) throw new Error(`Linux AppImage not found: ${expected}`);
   return expected;
 };

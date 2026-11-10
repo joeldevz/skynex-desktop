@@ -45,13 +45,13 @@ description: 通过一次性二维码，把你的手机、桌面应用或另一�
 针对同一网络中的设备：
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 针对需要从**任何地方**连接的设备 — 相当于在对话框中选择 **任何地方**：
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 `--relay` 链接与对话框一样同时携带两条路由：当设备能访问服务器时，通过你的本地网络直接连接；外出时则回退到 [Private Relay](/zh-cn/private-relay/)。中继会自行启动：正在运行的实例会在一分钟内接管该链接，已停止的实例则会在下次启动时接管。
@@ -63,7 +63,7 @@ openchamber connect-url --relay --qr
 要连接桌面应用，在运行该应用的机器上打开打印出的链接。应用会请你确认，然后连接。在 macOS 上：
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## 相关内容

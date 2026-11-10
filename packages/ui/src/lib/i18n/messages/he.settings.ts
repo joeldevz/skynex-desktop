@@ -362,7 +362,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'הסר כותרת',
   'settings.remoteInstances.direct.actions.add': 'הוסף שרת',
   'settings.remoteInstances.direct.import.description': 'יש להדביק קישור חיבור משרת Skynex אחר.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?…',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?…',
   'settings.remoteInstances.direct.import.action': 'ייבא קישור',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'קישור החיבור ל-Skynex אינו תקין.',
   'settings.remoteInstances.direct.state.loading': 'טוען מופעים…',

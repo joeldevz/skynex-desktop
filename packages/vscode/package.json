@@ -2,7 +2,7 @@
   "name": "openchamber",
   "displayName": "Skynex",
   "description": "%extension.description%",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "fedaykindev",
   "private": true,
   "repository": {
@@ -317,7 +317,7 @@
     "vite": "^7.1.2"
   },
   "dependencies": {
-    "@openchamber/ui": "workspace:*",
+    "@openchamber/ui": "workspace:0.1.1",
     "@opencode/client": "2.1.4",
     "adm-zip": "^0.6.0",
     "jsonc-parser": "^3.3.1",

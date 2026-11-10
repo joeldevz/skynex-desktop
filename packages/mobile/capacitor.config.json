@@ -1,6 +1,6 @@
 {
   "appId": "com.openchamber.app",
-  "appName": "OpenChamber",
+  "appName": "Skynex",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

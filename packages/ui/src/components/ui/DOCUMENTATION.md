@@ -10,6 +10,7 @@ This folder owns runtime-independent controls and their Base UI integration, inc
 - Escape, outside presses, item selection, and window blur retain their normal dismissal behavior. Submenu hover behavior stays with Base UI.
 - Each opening has its own hover-dismissal eligibility; closing clears it.
 - `Textarea` offers emoji on `:` in both modes (`components/emoji/`, placed by `components/inline-picker/`); its forwarded ref is the textarea element itself.
+- About links and fallback release links point to `joeldevz/skynex-desktop`. The About footer preserves OpenChamber attribution. Upstream community accounts are not Skynex support channels.
 
 ## Decisions
 

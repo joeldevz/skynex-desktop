@@ -33,7 +33,7 @@ describe('session references', () => {
   test('the text decides what goes: each mention once, in order, and what is not resolved yet', () => {
     const resolved = new Map([['ses_a:', sessionReference({ id: 'ses_a', title: 'A' })]]);
     const found = sessionReferencesInText(
-      'openchamber://session/ses_b?message=msg_1 then openchamber://session/ses_a, again openchamber://session/ses_a.',
+      'skynex-app://session/ses_b?message=msg_1 then skynex-app://session/ses_a, again skynex-app://session/ses_a.',
       [],
       resolved,
     );
@@ -44,7 +44,7 @@ describe('session references', () => {
   test('a message link whose message had no text keeps its own key, so it still finds its chip', () => {
     const fallback = { ...sessionReference({ id: 'ses_a', title: 'A' }), messageId: 'msg_1' };
     expect(sessionReferenceKey(fallback)).toBe('ses_a:msg_1');
-    const found = sessionReferencesInText('openchamber://session/ses_a?message=msg_1', [], new Map([[sessionReferenceKey(fallback), fallback]]));
+    const found = sessionReferencesInText('skynex-app://session/ses_a?message=msg_1', [], new Map([[sessionReferenceKey(fallback), fallback]]));
     expect(found.references).toEqual([fallback]);
   });
 });

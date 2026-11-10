@@ -80,7 +80,7 @@ jobs:
 
   publish-npm:
     needs: create-release
-    if: ${{ github.event.inputs.finish_published_release != 'true' }}
+    if: ${{ github.repository == 'openchamber/openchamber' && github.event.inputs.finish_published_release != 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

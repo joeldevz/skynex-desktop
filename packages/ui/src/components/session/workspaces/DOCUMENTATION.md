@@ -10,6 +10,8 @@ The overview edits one workspace through callback props. The parent owns folder 
 
 `WorkspaceNavigation` owns the view shell and its pinned footer slot. The parent supplies the sidebar footer and its controller once, outside the overview scroller. Hosts without page buttons omit the navigation row.
 
+The workspace rows and global open-session rows use separate bounded scrollers inside the navigation shell. Their section headings remain visible while each list scrolls. Visibility controls filter the session list in component-local state; they never mutate open-session membership or persist across a remount. A workspace eye filters sessions by captured scope or workspace assignment ID. The global eye shows all sessions or hides them all.
+
 The navigation row above the workspace list holds the sidebar's page toggles: Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks. `SessionSidebar` supplies them as `pageButtons`, each pressed while its page is open.
 
 The scheduled-task view uses workspace and folder rows as virtual scopes over

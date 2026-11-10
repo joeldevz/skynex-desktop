@@ -39,8 +39,11 @@ if (app.getVersion() !== versionBeforeRename) {
   app.setVersion(versionBeforeRename);
 }
 if (process.platform === 'linux') {
-  app.setDesktopName('openchamber.desktop');
+  app.setDesktopName('skynex-app.desktop');
+  app.commandLine.appendSwitch('class', 'skynex-app');
 }
+// Keep Electron's historical profile directory after changing its product identity.
+app.setPath('userData', path.join(app.getPath('appData'), 'OpenChamber'));
 if (isDev) {
   app.setPath('userData', path.join(app.getPath('appData'), 'OpenChamber Dev'));
 }

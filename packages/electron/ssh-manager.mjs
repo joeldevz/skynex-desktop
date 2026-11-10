@@ -10,11 +10,6 @@ import { replaceFileWithRetry } from './windows-file-replace.mjs';
 const LOCAL_HOST_ID = 'local';
 const DEFAULT_CONNECTION_TIMEOUT_SEC = 60;
 const DEFAULT_LOCAL_BIND_HOST = '127.0.0.1';
-// Global npm prefixes are root-owned on most distributions, so `npm install -g`
-// fails with EACCES for a normal SSH user. Everything we install goes to a
-// prefix inside the user's home instead.
-const REMOTE_USER_PREFIX = '$HOME/.openchamber/npm-global';
-const REMOTE_BUN_CANDIDATE = '"${BUN_INSTALL:-$HOME/.bun}/bin/bun"';
 // nvm puts node on PATH only from an interactive ~/.bashrc, which the SSH
 // login shell never runs. Use its newest installed node; with no nvm the path
 // does not exist and every probe skips it.
@@ -32,6 +27,8 @@ const REMOTE_OPENCODE_CANDIDATES = [
 ];
 const REMOTE_PATH_PREFIX = `$HOME/.opencode/bin:\${BUN_INSTALL:-$HOME/.bun}/bin:\${XDG_CACHE_HOME:-$HOME/.cache}/.bun/bin:$HOME/.local/bin:$HOME/.openchamber/npm-global/bin:${REMOTE_NVM_BIN}`;
 const REMOTE_BIN_CANDIDATES = [
+  '"$HOME/.local/bin/skynex-app"',
+  '"$HOME/.local/bin/openchamber"',
   '"$HOME/.openchamber/npm-global/bin/openchamber"',
   '"${BUN_INSTALL:-$HOME/.bun}/bin/openchamber"',
   '"${XDG_CACHE_HOME:-$HOME/.cache}/.bun/bin/openchamber"',
@@ -1050,8 +1047,8 @@ export class ElectronSshManager {
   }
 
   // A login shell over SSH does not source the user's interactive rc files, so
-  // tools installed into a home directory (bun above all) are missing from PATH
-  // even when they exist. Look at their known install locations too.
+  // tools installed into a home directory may be missing from PATH. Look at
+  // their known install locations too.
   async resolveRemoteTool(parsed, controlPath, commandName, extraCandidates = []) {
     const candidateList = [...extraCandidates, `"$(command -v ${commandName} 2>/dev/null)"`].join(' ');
     const script = [
@@ -1072,8 +1069,8 @@ export class ElectronSshManager {
   }
 
   // Every place OpenChamber may live on the remote host, with the version each
-  // one reports. Installs land in the user prefix while an older copy can still
-  // sit on PATH, so the caller picks by version instead of trusting PATH order.
+  // one reports. Older copies may still sit on PATH, so the caller picks by
+  // version instead of trusting PATH order.
   async remoteOpenChamberCandidates(parsed, controlPath) {
     const script = [
       `for candidate in ${REMOTE_BIN_CANDIDATES.join(' ')} "$(command -v openchamber 2>/dev/null)"; do`,
@@ -1102,44 +1099,16 @@ export class ElectronSshManager {
     return candidates;
   }
 
-  async installOpenChamberManaged(parsed, controlPath, version, preferred) {
-    const bunPath = await this.resolveRemoteTool(parsed, controlPath, 'bun', [
-      REMOTE_BUN_CANDIDATE,
-      '"${XDG_CACHE_HOME:-$HOME/.cache}/.bun/bin/bun"',
-    ]);
-    const npmPath = await this.resolveRemoteTool(parsed, controlPath, 'npm', [`"${REMOTE_NVM_BIN}/npm"`]);
-
-    // bun's global install targets `~/.bun` or `${XDG_CACHE_HOME:-~/.cache}/.bun` (bun 1.3.x XDG-aware);
-    // npm is pinned to a prefix in the user's home so it never touches the root-owned global directory.
-    const bunCommand = bunPath ? `${shellQuote(bunPath)} add -g @openchamber/web@${version}` : null;
-    const npmCommand = npmPath
-      // npm is a node script: an nvm npm finds its node only next to itself.
-      ? `mkdir -p "${REMOTE_USER_PREFIX}" && PATH="$(dirname ${shellQuote(npmPath)}):$PATH" ${shellQuote(npmPath)} install -g --prefix "${REMOTE_USER_PREFIX}" @openchamber/web@${version}`
-      : null;
-
-    const commands = [];
-    if (preferred === 'npm') {
-      if (npmCommand) commands.push(npmCommand);
-      if (bunCommand) commands.push(bunCommand);
-    } else {
-      if (bunCommand) commands.push(bunCommand);
-      if (npmCommand) commands.push(npmCommand);
+  async installOpenChamberManaged(parsed, controlPath, version) {
+    if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.test(version)) {
+      throw new Error('Invalid OpenChamber version');
     }
+    const nodePath = await this.resolveRemoteTool(parsed, controlPath, 'node', [`"${REMOTE_NVM_BIN}/node"`]);
+    if (!nodePath) throw new Error('Remote Node.js 24.14 or newer is required to install OpenChamber');
 
-    if (commands.length === 0) {
-      throw new Error('Remote host has neither bun nor npm available');
-    }
-
-    let lastError = null;
-    for (const command of commands) {
-      try {
-        await this.runRemoteCommand(parsed, controlPath, command);
-        return;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError || new Error('Failed to install OpenChamber on remote host');
+    const assetUrl = `https://github.com/joeldevz/skynex-desktop/releases/download/v${version}/skynex-app-install.mjs`;
+    const command = `set -eu; node=${shellQuote(nodePath)}; node_version="$("$node" --version)"; case "$node_version" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo 'Remote Node.js 24.14 or newer is required' >&2; exit 1;; esac; node_major="$(printf '%s' "$node_version" | cut -d. -f1 | tr -d v)"; node_minor="$(printf '%s' "$node_version" | cut -d. -f2)"; if [ "$node_major" -lt 24 ] || { [ "$node_major" -eq 24 ] && [ "$node_minor" -lt 14 ]; }; then echo 'Remote Node.js 24.14 or newer is required' >&2; exit 1; fi; temp_dir="$(mktemp -d)"; trap 'rm -rf "$temp_dir"' EXIT HUP INT TERM; installer="$temp_dir/skynex-app-install.mjs"; curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 ${shellQuote(assetUrl)} -o "$installer"; "$node" "$installer" --version ${shellQuote(version)}`;
+    await this.runRemoteCommand(parsed, controlPath, command);
   }
 
   async probeRemoteSystemInfo(parsed, controlPath, port, openchamberPassword) {
@@ -1378,7 +1347,7 @@ export class ElectronSshManager {
       } else {
         this.setStatus(instance.id, 'installing', 'Installing OpenChamber on remote host');
       }
-      await this.installOpenChamberManaged(parsed, controlPath, this.appVersion, instance.remoteOpenchamber.installMethod);
+      await this.installOpenChamberManaged(parsed, controlPath, this.appVersion);
 
       const afterInstall = await this.remoteOpenChamberCandidates(parsed, controlPath);
       binary = afterInstall.find((candidate) => candidate.version === this.appVersion) || afterInstall[0] || existing;

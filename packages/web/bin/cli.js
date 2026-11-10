@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { isModuleCliExecution } from './cli-entry.js';
 import { EXIT_CODE, TunnelCliError } from './lib/cli-errors.js';
 import {
@@ -113,10 +113,6 @@ const ANSI = {
 function boldText(text) {
   if (!STYLE_ENABLED) return text;
   return `${ANSI.bold}${text}${ANSI.unbold}`;
-}
-
-function importFromFilePath(filePath) {
-  return import(pathToFileURL(filePath).href);
 }
 
 function getBunBinary() {
@@ -236,7 +232,7 @@ commands['connect-url'] = createConnectUrlCommand({
 });
 
 commands.update = createUpdateCommand({
-  importFromFilePath,
+  importFromFilePath: () => import('../server/lib/package-manager.js'),
   packageManagerPath: path.join(__dirname, '..', 'server', 'lib', 'package-manager.js'),
   serveCommand: commands.serve.bind(commands),
 });
@@ -355,7 +351,7 @@ async function main() {
   await commands[command](options);
 }
 
-const isCliExecution = isModuleCliExecution(process.argv[1], import.meta.url, fs.realpathSync, 'openchamber');
+const isCliExecution = isModuleCliExecution(process.argv[1], import.meta.url, fs.realpathSync, ['skynex-app', 'openchamber']);
 
 if (isCliExecution) {
   let isHandlingSigint = false;

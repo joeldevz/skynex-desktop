@@ -1,11 +1,12 @@
 {
   "name": "@openchamber/web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "type": "module",
   "main": "./server/index.js",
   "types": "./server/index.d.ts",
   "bin": {
+    "skynex-app": "./bin/cli.js",
     "openchamber": "./bin/cli.js"
   },
   "publishConfig": {
@@ -22,16 +23,18 @@
     "build:diag": "bun ../../scripts/build-builtin-extensions.mjs && NODE_OPTIONS=--max-old-space-size=6144 vite build --config vite.diag.config.ts",
     "build:watch": "bun ../../scripts/build-builtin-extensions.mjs && vite build --watch",
     "prepack": "bun ../../scripts/build-builtin-extensions.mjs",
+    "package:cli": "node ./scripts/package-cli.mjs",
     "type-check": "tsc -b",
     "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
-    "test": "vitest run",
+    "test:node": "node --test scripts/package-cli-runtime.test.mjs scripts/skynex-app-install.test.mjs server/lib/skynex-app-updater-context.test.mjs",
+    "test": "bun run test:node && vitest run",
     "start": "node bin/cli.js serve"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@gitbeaker/rest": "43.8.0",
     "@octokit/rest": "^22.0.1",
-    "@openchamber/sdk": "workspace:*",
+    "@openchamber/sdk": "workspace:0.1.1",
     "@opencode/client": "2.1.4",
     "@opencode/schema": "2.1.4",
     "@simplewebauthn/server": "13.3.3",

@@ -94,6 +94,7 @@ describe('isAppLinkUrl', () => {
   });
 
   test('rejects OpenChamber and Capacitor self-deep-links', () => {
+    expect(isAppLinkUrl('skynex-app://connect?host=x')).toBe(false);
     expect(isAppLinkUrl('openchamber://connect?host=x')).toBe(false);
     expect(isAppLinkUrl('openchamber-ui://app/index.html')).toBe(false);
     expect(isAppLinkUrl('capacitor://localhost/index.html')).toBe(false);

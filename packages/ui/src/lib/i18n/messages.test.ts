@@ -121,6 +121,21 @@ describe('i18n dictionaries', () => {
     }
   });
 
+  test('workspace session visibility actions are translated in every locale', () => {
+    const keys = [
+      'workspaces.hideWorkspaceSessions',
+      'workspaces.showWorkspaceSessions',
+      'workspaces.hideAllOpenSessions',
+      'workspaces.showAllOpenSessions',
+    ] as const;
+    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
+      for (const key of keys) {
+        expect(dictionary[key].length).toBeGreaterThan(0);
+        if (locale !== 'en') expect(dictionary[key]).not.toBe(enDict[key]);
+      }
+    }
+  });
+
   test('all locales expose language label keys', () => {
     for (const [, dictionary] of Object.entries(localeDictionaries)) {
       expect(dictionary['common.language.german']).toBeTruthy();

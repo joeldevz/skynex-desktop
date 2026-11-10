@@ -16,7 +16,7 @@ async function startupCommand(options, action = 'status', dependencies = {}) {
   const normalized = typeof action === 'string' ? action.trim().toLowerCase() : 'status';
   if (!['status', 'enable', 'disable'].includes(normalized)) {
     throw new TunnelCliError(
-      `Unknown startup subcommand '${action}'. Use 'openchamber startup --help'.`,
+      `Unknown startup subcommand '${action}'. Use 'skynex-app startup --help'.`,
       EXIT_CODE.USAGE_ERROR
     );
   }
@@ -70,13 +70,13 @@ async function startupCommand(options, action = 'status', dependencies = {}) {
     return;
   }
 
-  clackIntro('OpenChamber Startup');
+  clackIntro('Skynex Startup');
   logStatus(result.enabled ? 'success' : 'info', `startup ${result.enabled ? 'enabled' : 'disabled'}`, result.servicePath || undefined);
   if (typeof result.activeState === 'string') {
     logStatus(result.active ? 'success' : result.activeState === 'failed' ? 'error' : 'warning', `service ${result.activeState}`);
   }
   if (normalized === 'enable') {
-    logStatus('info', 'service command', 'openchamber serve --foreground');
+    logStatus('info', 'service command', 'skynex-app serve --foreground');
   }
   if (result.platform === 'linux') {
     if (result.lingerEnabled === true) {
