@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -23,15 +22,22 @@ if (!process.env.DISPLAY) throw new Error('DISPLAY is required. Run this script 
 const fixtureRequests = [];
 const fixture = createServer((request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1');
-  fixtureRequests.push({ method: request.method || 'GET', path: url.pathname, status: url.pathname === '/health' ? 200 : 503 });
+  const method = request.method || 'GET';
+  const route = `${method} ${url.pathname}`;
+  const body = route === 'GET /global/health'
+    ? { healthy: true, version: '2.1.0' }
+    : route === 'GET /api/info'
+      ? { version: '2.1.0' }
+      : null;
+  const status = body ? 200 : 404;
+  fixtureRequests.push({ method, path: url.pathname, status });
+  if (fixtureRequests.length > 500) fixtureRequests.shift();
   response.setHeader('access-control-allow-origin', '*');
   response.setHeader('access-control-allow-headers', '*');
   response.setHeader('access-control-allow-methods', '*');
   response.setHeader('content-type', 'application/json');
-  response.statusCode = url.pathname === '/health' ? 200 : 503;
-  response.end(JSON.stringify(url.pathname === '/health'
-    ? { status: 'ok', fixture: true }
-    : { error: 'isolated graphical smoke fixture has no application API' }));
+  response.statusCode = status;
+  response.end(JSON.stringify(body || { name: 'NotFoundError', data: { message: 'No synthetic OpenCode route is registered.' } }));
 });
 
 let vite;
@@ -40,6 +46,15 @@ let tempRoot;
 let childOutput = '';
 const results = [];
 const noExternalRequests = [];
+const rendererDiagnostics = [];
+let activeCdp;
+
+const redact = (value) => String(value)
+  .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+  .replace(/oc_client_[A-Za-z0-9_-]+/g, '[redacted]')
+  .replace(/([?&][^=&#\s]+=)[^&#\s]*/g, '$1[redacted]')
+  .replace(/(["']?(?:password|token|secret|authorization|credential|nonce|csrf|cookie)["']?\s*[:=]\s*)(["'][^"']*["']|[^\s,;]+)/gi, '$1[redacted]')
+  .replace(/(https?:\/\/)[^/@\s]+:[^/@\s]+@/gi, '$1[redacted]@');
 
 const listen = (server) => new Promise((resolve, reject) => {
   server.once('error', reject);
@@ -53,11 +68,13 @@ const reservePort = async () => {
   return port;
 };
 
-const createProfile = async (name) => {
+const createProfile = async (name, backendPort) => {
   const home = path.join(tempRoot, name);
   for (const dir of ['config', 'data', 'cache', 'runtime', 'tmp', 'opencode']) {
     await mkdir(path.join(home, dir), { recursive: true, mode: 0o700 });
   }
+  await mkdir(path.join(home, 'data', 'openchamber'), { recursive: true, mode: 0o700 });
+  await writeFile(path.join(home, 'data', 'openchamber', 'settings.json'), JSON.stringify({ desktopLocalPort: backendPort }), { mode: 0o600, flag: 'wx' });
   return {
     home,
     env: {
@@ -75,7 +92,6 @@ const createProfile = async (name) => {
       OPENCHAMBER_DATA_DIR: path.join(home, 'data', 'openchamber'),
       OPENCHAMBER_DESKTOP_USER_DATA_DIR: path.join(home, 'electron-profile'),
       OPENCHAMBER_ELECTRON_DEV: '1',
-      OPENCHAMBER_SKIP_LOCAL_SERVER: '1',
       OPENCODE_CONFIG_DIR: path.join(home, 'opencode'),
       OPENCODE_PORT: String(fixturePort),
       OPENCODE_HOST: '127.0.0.1',
@@ -94,16 +110,18 @@ function makeCdpClient(webSocketUrl) {
   const exceptions = [];
   const consoleErrors = [];
   const requests = [];
+  const responses = [];
   const ready = once(socket, 'open');
 
   socket.addEventListener('message', ({ data }) => {
     const message = JSON.parse(data);
-    if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
+    if (message.method === 'Runtime.exceptionThrown') exceptions.push(redact(message.params.exceptionDetails.text).slice(0, 2_000));
     if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
-      consoleErrors.push(message.params.args.map((arg) => arg.value || arg.description || '').join(' '));
+      consoleErrors.push(redact(message.params.args.map((arg) => arg.value || arg.description || '').join(' ')).slice(0, 2_000));
     }
-    if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(message.params.entry.text);
-    if (message.method === 'Network.requestWillBeSent') requests.push(message.params.request.url);
+    if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(redact(message.params.entry.text).slice(0, 2_000));
+    if (message.method === 'Network.requestWillBeSent') requests.push(redact(message.params.request.url));
+    if (message.method === 'Network.responseReceived') responses.push({ url: redact(message.params.response.url), status: message.params.response.status });
     if (message.method === 'Fetch.requestPaused') {
       let allowed = false;
       let origin = 'invalid-url';
@@ -139,7 +157,20 @@ function makeCdpClient(webSocketUrl) {
     socket.send(JSON.stringify({ id, method, params }));
   });
 
-  return { socket, ready, call, exceptions, consoleErrors, requests };
+  return { socket, ready, call, exceptions, consoleErrors, requests, responses };
+}
+
+async function captureFailureEvidence({ cdp, mode, theme, state }) {
+  const evidence = { mode, theme, state: state ? { ...state, url: redact(state.url), text: redact(state.text) } : state, rendererExceptions: cdp.exceptions.slice(-100), consoleErrors: cdp.consoleErrors.slice(-100), requests: cdp.requests.slice(-100), responses: cdp.responses.slice(-100) };
+  try {
+    const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}-failure.png`);
+    await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+    evidence.screenshot = screenshotPath;
+  } catch (error) {
+    evidence.screenshotError = redact(error instanceof Error ? error.message : error);
+  }
+  rendererDiagnostics.push(evidence);
 }
 
 async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart) {
@@ -157,6 +188,7 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
   if (!page) throw new Error(`Electron did not expose a renderer page for ${mode}/${theme}. ${childOutput.slice(-4000)}`);
 
   const cdp = makeCdpClient(page.webSocketDebuggerUrl);
+  activeCdp = { cdp, mode, theme };
   await cdp.ready;
   await cdp.call('Page.enable');
   await cdp.call('Runtime.enable');
@@ -175,6 +207,7 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
       expression: `({url:location.href, ready:document.readyState, root:!!document.querySelector('#root')?.childElementCount, text:(document.body?.innerText||'').slice(0,800), theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'})`,
       returnByValue: true,
     }).then((response) => response.result.value);
+    activeCdp.state = state;
     const expectedUrl = mode === 'hmr'
       ? state.url.startsWith(`http://127.0.0.1:${vitePort}/`)
       : state.url.startsWith('openchamber-ui://app/');
@@ -182,20 +215,35 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   if (!state?.root || state.text.trim().length <= 15 || state.theme !== theme) {
+    await captureFailureEvidence(activeCdp);
     cdp.socket.close();
+    activeCdp = undefined;
     throw new Error(`Renderer did not mount beyond the splash for ${mode}/${theme}: ${JSON.stringify(state)}`);
   }
   if (mode === 'hmr' && !state.url.startsWith(`http://127.0.0.1:${vitePort}/`)) {
+    await captureFailureEvidence(activeCdp);
     cdp.socket.close();
+    activeCdp = undefined;
     throw new Error(`HMR loaded from an unexpected origin: ${state.url}`);
   }
   if (mode === 'bundled' && !state.url.startsWith('openchamber-ui://app/')) {
+    await captureFailureEvidence(activeCdp);
     cdp.socket.close();
+    activeCdp = undefined;
     throw new Error(`Bundled UI loaded from an unexpected origin: ${state.url}`);
   }
   if (cdp.exceptions.length) {
+    await captureFailureEvidence(activeCdp);
     cdp.socket.close();
+    activeCdp = undefined;
     throw new Error(`Renderer exception in ${mode}/${theme}: ${cdp.exceptions.join('; ')}`);
+  }
+  const sessionBootstrap = cdp.responses.filter(({ url }) => new URL(url).pathname === '/auth/session');
+  if (!sessionBootstrap.some(({ status }) => status >= 200 && status < 300)) {
+    await captureFailureEvidence(activeCdp);
+    cdp.socket.close();
+    activeCdp = undefined;
+    throw new Error(`Renderer did not exercise the normal session bootstrap for ${mode}/${theme}.`);
   }
   const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}.png`);
@@ -206,14 +254,16 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     theme,
     origin: new URL(state.url).origin,
     title: await cdp.call('Runtime.evaluate', { expression: 'document.title', returnByValue: true }).then((response) => response.result.value),
-    mountedText: state.text,
+    mountedText: redact(state.text),
     screenshot: screenshotPath,
-    rendererExceptions: cdp.exceptions,
-    consoleErrors: cdp.consoleErrors,
-    fixtureApiFailures: fixtureErrors,
+    rendererExceptions: cdp.exceptions.slice(-100),
+    consoleErrors: cdp.consoleErrors.slice(-100),
+    fixtureApiNonSuccess: fixtureErrors,
     requestCount: cdp.requests.length,
+    sessionBootstrap,
   });
   cdp.socket.close();
+  activeCdp = undefined;
 }
 
 async function stopProcessTree() {
@@ -240,9 +290,11 @@ async function stopProcessTree() {
 
 async function run() {
   await mkdir(outputDir, { recursive: true });
-  tempRoot = await mkdtemp(path.join(os.tmpdir(), 'skynex-native-ui-'));
+  await mkdir('/tmp/opencode', { recursive: true });
+  tempRoot = await mkdtemp(path.join('/tmp/opencode', 'skynex-native-ui-'));
+  const backendPort = await reservePort();
   const previousOpenChamberPort = process.env.OPENCHAMBER_PORT;
-  process.env.OPENCHAMBER_PORT = String(fixturePort);
+  process.env.OPENCHAMBER_PORT = String(backendPort);
   const { createServer: createViteServer } = await import(pathToFileURL(requireWeb.resolve('vite')).href);
   vite = await createViteServer({
     configFile: path.join(webDir, 'vite.config.ts'),
@@ -251,8 +303,6 @@ async function run() {
   });
   await vite.listen();
   const vitePort = vite.httpServer.address().port;
-  const fixtureHealth = await fetch(`http://127.0.0.1:${fixturePort}/health`);
-  if (!fixtureHealth.ok) throw new Error('Loopback API fixture health check failed.');
   const stagedUi = path.join(electronDir, 'resources/web-dist/index.html');
   const { access } = await import('node:fs/promises');
   await access(stagedUi).catch(() => {
@@ -261,13 +311,14 @@ async function run() {
 
   for (const mode of ['hmr', 'bundled']) {
     for (const theme of ['light', 'dark']) {
-      const { env } = await createProfile(`${mode}-${theme}`);
+      const { env } = await createProfile(`${mode}-${theme}`, backendPort);
       const fixtureRequestStart = fixtureRequests.length;
       const debugPort = await reservePort();
       const runEnv = {
         ...env,
         OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort),
-        OPENCHAMBER_HMR_API_PORT: String(fixturePort),
+        OPENCHAMBER_PORT: String(backendPort),
+        OPENCHAMBER_HMR_API_PORT: String(backendPort),
         ...(mode === 'hmr'
           ? { OPENCHAMBER_HMR_UI_PORT: String(vitePort) }
           : { OPENCHAMBER_ELECTRON_USE_BUNDLED_UI: '1' }),
@@ -279,8 +330,8 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: true,
       });
-      child.stdout.on('data', (chunk) => { childOutput += chunk.toString(); });
-      child.stderr.on('data', (chunk) => { childOutput += chunk.toString(); });
+      child.stdout.on('data', (chunk) => { childOutput = `${childOutput}${chunk}`.slice(-32_000); });
+      child.stderr.on('data', (chunk) => { childOutput = `${childOutput}${chunk}`.slice(-32_000); });
       await waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart);
       await stopProcessTree();
       const residual = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then((response) => response.ok).catch(() => false);
@@ -298,6 +349,7 @@ async function run() {
     electronBinary,
     vitePort,
     fixturePort,
+    backendPort,
     results,
     blockedExternalRequests: [...new Set(noExternalRequests)],
   };
@@ -308,12 +360,14 @@ async function run() {
 try {
   await run();
 } catch (error) {
+  if (activeCdp) await captureFailureEvidence(activeCdp);
   const summary = {
     status: 'failed',
-    error: error instanceof Error ? error.message : String(error),
-    childOutput: childOutput.slice(-8_000).replace(/Bearer\s+\S+|oc_client_[A-Za-z0-9_-]+/g, '[redacted]'),
-    fixtureApiFailures: fixtureRequests.filter((request) => request.status >= 400),
+    error: redact(error instanceof Error ? error.message : error),
+    childOutput: redact(childOutput.slice(-8_000)),
+    fixtureApiNonSuccess: fixtureRequests.filter((request) => request.status >= 400),
     blockedExternalRequests: [...new Set(noExternalRequests)],
+    rendererDiagnostics,
     results,
   };
   await mkdir(outputDir, { recursive: true });
@@ -322,6 +376,7 @@ try {
   process.exitCode = 1;
 } finally {
   try {
+    activeCdp?.cdp.socket.close();
     await stopProcessTree();
   } finally {
     try {

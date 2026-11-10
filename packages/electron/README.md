@@ -131,6 +131,22 @@ From the repository root inside that disposable container:
 xvfb-run -a packages/electron/node_modules/.bin/electron --no-sandbox packages/electron/scripts/smoke-context-menu.mjs
 ```
 
+The desktop release smoke workflow runs `scripts/smoke-native-ui.mjs` under Xvfb after installing
+Electron, staging the web assets and rebuilding native modules. The smoke starts
+the real in-process OpenChamber server with isolated HOME/XDG directories and a
+loopback synthetic OpenCode health endpoint, then checks HMR and staged UI in light
+and dark themes. It verifies the normal `/auth/session` bootstrap, renderer content,
+origin and theme. On failure it saves bounded renderer errors, loopback request
+statuses and a screenshot to `SMOKE_OUTPUT_DIR` for artifact upload. The synthetic
+OpenCode fixture does not provide real sessions, providers or external services.
+
+Run locally with an installed Linux Electron runtime and an active X display after
+building staged web assets and native modules:
+
+```bash
+SMOKE_OUTPUT_DIR=/tmp/opencode/graphical xvfb-run -a node packages/electron/scripts/smoke-native-ui.mjs
+```
+
 The local diagnostics IPC combines the desktop log with the SSH manager's in-memory history. `main.mjs` classifies SSH messages in the native process before returning them; host names, stderr and other raw SSH output never cross to the renderer. Remote SSH files are not read.
 
 A window whose renderer crashes is reloaded (`renderer-recovery.mjs`). A crash
