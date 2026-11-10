@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { buildStartupProbeSource, STARTUP_PROBE_GLOBAL } from '../../../scripts/perf/startup-probe.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../../..');
@@ -111,6 +112,13 @@ function makeCdpClient(webSocketUrl) {
   const consoleErrors = [];
   const requests = [];
   const responses = [];
+  const apiTimeline = { events: [], pending: new Map(), droppedEvents: 0, origin: null };
+  const recordApi = (kind, params, request, details = {}) => {
+    apiTimeline.origin ??= params.timestamp;
+    const event = { kind, requestId: params.requestId, atMs: Math.round((params.timestamp - apiTimeline.origin) * 1000), ...request, ...details };
+    if (apiTimeline.events.length < 200) apiTimeline.events.push(event);
+    else apiTimeline.droppedEvents += 1;
+  };
   const ready = once(socket, 'open');
 
   socket.addEventListener('message', ({ data }) => {
@@ -120,8 +128,36 @@ function makeCdpClient(webSocketUrl) {
       consoleErrors.push(redact(message.params.args.map((arg) => arg.value || arg.description || '').join(' ')).slice(0, 2_000));
     }
     if (message.method === 'Log.entryAdded' && message.params.entry.level === 'error') consoleErrors.push(redact(message.params.entry.text).slice(0, 2_000));
-    if (message.method === 'Network.requestWillBeSent') requests.push(redact(message.params.request.url));
-    if (message.method === 'Network.responseReceived') responses.push({ url: redact(message.params.response.url), status: message.params.response.status });
+    if (message.method === 'Network.requestWillBeSent') {
+      const params = message.params;
+      requests.push(redact(params.request.url));
+      const previous = apiTimeline.pending.get(params.requestId);
+      if (previous && params.redirectResponse) recordApi('redirect', params, previous, { status: params.redirectResponse.status });
+      const pathname = new URL(params.request.url).pathname;
+      const selected = pathname.startsWith('/auth/')
+        || ['/api/fs/home', '/api/session-folders', '/src/main.tsx'].includes(pathname)
+        || pathname.endsWith('/packages/ui/src/main.tsx')
+        || pathname.endsWith('/packages/web/src/main.tsx');
+      if (selected || previous) {
+        const request = { method: params.request.method, path: redact(pathname).slice(0, 500), loaderId: params.loaderId };
+        recordApi('request', params, request);
+        if (apiTimeline.pending.size < 100 || previous) apiTimeline.pending.set(params.requestId, request);
+        else apiTimeline.droppedEvents += 1;
+      }
+    }
+    if (message.method === 'Network.responseReceived') {
+      responses.push({ url: redact(message.params.response.url), status: message.params.response.status });
+      const request = apiTimeline.pending.get(message.params.requestId);
+      if (request) recordApi('response', message.params, request, { status: message.params.response.status });
+    }
+    if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+      const request = apiTimeline.pending.get(message.params.requestId);
+      if (request) {
+        recordApi(message.method === 'Network.loadingFinished' ? 'finished' : 'failed', message.params, request,
+          message.params.errorText ? { error: redact(message.params.errorText).slice(0, 500) } : {});
+        apiTimeline.pending.delete(message.params.requestId);
+      }
+    }
     if (message.method === 'Fetch.requestPaused') {
       let allowed = false;
       let origin = 'invalid-url';
@@ -157,11 +193,39 @@ function makeCdpClient(webSocketUrl) {
     socket.send(JSON.stringify({ id, method, params }));
   });
 
-  return { socket, ready, call, exceptions, consoleErrors, requests, responses };
+  return { socket, ready, call, exceptions, consoleErrors, requests, responses, apiTimeline };
+}
+
+async function readStartupSnapshot(cdp) {
+  try {
+    const response = await cdp.call('Runtime.evaluate', {
+      expression: `(() => { const probe = window[${JSON.stringify(STARTUP_PROBE_GLOBAL)}]; if (!probe) return null; const value = probe.read(); return { frames: value.frames, seen: value.seen, marks: value.marks, trace: value.trace.map(({name, at}) => ({name, at})) }; })()`,
+      returnByValue: true,
+    });
+    const snapshot = response.result.value;
+    if (!snapshot) return { available: false };
+    return {
+      available: true,
+      frames: snapshot.frames,
+      seen: snapshot.seen,
+      marks: snapshot.marks,
+      trace: snapshot.trace.slice(0, 100).map(({ name, at }) => ({ name: redact(name).slice(0, 200), at })),
+      traceDropped: Math.max(0, snapshot.trace.length - 100),
+    };
+  } catch (error) {
+    return { available: false, error: redact(error instanceof Error ? error.message : error) };
+  }
+}
+
+function readApiTimeline(cdp) {
+  return { afterCdpAttachOnly: true, clock: 'milliseconds since first selected CDP network event',
+    events: [...cdp.apiTimeline.events], droppedEvents: cdp.apiTimeline.droppedEvents,
+    pendingRequests: [...cdp.apiTimeline.pending.values()] };
 }
 
 async function captureFailureEvidence({ cdp, mode, theme, state }) {
-  const evidence = { mode, theme, state: state ? { ...state, url: redact(state.url), text: redact(state.text) } : state, rendererExceptions: cdp.exceptions.slice(-100), consoleErrors: cdp.consoleErrors.slice(-100), requests: cdp.requests.slice(-100), responses: cdp.responses.slice(-100) };
+  const startup = await readStartupSnapshot(cdp);
+  const evidence = { mode, theme, state: state ? { ...state, url: redact(state.url), text: redact(state.text) } : state, rendererExceptions: cdp.exceptions.slice(-100), consoleErrors: cdp.consoleErrors.slice(-100), requests: cdp.requests.slice(-100), responses: cdp.responses.slice(-100), startup, apiTimeline: readApiTimeline(cdp) };
   try {
     const screenshot = await cdp.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     const screenshotPath = path.join(outputDir, `native-ui-${mode}-${theme}-failure.png`);
@@ -194,6 +258,9 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
   await cdp.call('Runtime.enable');
   await cdp.call('Log.enable');
   await cdp.call('Network.enable');
+  const startupProbeScript = `if (window === window.top) { ${buildStartupProbeSource()} }`;
+  await cdp.call('Page.addScriptToEvaluateOnNewDocument', { source: startupProbeScript });
+  await cdp.call('Runtime.evaluate', { expression: startupProbeScript });
   await cdp.call('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
   await cdp.call('Emulation.setEmulatedMedia', {
     media: 'screen',
@@ -261,6 +328,8 @@ async function waitForPage(debugPort, mode, theme, vitePort, fixtureRequestStart
     fixtureApiNonSuccess: fixtureErrors,
     requestCount: cdp.requests.length,
     sessionBootstrap,
+    startup: await readStartupSnapshot(cdp),
+    apiTimeline: readApiTimeline(cdp),
   });
   cdp.socket.close();
   activeCdp = undefined;
@@ -317,6 +386,7 @@ async function run() {
       const runEnv = {
         ...env,
         OPENCHAMBER_ELECTRON_REMOTE_DEBUGGING_PORT: String(debugPort),
+        OPENCHAMBER_STARTUP_PERF: '1',
         OPENCHAMBER_PORT: String(backendPort),
         OPENCHAMBER_HMR_API_PORT: String(backendPort),
         ...(mode === 'hmr'

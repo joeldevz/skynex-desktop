@@ -140,6 +140,13 @@ origin and theme. On failure it saves bounded renderer errors, loopback request
 statuses and a screenshot to `SMOKE_OUTPUT_DIR` for artifact upload. The synthetic
 OpenCode fixture does not provide real sessions, providers or external services.
 
+Evidence also uses the existing startup recorder to distinguish the HTML splash,
+the first React commit and an editable composer. Selected authentication, home and
+entry-module requests retain request/response/completion timestamps and pending
+requests. The bounded records report dropped entries; network observations start
+after CDP attaches, so an absent event does not prove a request never happened.
+These diagnostics leave the readiness deadline and authentication checks unchanged.
+
 Run locally with an installed Linux Electron runtime and an active X display after
 building staged web assets and native modules:
 
