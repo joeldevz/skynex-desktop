@@ -10,7 +10,7 @@ import {
 } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { loadDesktopSettings } from '@/lib/persistence';
-import { getRuntimeApiBaseUrl } from '@/lib/runtime-switch';
+import { getRuntimeApiBaseUrl, getRuntimeKey } from '@/lib/runtime-switch';
 import {
   SettingsSection,
   SettingsCheckboxRow,
@@ -26,8 +26,9 @@ import { saveDesktopRestartDrafts, useDesktopRestartDrafts } from './desktopRest
  * until "Save + restart", which also saves the restart drafts of
  * `DesktopAppSettings` (`desktopRestartDrafts.ts`).
  */
-export const DesktopNetworkSettings: React.FC = () => {
+export const DesktopNetworkSettings: React.FC<{ variant?: 'network' | 'tunnel' }> = ({ variant = 'network' }) => {
   const { t } = useI18n();
+  const isTunnelVariant = variant === 'tunnel';
   const isLocalDesktop = isDesktopShell() && isDesktopLocalOriginActive();
   const [savedValue, setSavedValue] = React.useState(false);
   const [draftValue, setDraftValue] = React.useState(false);
@@ -39,9 +40,11 @@ export const DesktopNetworkSettings: React.FC = () => {
   const [lanAccessActive, setLanAccessActive] = React.useState(false);
   const [lanAccessBlockedReason, setLanAccessBlockedReason] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [loadFailed, setLoadFailed] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [lanAddress, setLanAddress] = React.useState<string | null>(null);
+  const [needsRestart, setNeedsRestart] = React.useState(false);
 
   React.useEffect(() => {
     if (!isLocalDesktop) {
@@ -69,8 +72,10 @@ export const DesktopNetworkSettings: React.FC = () => {
         setLanAccessActive(data.desktopLanAccessActive === true);
         setLanAccessBlockedReason(data.desktopLanAccessBlockedReason ?? null);
         setError(null);
+        setLoadFailed(false);
       } catch (cause) {
         if (!cancelled) {
+          setLoadFailed(true);
           setError(cause instanceof Error ? cause.message : t('settings.openchamber.desktopNetwork.error.loadFailed'));
         }
       } finally {
@@ -86,7 +91,7 @@ export const DesktopNetworkSettings: React.FC = () => {
   }, [isLocalDesktop, t]);
 
   React.useEffect(() => {
-    if (!isLocalDesktop || !draftValue) {
+    if (!isLocalDesktop || isTunnelVariant || !draftValue) {
       setLanAddress(null);
       return;
     }
@@ -103,7 +108,7 @@ export const DesktopNetworkSettings: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [draftValue, isLocalDesktop]);
+  }, [draftValue, isLocalDesktop, isTunnelVariant]);
 
   const nextPassword = draftPassword.trim();
   const passwordDirty = nextPassword.length > 0 || removePassword;
@@ -133,17 +138,19 @@ export const DesktopNetworkSettings: React.FC = () => {
     || lanAccessBlockedReason === 'enterprise-mode';
   const setRestartDraft = useDesktopRestartDrafts((state) => state.setDraft);
   const hasPendingRestart = useDesktopRestartDrafts((state) => Boolean(state.patches.app || state.patches.network));
-  const saveDisabled = isLoading || isSaving || !hasPendingRestart || lanRequiresPassword;
+  const saveDisabled = isLoading || loadFailed || isSaving || (isTunnelVariant
+    ? (!nextPassword && !needsRestart)
+    : ((!hasPendingRestart && !needsRestart) || lanRequiresPassword));
 
   // Publishes this section's pending changes, so a restart from the desktop
   // app section saves them too, or waits while they cannot be saved.
   React.useEffect(() => {
-    setRestartDraft('network', isDirty && !lanRequiresPassword ? {
+    setRestartDraft('network', isLocalDesktop && isDirty && !lanRequiresPassword ? {
       ...(draftValue !== savedValue ? { desktopLanAccessEnabled: draftValue } : {}),
       // Omitted when unchanged: the server keeps the password it has.
       ...(nextPassword ? { desktopUiPassword: nextPassword } : removePassword ? { desktopUiPassword: '' } : {}),
     } : null, lanRequiresPassword);
-  }, [draftValue, isDirty, lanRequiresPassword, nextPassword, removePassword, savedValue, setRestartDraft]);
+  }, [draftValue, isDirty, isLocalDesktop, lanRequiresPassword, nextPassword, removePassword, savedValue, setRestartDraft]);
   React.useEffect(() => () => setRestartDraft('network', null, false), [setRestartDraft]);
 
   const handlePasswordChange = React.useCallback((value: string) => {
@@ -160,15 +167,23 @@ export const DesktopNetworkSettings: React.FC = () => {
   }, []);
 
   const handleSaveAndRestart = React.useCallback(async () => {
+    if (saveDisabled || !isDesktopShell() || !isDesktopLocalOriginActive()) return;
+    const runtimeKey = getRuntimeKey();
+    let settingsSaved = false;
     setIsSaving(true);
     setError(null);
 
     try {
       // Saves the desktop app section's pending changes as well: the restart
       // would drop them otherwise.
-      if (!await saveDesktopRestartDrafts()) {
-        throw new Error(t('settings.openchamber.desktopNetwork.error.saveFailed'));
+      if (hasPendingRestart) {
+        if (!await saveDesktopRestartDrafts()) {
+          throw new Error(t('settings.openchamber.desktopNetwork.error.saveFailed'));
+        }
+        settingsSaved = true;
       }
+
+      if (runtimeKey !== getRuntimeKey() || !isDesktopShell() || !isDesktopLocalOriginActive()) return;
 
       setSavedValue(draftValue);
       if (nextPassword) {
@@ -178,52 +193,55 @@ export const DesktopNetworkSettings: React.FC = () => {
       }
       setDraftPassword('');
       setRemovePassword(false);
+      setNeedsRestart(false);
 
       const restarted = await restartDesktopApp();
       if (!restarted) {
+        setNeedsRestart(true);
         throw new Error(t('settings.openchamber.desktopNetwork.error.savedRestartFailed'));
       }
     } catch (cause) {
+      if (settingsSaved) setNeedsRestart(true);
       setError(cause instanceof Error ? cause.message : t('settings.openchamber.desktopNetwork.error.saveFailed'));
       setIsSaving(false);
     }
-  }, [draftValue, nextPassword, removePassword, t]);
+  }, [draftValue, hasPendingRestart, nextPassword, removePassword, saveDisabled, t]);
 
   if (!isLocalDesktop) {
     return null;
   }
 
   return (
-    <SettingsSection title={t('settings.layout.general.network.title')} contentClassName="space-y-4">
+    <SettingsSection title={isTunnelVariant ? undefined : t('settings.layout.general.network.title')} contentClassName="space-y-4">
       <SettingsStackedField
-        settingsItem="sessions.desktop-ui-password"
+        settingsItem={isTunnelVariant ? 'tunnel.ui-password' : 'sessions.desktop-ui-password'}
         label={(
-          <label htmlFor="desktop-ui-password">
+          <label htmlFor={isTunnelVariant ? 'tunnel-ui-password' : 'desktop-ui-password'}>
             {t('settings.openchamber.desktopPassword.field.password')}
           </label>
         )}
-        info={t('settings.openchamber.desktopPassword.field.passwordDescription')}
+        info={t(isTunnelVariant ? 'settings.openchamber.tunnel.password.description' : 'settings.openchamber.desktopPassword.field.passwordDescription')}
       >
         <Input
-          id="desktop-ui-password"
+          id={isTunnelVariant ? 'tunnel-ui-password' : 'desktop-ui-password'}
           type="password"
           className="h-8 min-w-0 flex-1"
           value={draftPassword}
           onChange={(event) => handlePasswordChange(event.target.value)}
-          placeholder={t(hasSavedPassword && !removePassword
+          placeholder={t(isTunnelVariant ? 'settings.openchamber.tunnel.password.placeholder' : hasSavedPassword && !removePassword
             ? 'settings.openchamber.desktopPassword.field.passwordSetPlaceholder'
             : 'settings.openchamber.desktopPassword.field.passwordPlaceholder')}
-          disabled={isLoading || isSaving}
+          disabled={isLoading || loadFailed || isSaving}
           required={draftValue && !passwordWillBeSet}
           aria-invalid={lanRequiresPassword}
         />
-        {hasSavedPassword && !removePassword ? (
+        {!isTunnelVariant && hasSavedPassword && !removePassword ? (
           <Button
             type="button"
             variant="ghost"
             size="xs"
             onClick={handleRemovePassword}
-            disabled={isLoading || isSaving}
+            disabled={isLoading || loadFailed || isSaving}
             className="shrink-0 !font-normal"
           >
             {t('settings.openchamber.desktopPassword.actions.removePassword')}
@@ -231,7 +249,7 @@ export const DesktopNetworkSettings: React.FC = () => {
         ) : null}
       </SettingsStackedField>
 
-      <SettingsCheckboxRow
+      {!isTunnelVariant ? <SettingsCheckboxRow
         settingsItem="sessions.desktop-lan-access"
         checked={draftValue && !lanBlockedByEnterprise}
         onChange={setDraftValue}
@@ -253,9 +271,9 @@ export const DesktopNetworkSettings: React.FC = () => {
           </>
         )}
         ariaLabel={t('settings.openchamber.desktopNetwork.field.allowLanAccessAria')}
-      />
+      /> : null}
 
-      {lanUrl && !lanBlockedByEnterprise ? (
+      {!isTunnelVariant && lanUrl && !lanBlockedByEnterprise ? (
         <p className="typography-meta text-muted-foreground">
           {isDirty && !savedValue
             ? t('settings.openchamber.desktopNetwork.hint.openAfterRestart')
@@ -264,9 +282,7 @@ export const DesktopNetworkSettings: React.FC = () => {
         </p>
       ) : null}
 
-      {error ? (
-        <p className="typography-micro text-[var(--status-error)]">{error}</p>
-      ) : null}
+      <p className="min-h-5 truncate typography-micro text-[var(--status-error)]" role={error ? 'alert' : undefined} title={error ?? undefined}>{error}</p>
 
       <Button
         type="button"

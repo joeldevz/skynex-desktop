@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} vuelve a estar activado',
   'settings.agents.sidebar.toast.disableFailed': 'No se pudo desactivar el agente: no se pudo escribir su archivo de configuración',
   'settings.agents.sidebar.toast.enableFailed': 'No se pudo activar el agente: no se pudo escribir su archivo de configuración',
+  'settings.openchamber.tunnel.password.description': 'Establece una contraseña y guarda y reinicia antes de iniciar un túnel público.',
+  'settings.openchamber.tunnel.password.placeholder': 'Introduce una contraseña',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Establece una contraseña arriba y guarda y reinicia antes de iniciar el túnel.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Establece una contraseña de UI en este servidor y reinícialo antes de iniciar el túnel.',
 } as const;

@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} знову увімкнено',
   'settings.agents.sidebar.toast.disableFailed': 'Не вдалося вимкнути агента: не вийшло записати його конфіг',
   'settings.agents.sidebar.toast.enableFailed': 'Не вдалося увімкнути агента: не вийшло записати його конфіг',
+  'settings.openchamber.tunnel.password.description': 'Установіть пароль, збережіть зміни й перезапустіть сервер перед запуском публічного тунелю.',
+  'settings.openchamber.tunnel.password.placeholder': 'Введіть пароль',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Установіть пароль вище, збережіть зміни й перезапустіть сервер перед запуском тунелю.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Установіть пароль UI на цьому сервері й перезапустіть його перед запуском тунелю.',
 } as const;

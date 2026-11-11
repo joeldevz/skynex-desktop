@@ -2616,4 +2616,8 @@ export const settingsDict = {
   ...guestIntegrationsI18n.ar,
   ...extensionsSettingsI18n.ar,
   ...settingsLayoutI18n.ar,
+  'settings.openchamber.tunnel.password.description': 'عيّن كلمة مرور ثم احفظ وأعد التشغيل قبل بدء نفق عام.',
+  'settings.openchamber.tunnel.password.placeholder': 'أدخل كلمة المرور',
+  'settings.openchamber.tunnel.password.requiredLocal': 'عيّن كلمة مرور أعلاه ثم احفظ وأعد التشغيل قبل بدء النفق.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'عيّن كلمة مرور للواجهة على هذا الخادم وأعد تشغيله قبل بدء النفق.',
 } as const;

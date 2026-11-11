@@ -60,7 +60,7 @@ jobs:
     needs: create-release
     runs-on: windows-2022
     permissions:
-      contents: read
+      contents: write
     strategy:
       fail-fast: false
       matrix:

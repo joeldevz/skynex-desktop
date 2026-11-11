@@ -1,6 +1,6 @@
 {
   "name": "@openchamber/web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "type": "module",
   "main": "./server/index.js",
@@ -34,7 +34,7 @@
     "@clack/prompts": "^1.1.0",
     "@gitbeaker/rest": "43.8.0",
     "@octokit/rest": "^22.0.1",
-    "@openchamber/sdk": "workspace:0.1.1",
+    "@openchamber/sdk": "workspace:0.1.2",
     "@opencode/client": "2.1.4",
     "@opencode/schema": "2.1.4",
     "@simplewebauthn/server": "13.3.3",

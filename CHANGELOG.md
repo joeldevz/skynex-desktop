@@ -4313,6 +4313,20 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.2] - 2026-11-11
+
+### Improvements
+
+- Desktop: Set the tunnel password on the tunnel screen with Save and restart.
+
+### Fixes
+
+- Connections: Supported Skynex servers are recognized correctly when their version starts with 0.1.
+
+### Misc
+
+- CLI: Standalone Skynex packages are available for Windows, macOS, and Linux.
+
 ## [0.1.0] - 2026-11-03
 
 ### New

@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name}을(를) 다시 활성화했습니다',
   'settings.agents.sidebar.toast.disableFailed': '에이전트를 비활성화하지 못했습니다. 설정 파일에 쓸 수 없습니다',
   'settings.agents.sidebar.toast.enableFailed': '에이전트를 활성화하지 못했습니다. 설정 파일에 쓸 수 없습니다',
+  'settings.openchamber.tunnel.password.description': '공개 터널을 시작하기 전에 비밀번호를 설정하고 저장한 다음 다시 시작하세요.',
+  'settings.openchamber.tunnel.password.placeholder': '비밀번호 입력',
+  'settings.openchamber.tunnel.password.requiredLocal': '위에서 비밀번호를 설정하고 저장한 다음 다시 시작한 후 터널을 시작하세요.',
+  'settings.openchamber.tunnel.password.requiredRemote': '이 서버에서 UI 비밀번호를 설정하고 다시 시작한 후 터널을 시작하세요.',
 } as const;

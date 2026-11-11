@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} を再び有効にしました',
   'settings.agents.sidebar.toast.disableFailed': 'エージェントを無効にできませんでした。設定ファイルに書き込めませんでした',
   'settings.agents.sidebar.toast.enableFailed': 'エージェントを有効にできませんでした。設定ファイルに書き込めませんでした',
+  'settings.openchamber.tunnel.password.description': '公開トンネルを開始する前に、パスワードを設定して保存し、再起動してください。',
+  'settings.openchamber.tunnel.password.placeholder': 'パスワードを入力',
+  'settings.openchamber.tunnel.password.requiredLocal': '上でパスワードを設定し、保存して再起動してからトンネルを開始してください。',
+  'settings.openchamber.tunnel.password.requiredRemote': 'このサーバーでUIパスワードを設定し、再起動してからトンネルを開始してください。',
 } as const;

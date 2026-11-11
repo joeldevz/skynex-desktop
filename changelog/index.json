@@ -7301,6 +7301,30 @@
     "vscode": null
   },
   {
+    "version": "0.1.2",
+    "date": "2026-11-11",
+    "title": "Server connections and tunnel passwords",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [
+        "Desktop: Set the tunnel password on the tunnel screen with Save and restart."
+      ],
+      "fixes": [
+        "Connections: Supported Skynex servers are recognized correctly when their version starts with 0.1."
+      ],
+      "misc": [
+        "CLI: Standalone Skynex packages are available for Windows, macOS, and Linux."
+      ]
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.0",
     "date": "2026-11-03",
     "title": "Meet Skynex",

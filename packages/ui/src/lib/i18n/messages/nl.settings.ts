@@ -2632,4 +2632,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} is weer ingeschakeld',
   'settings.agents.sidebar.toast.disableFailed': 'De agent kon niet worden uitgeschakeld: het configuratiebestand kon niet worden geschreven',
   'settings.agents.sidebar.toast.enableFailed': 'De agent kon niet worden ingeschakeld: het configuratiebestand kon niet worden geschreven',
+  'settings.openchamber.tunnel.password.description': 'Stel een wachtwoord in en sla op en herstart voordat je een openbare tunnel start.',
+  'settings.openchamber.tunnel.password.placeholder': 'Voer een wachtwoord in',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Stel hierboven een wachtwoord in en sla op en herstart voordat je de tunnel start.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Stel op deze server een UI-wachtwoord in en herstart deze voordat je de tunnel start.',
 } as const;

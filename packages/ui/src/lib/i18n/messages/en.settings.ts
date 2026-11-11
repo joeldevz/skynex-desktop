@@ -2632,4 +2632,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} is enabled again',
   'settings.agents.sidebar.toast.disableFailed': 'Couldn\'t disable the agent: its config file could not be written',
   'settings.agents.sidebar.toast.enableFailed': 'Couldn\'t enable the agent: its config file could not be written',
+  'settings.openchamber.tunnel.password.description': 'Set a password, then save and restart before starting a public tunnel.',
+  'settings.openchamber.tunnel.password.placeholder': 'Enter a password',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Set a password above, then save and restart before starting the tunnel.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Set a UI password on this server and restart it before starting the tunnel.',
 } as const;

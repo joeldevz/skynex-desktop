@@ -37,7 +37,9 @@ if (isDirectRun) {
     pkg.version = newVersion;
     for (const section of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
       for (const [name, range] of Object.entries(pkg[section] ?? {})) {
-        if (range === 'workspace:*') pkg[section][name] = `workspace:${newVersion}`;
+        if (range === 'workspace:*' || /^workspace:\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(range)) {
+          pkg[section][name] = `workspace:${newVersion}`;
+        }
       }
     }
     fs.writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + '\n');

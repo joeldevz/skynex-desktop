@@ -2633,4 +2633,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} ist wieder aktiviert',
   'settings.agents.sidebar.toast.disableFailed': 'Der Agent konnte nicht deaktiviert werden: Die Konfigurationsdatei ließ sich nicht schreiben',
   'settings.agents.sidebar.toast.enableFailed': 'Der Agent konnte nicht aktiviert werden: Die Konfigurationsdatei ließ sich nicht schreiben',
+  'settings.openchamber.tunnel.password.description': 'Lege ein Passwort fest und speichere und starte neu, bevor du einen öffentlichen Tunnel startest.',
+  'settings.openchamber.tunnel.password.placeholder': 'Passwort eingeben',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Lege oben ein Passwort fest und speichere und starte neu, bevor du den Tunnel startest.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Lege auf diesem Server ein UI-Passwort fest und starte ihn neu, bevor du den Tunnel startest.',
 };

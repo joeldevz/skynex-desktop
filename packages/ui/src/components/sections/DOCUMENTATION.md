@@ -434,6 +434,18 @@ of the page; the file is never moved, so the note has no action.
 
 ## Remote instances
 
+The Tunnel page reuses `DesktopNetworkSettings` in its tunnel variant for the
+local Electron UI password. The password is write-only: it stays in the
+restart-draft store until the existing desktop settings backend accepts it, and
+is cleared on unmount or after a successful save. The variant never edits LAN
+access or removes a stored password. General settings and Tunnel are separate
+page owners; do not mount both instances at once.
+
+Only the local desktop may edit this server-side credential. Remote desktop,
+web, VS Code and mobile clients direct people to configure the server instead.
+The tunnel-start endpoint remains the authority and its password-required code
+drives that guidance.
+
 The SSH instance form keeps remote server behavior and networking settings in
 `remote-instances/RemoteInstancesPage.tsx`. Managed OpenChamber distribution is
 fixed to the matching Skynex Desktop GitHub release; old persisted

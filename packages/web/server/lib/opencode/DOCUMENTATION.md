@@ -272,6 +272,14 @@ Version and upgrade-status reads of `/api/info` use the health probe's 3-second
 timeout. An aborted read returns the route's existing error response. These
 routes register before the generic proxy and need their own deadline.
 
+`GET /health` and `GET /api/version` share the compatibility object. Its
+`opencode.api.v2` capability identifies servers that use OpenCode 2.x even when
+the OpenChamber product version is below 2. Clients that predate this marker
+retain their product-version fallback, so the capability is additive and does
+not change the API version or minimum client version. Native desktop probes still
+require `api.runtime-url.v1`, compatible API versions, server identity, and an
+authenticated session.
+
 ## CLI upgrades
 
 `cli-upgrade.js` runs the host-resolved executable and wrapper arguments with

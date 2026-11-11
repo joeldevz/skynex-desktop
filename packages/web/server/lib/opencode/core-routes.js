@@ -121,6 +121,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     capabilities: [
       'api.health.v1',
       'api.runtime-url.v1',
+      'opencode.api.v2',
       'api.raw-file.v1',
       'api.notifications.emit.v1',
       'realtime.sse.v1',

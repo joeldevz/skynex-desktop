@@ -10,7 +10,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
 });
 
-test('a release bump packs workspace dependencies at the new version after a frozen install', async () => {
+test.each(['workspace:*', 'workspace:1.23.1'])('a release bump packs %s dependencies at the new version after a frozen install', async (workspaceRange) => {
   // The real path: on Windows it also expands an 8.3 TEMP such as C:\Users\BOHDAN~1, which bun's workspace links need.
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'oc-release-pack-')));
   roots.push(root);
@@ -25,8 +25,8 @@ test('a release bump packs workspace dependencies at the new version after a fro
       manifest.private = true;
       manifest.workspaces = ['packages/*'];
     }
-    if (name === '@openchamber/web') manifest.dependencies = { '@openchamber/sdk': 'workspace:*' };
-    if (name === '@openchamber/electron') manifest.dependencies = { '@openchamber/web': 'workspace:*' };
+    if (name === '@openchamber/web') manifest.dependencies = { '@openchamber/sdk': workspaceRange };
+    if (name === '@openchamber/electron') manifest.dependencies = { '@openchamber/web': workspaceRange };
     await fs.writeFile(path.join(root, file), JSON.stringify(manifest));
   }
   const bun = process.execPath;

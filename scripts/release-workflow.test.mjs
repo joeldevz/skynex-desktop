@@ -15,3 +15,15 @@ test('manifests combine after partial build failures while publication stays str
   // Skipped jobs count as done; any failure still stops the release.
   assert.equal(workflow.jobs['finalize-release'].if, "${{ !cancelled() && !failure() }}");
 });
+
+test('desktop release publishers can upload assets while build-only jobs remain read-only', () => {
+  const desktop = yaml.parse(fs.readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  const publishers = Object.entries(desktop.jobs).filter(([, job]) => job.steps.some((step) => step.uses?.startsWith('softprops/action-gh-release@')));
+  assert.deepEqual(publishers.map(([name]) => name), ['create-release', 'build-windows', 'publish']);
+  for (const [name, job] of publishers) {
+    assert.equal(job.permissions.contents, 'write', `${name} must upload release assets`);
+  }
+  assert.equal(desktop.permissions.contents, 'read');
+  assert.equal(desktop.jobs['build-linux'].permissions.contents, 'read');
+  assert.equal(desktop.jobs['build-cli-runtime'].permissions.contents, 'read');
+});

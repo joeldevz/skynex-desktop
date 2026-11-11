@@ -2633,4 +2633,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} yeniden etkin',
   'settings.agents.sidebar.toast.disableFailed': 'Ajan devre dışı bırakılamadı: yapılandırma dosyası yazılamadı',
   'settings.agents.sidebar.toast.enableFailed': 'Ajan etkinleştirilemedi: yapılandırma dosyası yazılamadı',
+  'settings.openchamber.tunnel.password.description': 'Genel tüneli başlatmadan önce parola belirleyip kaydedin ve yeniden başlatın.',
+  'settings.openchamber.tunnel.password.placeholder': 'Parola girin',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Tüneli başlatmadan önce yukarıda parola belirleyip kaydedin ve yeniden başlatın.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Tüneli başlatmadan önce bu sunucuda bir UI parolası belirleyip yeniden başlatın.',
 };

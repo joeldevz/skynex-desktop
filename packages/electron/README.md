@@ -261,11 +261,13 @@ version and session requests use sanitized custom headers and the client bearer
 token. Older servers without identity metadata remain supported. HTTP 401 and
 403 mean authentication is required, not that the instance is offline.
 
-`/api/version` must advertise `api.runtime-url.v1` and report an
-`openchamberVersion` of 2 or later, or the host is Incompatible and the app asks
-to update OpenChamber on the server. A server before 2.0 runs OpenCode 1.x with
-the same API version and capabilities, so its own version is the only thing that
-tells it apart. A version that does not parse does not block.
+`/api/version` must advertise `api.runtime-url.v1`. The additive
+`opencode.api.v2` capability confirms that the server uses OpenCode 2.x, including
+when its `openchamberVersion` is below 2. Older servers without the marker retain
+the product-version check: a server before 2.0 is treated as incompatible because
+it runs OpenCode 1.x with the same API version and older capabilities. A version
+that does not parse does not block. API and minimum-client checks, identity
+verification, and authenticated session checks still apply.
 
 The Incompatible recovery screen can ask the host to update itself
 (`desktop_host_update_server`, local pages only, `remote-host-update.mjs`). The

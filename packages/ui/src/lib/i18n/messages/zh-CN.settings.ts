@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '已重新启用 {name}',
   'settings.agents.sidebar.toast.disableFailed': '无法停用代理：无法写入其配置文件',
   'settings.agents.sidebar.toast.enableFailed': '无法启用代理：无法写入其配置文件',
+  'settings.openchamber.tunnel.password.description': '设置密码，并在启动公共隧道前保存并重启。',
+  'settings.openchamber.tunnel.password.placeholder': '输入密码',
+  'settings.openchamber.tunnel.password.requiredLocal': '请先在上方设置密码、保存并重启，然后再启动隧道。',
+  'settings.openchamber.tunnel.password.requiredRemote': '请在此服务器上设置 UI 密码并重启，然后再启动隧道。',
 } as const;
