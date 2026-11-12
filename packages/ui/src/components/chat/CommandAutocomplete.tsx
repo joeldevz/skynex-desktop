@@ -9,7 +9,7 @@ import { useI18n } from '@/lib/i18n';
 import { useUIStore } from '@/stores/useUIStore';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { useMobileAutocompleteMaxHeight } from './useMobileAutocompleteMaxHeight';
-import { mergeCommandAutocompleteItems, rankCommandAutocompleteItems } from './commandAutocompleteItems';
+import { filterCommandSuggestions, mergeCommandAutocompleteItems, rankCommandAutocompleteItems } from './commandAutocompleteItems';
 import { useGuestCommands } from '@/hooks/useGuestSurfaces';
 import { AutocompleteRowDetail } from './composer/ui/AutocompleteRowParts';
 import { useAutocompleteSelectionScroll } from './composer/ui/useAutocompleteSelectionScroll';
@@ -38,6 +38,9 @@ const LOCAL_COMMAND_NAMES = [
   'init', 'review', 'undo', 'redo', 'timeline', 'compact', 'fork', 'btw', 'summary', 'workspace-review', 'handoff-review',
   'craft-goal', 'schedule-task', 'catch-up', 'debug', 'weigh', 'explore',
 ];
+
+// Roll out OpenChamber commands gradually by adding names once their usage is ready to teach.
+const ENABLED_OPENCHAMBER_COMMANDS: ReadonlySet<string> = new Set(['btw']);
 
 export interface CommandAutocompleteHandle {
   handleKeyDown: (key: string) => void;
@@ -192,7 +195,10 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       extensionName: entry.guestName,
     }));
     return [
-      ...mergeCommandAutocompleteItems(builtInCommands, customCommands),
+      ...mergeCommandAutocompleteItems(
+        filterCommandSuggestions(builtInCommands, ENABLED_OPENCHAMBER_COMMANDS),
+        customCommands,
+      ),
       ...extensionCommands,
     ];
   }, [hasSession, canStartSessionCommand, canUseReviewHandoffFlow, commandsWithMetadata, guestCommands, t]);
@@ -315,7 +321,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                 >
                   <span className="max-w-[60%] shrink-0 truncate font-medium">/{command.name}</span>
                   <AutocompleteRowDetail
-                    scope={command.id === 'openchamber:catch-up' ? 'skynex' : command.isOpenChamber ? 'openchamber' : command.isBuiltIn ? 'opencode' : command.scope === 'project' ? 'project' : command.scope ? 'user' : null}
+                    scope={command.id === 'openchamber:catch-up' || command.id === 'openchamber:btw' ? 'skynex' : command.isOpenChamber ? 'openchamber' : command.isBuiltIn ? 'opencode' : command.scope === 'project' ? 'project' : command.scope ? 'user' : null}
                     extension={command.extensionName}
                     description={command.description}
                   />
