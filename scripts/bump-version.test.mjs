@@ -10,7 +10,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
 });
 
-test('a release bump packs workspace dependencies at the new version after a frozen install', async () => {
+test.each(['workspace:*', 'workspace:1.23.1'])('a release bump packs %s dependencies at the new version after a frozen install', async (workspaceRange) => {
   // The real path: on Windows it also expands an 8.3 TEMP such as C:\Users\BOHDAN~1, which bun's workspace links need.
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'oc-release-pack-')));
   roots.push(root);
@@ -25,14 +25,19 @@ test('a release bump packs workspace dependencies at the new version after a fro
       manifest.private = true;
       manifest.workspaces = ['packages/*'];
     }
-    if (name === '@openchamber/web') manifest.dependencies = { '@openchamber/sdk': 'workspace:*' };
-    if (name === '@openchamber/electron') manifest.dependencies = { '@openchamber/web': 'workspace:*' };
+    if (name === '@openchamber/web') manifest.dependencies = { '@openchamber/sdk': workspaceRange };
+    if (name === '@openchamber/electron') manifest.dependencies = { '@openchamber/web': workspaceRange };
     await fs.writeFile(path.join(root, file), JSON.stringify(manifest));
   }
   const bun = process.execPath;
   const runBun = (args, cwd = root) => execFileSync(bun, args, { cwd, encoding: 'utf8', stdio: 'pipe' });
   runBun(['install', '--ignore-scripts']);
   runBun(['run', 'scripts/bump-version.mjs', '1.24.0']);
+  for (const workspace of ['web', 'electron']) {
+    const manifest = JSON.parse(await fs.readFile(path.join(root, 'packages', workspace, 'package.json'), 'utf8'));
+    const dependency = workspace === 'web' ? '@openchamber/sdk' : '@openchamber/web';
+    expect(manifest.dependencies[dependency]).toBe('workspace:1.24.0');
+  }
   // CI uses a frozen install. It must not need to repair release metadata.
   const lockBeforeInstall = await fs.readFile(path.join(root, 'bun.lock'), 'utf8');
   runBun(['install', '--frozen-lockfile', '--ignore-scripts']);

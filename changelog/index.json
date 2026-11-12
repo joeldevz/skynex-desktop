@@ -7301,6 +7301,27 @@
     "vscode": null
   },
   {
+    "version": "0.1.1",
+    "date": "2026-11-10",
+    "title": "Desktop updates use Skynex",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [],
+      "fixes": [
+        "**Desktop updates:** New builds check Skynex releases and show their release notes.",
+        "Browser panel: Pressed keys reach the page, then focus returns to the app."
+      ],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.0",
     "date": "2026-11-03",
     "title": "Meet Skynex",
