@@ -6,6 +6,27 @@ import { registerAuthAndAccessRoutes, registerCommonRequestMiddleware, registerH
 import { createServerDiagnosticJournal } from '../diagnostics/server-journal.js';
 
 describe('core-routes', () => {
+  it('advertises OpenCode 2 compatibility on health and version while preserving the product and API versions', async () => {
+    const app = express();
+    registerServerStatusRoutes(app, {
+      express,
+      openchamberVersion: '0.1.1',
+      runtimeName: 'test',
+      getHealthSnapshot: () => ({}),
+      gracefulShutdown: vi.fn(),
+    });
+
+    const responses = await Promise.all(['/health', '/api/version'].map(async (route) => ({
+      route,
+      response: await request(app).get(route).expect(200),
+    })));
+    for (const { route, response } of responses) {
+      expect.soft(response.body.openchamberVersion, route).toBe('0.1.1');
+      expect.soft(response.body.compatibility, route).toMatchObject({ apiVersion: 1, minClientApiVersion: 1 });
+      expect.soft(response.body.compatibility.capabilities, route).toContain('opencode.api.v2');
+    }
+  });
+
   it('captures the final response status, including missing routes and parser errors, without request data', async () => {
     const journal = createServerDiagnosticJournal();
     const app = express();

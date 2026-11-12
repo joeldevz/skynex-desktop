@@ -362,7 +362,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'הסר כותרת',
   'settings.remoteInstances.direct.actions.add': 'הוסף שרת',
   'settings.remoteInstances.direct.import.description': 'יש להדביק קישור חיבור משרת Skynex אחר.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?…',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?…',
   'settings.remoteInstances.direct.import.action': 'ייבא קישור',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'קישור החיבור ל-Skynex אינו תקין.',
   'settings.remoteInstances.direct.state.loading': 'טוען מופעים…',
@@ -2616,4 +2616,8 @@ export const settingsDict = {
   ...guestIntegrationsI18n.he,
   ...extensionsSettingsI18n.he,
   ...settingsLayoutI18n.he,
+  'settings.openchamber.tunnel.password.description': 'הגדר סיסמה, שמור והפעל מחדש לפני התחלת מנהרה ציבורית.',
+  'settings.openchamber.tunnel.password.placeholder': 'הזן סיסמה',
+  'settings.openchamber.tunnel.password.requiredLocal': 'הגדר סיסמה למעלה, שמור והפעל מחדש לפני התחלת המנהרה.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'הגדר סיסמת UI בשרת הזה והפעל אותו מחדש לפני התחלת המנהרה.',
 } as const;

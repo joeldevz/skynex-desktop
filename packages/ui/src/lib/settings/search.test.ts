@@ -24,6 +24,26 @@ const runtimeCtx = {
 };
 
 describe('settings search', () => {
+  test('finds the tunnel UI password only on local desktop tunnel settings', () => {
+    const contexts = [
+      { ...runtimeCtx, isDesktop: true, isDesktopLocalOrigin: true },
+      { ...runtimeCtx, isDesktop: true, isDesktopLocalOrigin: false },
+      { ...runtimeCtx, isDesktop: false, isDesktopLocalOrigin: true },
+      { ...runtimeCtx, isDesktop: true, isDesktopLocalOrigin: true, isVSCode: true },
+      { ...runtimeCtx, isDesktop: true, isDesktopLocalOrigin: true, enterpriseMode: true },
+    ];
+    const matches = contexts.map((context) => buildSettingsSearchResults({
+      query: 'tunnel ui password',
+      runtimeCtx: context,
+      t,
+      getPageTitle: (page) => page,
+    }).find((result) => result.id === 'tunnel.ui-password')?.page);
+
+    expect(matches).toEqual(['tunnel', undefined, undefined, undefined, undefined]);
+    expect(buildSettingsSearchResults({ query: 'desktop ui password', runtimeCtx: contexts[0], t, getPageTitle: (page) => page })
+      .some((result) => result.id === 'sessions.desktop-ui-password')).toBe(true);
+  });
+
   test('uses stable workspace, folder and Chats targets without indexing the removed Close action', () => {
     const projectIdsFor = (query: string) => buildSettingsSearchResults({ query, runtimeCtx, t, getPageTitle: (page) => page })
       .filter((result) => result.page === 'projects').map((result) => result.id);

@@ -77,7 +77,7 @@ import { OpenCodeUpdateToast } from '@/components/update/OpenCodeUpdateToast';
 import { ProjectConfigErrorToast } from '@/components/projects/ProjectConfigErrorToast';
 import { markStartupTrace, startupTraceEnabled } from '@/lib/startupTrace';
 import { fetchStartupDiagnostics, getInitRecoveryDescriptionKey, type StartupDiagnostics } from '@/lib/startupDiagnostics';
-import { fetchConnectedServerVersion, isServerBeforeOpenCode2 } from '@/lib/serverCompatibility';
+import { fetchConnectedServerCompatibility, isServerBeforeOpenCode2 } from '@/lib/serverCompatibility';
 import { OutdatedServerNotice } from '@/components/update/OutdatedServerNotice';
 
 // Lazy-loaded heavy views — loaded on demand to reduce initial bundle size.
@@ -131,16 +131,17 @@ const StartupInitializationRecovery: React.FC<{
     };
   }, []);
 
-  // A server before 2.0 answers this app's requests with its web page, which
-  // surfaces as an unrelated load failure. Its own version says why.
+  // Forks can restart product versioning while retaining the OpenCode 2 protocol.
   const [outdatedServerVersion, setOutdatedServerVersion] = React.useState<string | null>(null);
   React.useEffect(() => {
     const controller = new AbortController();
     const runtimeKey = getRuntimeKey();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    void fetchConnectedServerVersion(controller.signal).then((version) => {
+    void fetchConnectedServerCompatibility(controller.signal).then((compatibility) => {
       if (controller.signal.aborted || getRuntimeKey() !== runtimeKey) return;
-      setOutdatedServerVersion(version && isServerBeforeOpenCode2(version) ? version : null);
+      setOutdatedServerVersion(compatibility && isServerBeforeOpenCode2(compatibility.version, compatibility.supportsOpenCode2)
+        ? compatibility.version
+        : null);
     }).catch(() => undefined).finally(() => clearTimeout(timeout));
     return () => {
       controller.abort();

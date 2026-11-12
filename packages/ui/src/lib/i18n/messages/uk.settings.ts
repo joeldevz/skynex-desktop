@@ -330,7 +330,7 @@ export const settingsDict = {
   "settings.remoteInstances.direct.headers.removeAria": "Remove header",
   "settings.remoteInstances.direct.actions.add": "Додати сервер",
   "settings.remoteInstances.direct.import.description": "Вставте посилання для підключення з іншого сервера Skynex.",
-  "settings.remoteInstances.direct.import.placeholder": "openchamber://connect?...",
+  "settings.remoteInstances.direct.import.placeholder": "skynex-app://connect?...",
   "settings.remoteInstances.direct.import.action": "Імпортувати посилання",
   "settings.remoteInstances.direct.error.invalidConnectLink": "Недійсне посилання підключення Skynex.",
   "settings.remoteInstances.direct.state.loading": "Завантаження серверів...",
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} знову увімкнено',
   'settings.agents.sidebar.toast.disableFailed': 'Не вдалося вимкнути агента: не вийшло записати його конфіг',
   'settings.agents.sidebar.toast.enableFailed': 'Не вдалося увімкнути агента: не вийшло записати його конфіг',
+  'settings.openchamber.tunnel.password.description': 'Установіть пароль, збережіть зміни й перезапустіть сервер перед запуском публічного тунелю.',
+  'settings.openchamber.tunnel.password.placeholder': 'Введіть пароль',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Установіть пароль вище, збережіть зміни й перезапустіть сервер перед запуском тунелю.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Установіть пароль UI на цьому сервері й перезапустіть його перед запуском тунелю.',
 } as const;

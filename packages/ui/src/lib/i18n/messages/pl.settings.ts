@@ -2003,7 +2003,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': 'Dodaj serwer',
   'settings.remoteInstances.direct.import.description': 'Wklej link połączenia z innego serwera Skynex.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'Importuj link',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'Nieprawidłowy link połączenia Skynex.',
   'settings.remoteInstances.direct.state.loading': 'Ładowanie serwerów...',
@@ -2643,4 +2643,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} jest znowu włączony',
   'settings.agents.sidebar.toast.disableFailed': 'Nie udało się wyłączyć agenta: nie można zapisać jego pliku konfiguracji',
   'settings.agents.sidebar.toast.enableFailed': 'Nie udało się włączyć agenta: nie można zapisać jego pliku konfiguracji',
+  'settings.openchamber.tunnel.password.description': 'Ustaw hasło, a następnie zapisz i uruchom ponownie przed uruchomieniem publicznego tunelu.',
+  'settings.openchamber.tunnel.password.placeholder': 'Wpisz hasło',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Ustaw hasło powyżej, zapisz i uruchom ponownie przed uruchomieniem tunelu.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Ustaw hasło UI na tym serwerze i uruchom go ponownie przed uruchomieniem tunelu.',
 };

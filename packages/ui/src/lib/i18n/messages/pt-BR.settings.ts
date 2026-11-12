@@ -330,7 +330,7 @@ export const settingsDict = {
   "settings.remoteInstances.direct.headers.removeAria": "Remove header",
   "settings.remoteInstances.direct.actions.add": "Adicionar servidor",
   "settings.remoteInstances.direct.import.description": "Cole um link de conexão de outro servidor Skynex.",
-  "settings.remoteInstances.direct.import.placeholder": "openchamber://connect?...",
+  "settings.remoteInstances.direct.import.placeholder": "skynex-app://connect?...",
   "settings.remoteInstances.direct.import.action": "Importar link",
   "settings.remoteInstances.direct.error.invalidConnectLink": "Link de conexão do Skynex inválido.",
   "settings.remoteInstances.direct.state.loading": "Carregando servidores...",
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} foi ativado de novo',
   'settings.agents.sidebar.toast.disableFailed': 'Não foi possível desativar o agente: o arquivo de configuração não pôde ser gravado',
   'settings.agents.sidebar.toast.enableFailed': 'Não foi possível ativar o agente: o arquivo de configuração não pôde ser gravado',
+  'settings.openchamber.tunnel.password.description': 'Defina uma senha, salve e reinicie antes de iniciar um túnel público.',
+  'settings.openchamber.tunnel.password.placeholder': 'Digite uma senha',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Defina uma senha acima, salve e reinicie antes de iniciar o túnel.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Defina uma senha de UI neste servidor e reinicie-o antes de iniciar o túnel.',
 } as const;

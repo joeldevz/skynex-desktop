@@ -363,7 +363,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': 'サーバーを追加',
   'settings.remoteInstances.direct.import.description': '別の Skynex サーバーからの接続リンクを貼り付けてください。',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'リンクをインポート',
   'settings.remoteInstances.direct.error.invalidConnectLink': '無効な Skynex 接続リンクです。',
   'settings.remoteInstances.direct.state.loading': 'インスタンスを読み込み中...',
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} を再び有効にしました',
   'settings.agents.sidebar.toast.disableFailed': 'エージェントを無効にできませんでした。設定ファイルに書き込めませんでした',
   'settings.agents.sidebar.toast.enableFailed': 'エージェントを有効にできませんでした。設定ファイルに書き込めませんでした',
+  'settings.openchamber.tunnel.password.description': '公開トンネルを開始する前に、パスワードを設定して保存し、再起動してください。',
+  'settings.openchamber.tunnel.password.placeholder': 'パスワードを入力',
+  'settings.openchamber.tunnel.password.requiredLocal': '上でパスワードを設定し、保存して再起動してからトンネルを開始してください。',
+  'settings.openchamber.tunnel.password.requiredRemote': 'このサーバーでUIパスワードを設定し、再起動してからトンネルを開始してください。',
 } as const;

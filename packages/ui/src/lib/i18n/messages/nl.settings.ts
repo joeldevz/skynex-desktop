@@ -363,7 +363,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Header verwijderen',
   'settings.remoteInstances.direct.actions.add': 'Server toevoegen',
   'settings.remoteInstances.direct.import.description': 'Plak een verbindingslink van een andere Skynex-server.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'Link importeren',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'Ongeldige Skynex-verbindingslink.',
   'settings.remoteInstances.direct.state.loading': 'Instanties laden...',
@@ -2632,4 +2632,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} is weer ingeschakeld',
   'settings.agents.sidebar.toast.disableFailed': 'De agent kon niet worden uitgeschakeld: het configuratiebestand kon niet worden geschreven',
   'settings.agents.sidebar.toast.enableFailed': 'De agent kon niet worden ingeschakeld: het configuratiebestand kon niet worden geschreven',
+  'settings.openchamber.tunnel.password.description': 'Stel een wachtwoord in en sla op en herstart voordat je een openbare tunnel start.',
+  'settings.openchamber.tunnel.password.placeholder': 'Voer een wachtwoord in',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Stel hierboven een wachtwoord in en sla op en herstart voordat je de tunnel start.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Stel op deze server een UI-wachtwoord in en herstart deze voordat je de tunnel start.',
 } as const;

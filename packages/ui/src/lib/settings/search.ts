@@ -750,8 +750,16 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     page: 'general',
     titleKey: 'settings.openchamber.desktopPassword.field.password',
     descriptionKey: 'settings.openchamber.desktopPassword.field.passwordDescription',
-    keywords: ['desktop', 'password', 'auth', 'login'],
+    keywords: ['desktop', 'ui', 'password', 'auth', 'login'],
     isAvailable: (ctx) => ctx.isDesktopLocalOrigin,
+  },
+  {
+    id: 'tunnel.ui-password',
+    page: 'tunnel',
+    titleKey: 'settings.openchamber.desktopPassword.field.password',
+    descriptionKey: 'settings.openchamber.tunnel.password.description',
+    keywords: ['tunnel', 'ui', 'password', 'auth', 'login', 'public access'],
+    isAvailable: (ctx) => ctx.isDesktop && ctx.isDesktopLocalOrigin && !ctx.isVSCode && !ctx.enterpriseMode,
   },
   {
     id: 'sessions.desktop-lan-access',

@@ -362,7 +362,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'إزالة الترويسة',
   'settings.remoteInstances.direct.actions.add': 'إضافة خادم',
   'settings.remoteInstances.direct.import.description': 'الصق رابط اتصال من خادم Skynex آخر.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?…',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?…',
   'settings.remoteInstances.direct.import.action': 'استيراد الرابط',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'رابط اتصال Skynex غير صالح.',
   'settings.remoteInstances.direct.state.loading': 'جارٍ تحميل النسخ…',
@@ -2616,4 +2616,8 @@ export const settingsDict = {
   ...guestIntegrationsI18n.ar,
   ...extensionsSettingsI18n.ar,
   ...settingsLayoutI18n.ar,
+  'settings.openchamber.tunnel.password.description': 'عيّن كلمة مرور ثم احفظ وأعد التشغيل قبل بدء نفق عام.',
+  'settings.openchamber.tunnel.password.placeholder': 'أدخل كلمة المرور',
+  'settings.openchamber.tunnel.password.requiredLocal': 'عيّن كلمة مرور أعلاه ثم احفظ وأعد التشغيل قبل بدء النفق.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'عيّن كلمة مرور للواجهة على هذا الخادم وأعد تشغيله قبل بدء النفق.',
 } as const;

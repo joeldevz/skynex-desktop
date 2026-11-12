@@ -342,7 +342,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Header entfernen',
   'settings.remoteInstances.direct.actions.add': 'Server hinzufügen',
   'settings.remoteInstances.direct.import.description': 'Füge einen Verbindungslink von einem anderen Skynex-Server ein.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'Link importieren',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'Ungültiger Skynex-Verbindungslink.',
   'settings.remoteInstances.direct.state.loading': 'Instanzen werden geladen...',
@@ -2633,4 +2633,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} ist wieder aktiviert',
   'settings.agents.sidebar.toast.disableFailed': 'Der Agent konnte nicht deaktiviert werden: Die Konfigurationsdatei ließ sich nicht schreiben',
   'settings.agents.sidebar.toast.enableFailed': 'Der Agent konnte nicht aktiviert werden: Die Konfigurationsdatei ließ sich nicht schreiben',
+  'settings.openchamber.tunnel.password.description': 'Lege ein Passwort fest und speichere und starte neu, bevor du einen öffentlichen Tunnel startest.',
+  'settings.openchamber.tunnel.password.placeholder': 'Passwort eingeben',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Lege oben ein Passwort fest und speichere und starte neu, bevor du den Tunnel startest.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Lege auf diesem Server ein UI-Passwort fest und starte ihn neu, bevor du den Tunnel startest.',
 };

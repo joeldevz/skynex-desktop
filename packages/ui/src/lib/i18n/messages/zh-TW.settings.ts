@@ -335,7 +335,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.actions.add': 'Add header',
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': '新增直接連線',
-  'settings.remoteInstances.direct.import.description': '貼上 connect-url 輸出或 openchamber://connect 連結來匯入。',
+  'settings.remoteInstances.direct.import.description': '貼上 connect-url 輸出或 skynex-app://connect 連結來匯入。',
   'settings.remoteInstances.direct.import.placeholder': '貼上連線連結',
   'settings.remoteInstances.direct.import.action': '匯入連線',
   'settings.remoteInstances.direct.error.invalidConnectLink': '連線連結無效',
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '已重新啟用 {name}',
   'settings.agents.sidebar.toast.disableFailed': '無法停用代理：無法寫入其設定檔',
   'settings.agents.sidebar.toast.enableFailed': '無法啟用代理：無法寫入其設定檔',
+  'settings.openchamber.tunnel.password.description': '設定密碼，並在啟動公開通道前儲存並重新啟動。',
+  'settings.openchamber.tunnel.password.placeholder': '輸入密碼',
+  'settings.openchamber.tunnel.password.requiredLocal': '請先在上方設定密碼、儲存並重新啟動，再啟動通道。',
+  'settings.openchamber.tunnel.password.requiredRemote': '請在此伺服器設定 UI 密碼並重新啟動，再啟動通道。',
 } as const;

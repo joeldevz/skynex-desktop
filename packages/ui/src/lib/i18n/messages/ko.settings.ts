@@ -330,7 +330,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Remove header',
   'settings.remoteInstances.direct.actions.add': '서버 추가',
   'settings.remoteInstances.direct.import.description': '다른 Skynex 서버에서 만든 연결 링크를 붙여넣으세요.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': '링크 가져오기',
   'settings.remoteInstances.direct.error.invalidConnectLink': '잘못된 Skynex 연결 링크입니다.',
   'settings.remoteInstances.direct.state.loading': '서버를 불러오는 중...',
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name}을(를) 다시 활성화했습니다',
   'settings.agents.sidebar.toast.disableFailed': '에이전트를 비활성화하지 못했습니다. 설정 파일에 쓸 수 없습니다',
   'settings.agents.sidebar.toast.enableFailed': '에이전트를 활성화하지 못했습니다. 설정 파일에 쓸 수 없습니다',
+  'settings.openchamber.tunnel.password.description': '공개 터널을 시작하기 전에 비밀번호를 설정하고 저장한 다음 다시 시작하세요.',
+  'settings.openchamber.tunnel.password.placeholder': '비밀번호 입력',
+  'settings.openchamber.tunnel.password.requiredLocal': '위에서 비밀번호를 설정하고 저장한 다음 다시 시작한 후 터널을 시작하세요.',
+  'settings.openchamber.tunnel.password.requiredRemote': '이 서버에서 UI 비밀번호를 설정하고 다시 시작한 후 터널을 시작하세요.',
 } as const;

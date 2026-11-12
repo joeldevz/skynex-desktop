@@ -2,12 +2,13 @@ import React from 'react';
 import QRCode from 'qrcode';
 import { toast } from '@/components/ui';
 import { runtimeFetch } from '@/lib/runtime-fetch';
+import { tunnelStartResponseSchema } from '@/lib/tunnelStartResponse';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Icon } from "@/components/icon/Icon";
-import { requestFileAccess, type DesktopSettings } from '@/lib/desktop';
+import { requestFileAccess, isDesktopLocalOriginActive, isDesktopShell, type DesktopSettings } from '@/lib/desktop';
 import { loadDesktopSettings, updateDesktopSettings } from '@/lib/persistence';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { useUIStore, type TimeFormatPreference } from '@/stores/useUIStore';
 import { useDurationTickerNow, useWaitingBlink } from '@/hooks/useDurationTicker';
 import { SettingsChipGroup, SettingsFieldRow, SettingsSection, SettingsStackedField, SettingsGroupTitle, SETTINGS_FIELD_LABEL_CLASS, SETTINGS_CALLOUT_TITLE_CLASS, SETTINGS_DESCRIPTION_CLASS, SETTINGS_HELPER_CLASS, SETTINGS_SELECT_ROW_TRIGGER_CLASS } from '@/components/sections/shared/SettingsSection';
 import { SettingsInfoHint } from '@/components/sections/shared/SettingsInfoHint';
+import { DesktopNetworkSettings } from './DesktopNetworkSettings';
 
 type TunnelState =
   | 'checking'
@@ -164,24 +166,6 @@ interface TunnelStatusResponse {
     bootstrapTtlMs?: number | null;
     sessionTtlMs?: number;
   };
-}
-
-interface TunnelStartResponse {
-  ok?: boolean;
-  error?: string;
-  url?: string;
-  connectUrl?: string | null;
-  bootstrapExpiresAt?: number | null;
-  activeTunnelMode?: ApiTunnelMode | null;
-  mode?: ApiTunnelMode;
-  activeSessions?: TunnelSessionRecord[];
-  managedRemoteTunnelTokenPresetIds?: string[];
-  localPort?: number;
-  replacedTunnel?: boolean;
-  revokedBootstrapCount?: number;
-  invalidatedSessionCount?: number;
-  /** Tailscale's page for turning on HTTPS or Funnel for the tailnet. */
-  approvalUrl?: string;
 }
 
 interface TunnelProviderModeDescriptor {
@@ -411,6 +395,7 @@ export const TunnelSettings: React.FC = () => {
   const [activeTunnelMode, setActiveTunnelMode] = React.useState<TunnelMode | null>(null);
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [passwordRequired, setPasswordRequired] = React.useState(false);
   const [managedRemoteValidationError, setManagedRemoteValidationError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [isSavingTtl, setIsSavingTtl] = React.useState(false);
@@ -440,6 +425,12 @@ export const TunnelSettings: React.FC = () => {
   const [localPort, setLocalPort] = React.useState<number | null>(null);
   const managedLocalConfigExtensionError = t(MANAGED_LOCAL_CONFIG_EXTENSION_ERROR_KEY);
   const managedLocalConfigFileInputRef = React.useRef<HTMLInputElement>(null);
+  const passwordRequiredLocal = isDesktopShell() && isDesktopLocalOriginActive();
+  React.useEffect(() => {
+    if (passwordRequired && passwordRequiredLocal) {
+      document.getElementById('tunnel-ui-password')?.focus();
+    }
+  }, [passwordRequired, passwordRequiredLocal]);
   const isManagedLocalConfigPathInvalid = React.useMemo(() => {
     if (!managedLocalConfigPath) {
       return false;
@@ -872,6 +863,7 @@ export const TunnelSettings: React.FC = () => {
 
   const handleStart = React.useCallback(async () => {
     setErrorMessage(null);
+    setPasswordRequired(false);
     setApprovalUrl(null);
     setManagedRemoteValidationError(null);
 
@@ -920,9 +912,17 @@ export const TunnelSettings: React.FC = () => {
           httpsPort: selectedHttpsPort ?? undefined,
         }),
       });
-      const data = (await res.json()) as TunnelStartResponse;
+      const data = tunnelStartResponseSchema.parse(await res.json());
 
       if (!res.ok || !data.ok) {
+        if (res.status === 403 && data.code === 'ui_password_required') {
+          setState('idle');
+          setPasswordRequired(true);
+          setErrorMessage(t(passwordRequiredLocal
+            ? 'settings.openchamber.tunnel.password.requiredLocal'
+            : 'settings.openchamber.tunnel.password.requiredRemote'));
+          return;
+        }
         if (tunnelMode === 'managed-remote' && typeof data.error === 'string' && data.error.includes('Managed remote tunnel token is required')) {
           setState('idle');
           setManagedRemoteValidationError(t('settings.openchamber.tunnel.toast.managedRemoteTokenRequiredBeforeStarting'));
@@ -986,6 +986,7 @@ export const TunnelSettings: React.FC = () => {
       toast.error(t('settings.openchamber.tunnel.toast.startFailed'));
     }
   }, [
+    passwordRequiredLocal,
     managedLocalConfigExtensionError,
     managedRemoteTunnelPresets,
     saveTunnelSettings,
@@ -1636,6 +1637,8 @@ export const TunnelSettings: React.FC = () => {
       </SettingsSection>
 
       {/* Starting the tunnel, and once it runs: where to reach it. */}
+      {passwordRequiredLocal ? <DesktopNetworkSettings variant="tunnel" /> : null}
+      <p role={passwordRequired ? 'alert' : undefined} className="min-h-5 typography-meta text-[var(--status-error)]">{passwordRequired ? errorMessage : null}</p>
       <SettingsSection
         title={t('settings.layout.tunnel.section.connection')}
         settingsItem="tunnel.start"

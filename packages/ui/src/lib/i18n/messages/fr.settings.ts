@@ -2368,7 +2368,7 @@ export const settingsDict = {
   'settings.remoteInstances.direct.headers.removeAria': 'Supprimer l’en-tête',
   'settings.remoteInstances.direct.actions.add': 'Ajouter le serveur',
   'settings.remoteInstances.direct.import.description': 'Collez un lien de connexion provenant d’un autre serveur Skynex.',
-  'settings.remoteInstances.direct.import.placeholder': 'openchamber://connect?...',
+  'settings.remoteInstances.direct.import.placeholder': 'skynex-app://connect?...',
   'settings.remoteInstances.direct.import.action': 'Importer le lien',
   'settings.remoteInstances.direct.error.invalidConnectLink': 'Lien de connexion Skynex invalide.',
   'settings.remoteInstances.direct.state.loading': 'Chargement des instances...',
@@ -2642,4 +2642,8 @@ export const settingsDict = {
   'settings.agents.sidebar.toast.agentEnabled': '{name} est de nouveau activé',
   'settings.agents.sidebar.toast.disableFailed': 'Impossible de désactiver l’agent : son fichier de configuration n’a pas pu être écrit',
   'settings.agents.sidebar.toast.enableFailed': 'Impossible d’activer l’agent : son fichier de configuration n’a pas pu être écrit',
+  'settings.openchamber.tunnel.password.description': 'Définissez un mot de passe, puis enregistrez et redémarrez avant de lancer un tunnel public.',
+  'settings.openchamber.tunnel.password.placeholder': 'Saisissez un mot de passe',
+  'settings.openchamber.tunnel.password.requiredLocal': 'Définissez un mot de passe ci-dessus, puis enregistrez et redémarrez avant de lancer le tunnel.',
+  'settings.openchamber.tunnel.password.requiredRemote': 'Définissez un mot de passe UI sur ce serveur et redémarrez-le avant de lancer le tunnel.',
 } as const;
