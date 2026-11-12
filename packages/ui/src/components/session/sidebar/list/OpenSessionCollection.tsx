@@ -17,6 +17,7 @@ import { useSessionUnread } from '@/sync/session-unread';
 import { useGlobalBlockingRequestsStore } from '@/sync/global-blocking-requests';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { toast } from '@/components/ui';
+import { SessionActivityDuration } from '@/components/session/SessionActivityDuration';
 
 const HELIX_DOTS = Array.from({ length: 25 }, (_, index) => {
   const column = index % 5;
@@ -87,15 +88,15 @@ function OpenSessionRow({ session, selected, pending, onSelect, onClose }: {
   const title = liveTitle || session.title || t('sessions.sidebar.session.untitled');
   const workspaceName = session.scope?.workspaceName ?? session.workspaceAssignment?.workspaceName;
   return <li ref={sortable.setNodeRef} style={{ transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }} className={`min-w-0 ${sortable.isDragging ? 'opacity-60' : ''}`}>
-    <div className={`relative rounded-md ${selected ? 'bg-interactive-selection/70 text-interactive-selection-foreground' : 'has-[button:hover]:bg-interactive-hover'}`}>
+    <div className={`group relative rounded-md ${selected ? 'bg-interactive-selection/70 text-interactive-selection-foreground' : 'has-[button:hover]:bg-interactive-hover'}`}>
       <Button ref={sortable.setActivatorNodeRef} {...sortable.attributes} {...sortable.listeners} variant="ghost" aria-label={title} aria-pressed={selected} className="h-auto w-full min-w-0 flex-col items-stretch gap-0.5 py-2 pe-10 text-start whitespace-normal touch-pan-y hover:bg-transparent [@media(pointer:coarse)]:min-h-12 [@media(pointer:coarse)]:pe-14" onClick={() => onSelect(session.sessionId)}>
         <span className="flex min-w-0 items-center gap-2">
           <span dir="auto" className="oc-ui-start-align min-w-0 flex-1 truncate font-normal" title={title}>{title}</span>
-          <span className="inline-flex size-3.5 shrink-0 items-center justify-center">{permissionRequired ? <span role="img" aria-label={t('sessions.sidebar.session.status.permissionRequired')} title={t('sessions.sidebar.session.status.permissionRequired')} className="text-[var(--status-warning-text)]"><Icon name="shield-keyhole" className="size-3.5" /></span> : unread && !turnActivity ? <span role="img" aria-label={t('sessions.sidebar.session.status.unread')} title={t('sessions.sidebar.session.status.unread')} className="size-2 rounded-full bg-status-info" /> : <OpenSessionActivity id={session.sessionId} />}</span>
+          <span className="inline-flex shrink-0 items-center gap-1.5">{permissionRequired ? <span className="inline-flex size-3.5 items-center justify-center" role="img" aria-label={t('sessions.sidebar.session.status.permissionRequired')} title={t('sessions.sidebar.session.status.permissionRequired')}><Icon name="shield-keyhole" className="size-3.5 text-[var(--status-warning-text)]" /></span> : unread && !turnActivity ? <span role="img" aria-label={t('sessions.sidebar.session.status.unread')} title={t('sessions.sidebar.session.status.unread')} className="size-2 rounded-full bg-status-info" /> : <OpenSessionActivity id={session.sessionId} />}{turnActivity === 'running' && <SessionActivityDuration sessionId={session.sessionId} running className="typography-meta" />}</span>
         </span>
         {workspaceName && <span dir="auto" className="oc-ui-start-align truncate typography-meta font-normal text-muted-foreground" title={workspaceName}>{formatWorkspaceLabel(workspaceName)}</span>}
       </Button>
-      <Button variant="ghost" size="xs" disabled={pending} className="absolute end-1 top-1.5 px-1 text-muted-foreground hover:bg-transparent hover:text-foreground [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:top-0.5" aria-label={t('workspaces.closeSession', { name: title })} title={t('dialog.common.actions.close')} onClick={() => onClose(session)}>
+      <Button variant="ghost" size="xs" disabled={pending} className="absolute end-1 top-1.5 px-1 text-muted-foreground opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-within:opacity-100 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:top-0.5 [@media(pointer:coarse)]:opacity-100" aria-label={t('workspaces.closeSession', { name: title })} title={t('dialog.common.actions.close')} onClick={() => onClose(session)}>
         <Icon name="close" className="size-3.5" />
       </Button>
     </div>

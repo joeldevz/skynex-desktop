@@ -257,8 +257,10 @@ test('C1 reviewed, absent, child, and archived sessions have no unread marker', 
 test('C1 running activity takes precedence over the completed unread marker', async () => {
   const { useGlobalSessionsStore } = await import('@/stores/useGlobalSessionsStore');
   const { replaceGlobalSessionStatusById } = await import('@/sync/global-session-status');
+  const { useSessionActivityTimingStore } = await import('@/sync/session-activity-timing');
   useGlobalSessionsStore.getState().applySnapshot([authoritativeSession({ idle: 10, viewed: 5 })], [], 'ready');
   replaceGlobalSessionStatusById(new Map([['one', { status: { type: 'busy' } as SessionStatus, directory: '/projects/app' }]]));
+  useSessionActivityTimingStore.setState({ startedAt: new Map([['one', Date.now() - 60_000]]), settledMs: new Map() });
   try {
     await withCollection(async (ui) => {
       await ui.render({ sessions, selectedId: null, onSelect: () => {}, onClose: async () => ({ kind: 'closed' }) });
@@ -267,9 +269,12 @@ test('C1 running activity takes precedence over the completed unread marker', as
         /active|running/i.test(`${node.getAttribute('aria-label') ?? ''} ${node.getAttribute('title') ?? ''}`))).toBe(true);
       expect([...row.querySelectorAll('[aria-label], [title]')].some((node) =>
         /new response|unreviewed/i.test(`${node.getAttribute('aria-label') ?? ''} ${node.getAttribute('title') ?? ''}`))).toBe(false);
+      expect(row.textContent).toMatch(/1m/);
+      expect(ui.container.querySelector('[aria-label="Close Saved app session"]')?.className).toContain('group-hover:opacity-100');
     });
   } finally {
     replaceGlobalSessionStatusById(new Map());
+    useSessionActivityTimingStore.setState({ startedAt: new Map(), settledMs: new Map() });
     useGlobalSessionsStore.getState().resetForRuntimeSwitch();
   }
 });
