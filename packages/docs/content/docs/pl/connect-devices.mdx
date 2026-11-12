@@ -45,13 +45,13 @@ Jeśli serwer działa headless (bez otwartego UI), utwórz link połączenia z t
 Dla urządzenia w tej samej sieci:
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 Dla urządzenia, które ma łączyć się **z dowolnego miejsca** — odpowiednik wybrania opcji **Wszędzie** w oknie dialogowym:
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 Link `--relay` zawiera obie trasy, dokładnie jak okno dialogowe: urządzenie łączy się bezpośrednio przez sieć lokalną, gdy może dotrzeć do serwera, a poza domem przełącza się na [Private Relay](/pl/private-relay/). Relay uruchamia się sam: działająca instancja podejmuje link w ciągu minuty, a zatrzymana — przy następnym starcie.
@@ -63,7 +63,7 @@ Wypisany link i kod QR działają dokładnie tak samo jak te z okna ustawień �
 Aby sparować aplikację desktopową, otwórz wypisany link na komputerze, na którym ta aplikacja działa. Aplikacja poprosi o potwierdzenie i się połączy. Na macOS:
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## Powiązane

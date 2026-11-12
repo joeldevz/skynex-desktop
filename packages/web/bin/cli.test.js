@@ -1066,8 +1066,11 @@ describe('cli entry detection', () => {
   });
 
   it('accepts wrapper binary name fallback when requested', () => {
-    const wrapperPath = '/home/user/.local/bin/openchamber';
-    expect(isModuleCliExecution(wrapperPath, moduleUrl, undefined, 'openchamber')).toBe(true);
+    const appWrapperPath = '/home/user/.local/bin/skynex-app';
+    const legacyWrapperPath = '/home/user/.local/bin/openchamber';
+    const supportedNames = ['skynex-app', 'openchamber'];
+    expect(isModuleCliExecution(appWrapperPath, moduleUrl, undefined, supportedNames)).toBe(true);
+    expect(isModuleCliExecution(legacyWrapperPath, moduleUrl, undefined, supportedNames)).toBe(true);
   });
 
   it('normalizes direct paths when realpath fails', () => {

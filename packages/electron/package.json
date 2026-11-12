@@ -1,17 +1,17 @@
 {
   "name": "@openchamber/electron",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
-  "description": "Electron desktop runtime for OpenChamber",
+  "description": "Electron desktop runtime for Skynex",
   "author": "OpenChamber",
-  "homepage": "https://openchamber.dev",
+  "homepage": "https://github.com/joeldevz/skynex-desktop",
   "type": "module",
   "main": "./dist-bundle/entry.mjs",
   "opencodeCli": {
     "version": "2.1.4"
   },
   "dependencies": {
-    "@openchamber/web": "workspace:*",
+    "@openchamber/web": "workspace:0.1.2",
     "electron-context-menu": "^4.1.2",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
@@ -58,8 +58,16 @@
     "lint": "node -e \"process.exit(0)\""
   },
   "build": {
-    "appId": "dev.openchamber.desktop",
+    "appId": "dev.skynex.desktop",
     "productName": "Skynex",
+    "protocols": [
+      {
+        "name": "Skynex",
+        "schemes": [
+          "skynex-app"
+        ]
+      }
+    ],
     "asarUnpack": [
       "node_modules/@openchamber/web/server/built-in-extensions/**/*",
       "node_modules/@openchamber/web/server/lib/git/credential-helper.js",
@@ -122,7 +130,7 @@
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "extendInfo": {
         "CFBundleIconName": "AppIcon",
-        "NSLocalNetworkUsageDescription": "OpenChamber needs access to devices and services on your local network."
+        "NSLocalNetworkUsageDescription": "Skynex needs access to devices and services on your local network."
       },
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -149,18 +157,18 @@
         "rpm"
       ],
       "category": "Development",
-      "maintainer": "OpenChamber <security@openchamber.dev>",
-      "vendor": "OpenChamber",
-      "synopsis": "Desktop runtime for OpenChamber",
+      "maintainer": "Skynex <joeldevz@users.noreply.github.com>",
+      "vendor": "Skynex",
+      "synopsis": "Desktop runtime for Skynex",
       "icon": "resources/icons/app-icon.png",
-      "executableName": "openchamber",
+      "executableName": "skynex-app",
       "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
       "desktop": {
         "entry": {
-          "Name": "OpenChamber",
-          "Comment": "Desktop runtime for OpenChamber",
-          "Icon": "openchamber",
-          "StartupWMClass": "openchamber"
+          "Name": "Skynex",
+          "Comment": "Desktop runtime for Skynex",
+          "Icon": "skynex-app",
+          "StartupWMClass": "skynex-app"
         }
       }
     },

@@ -45,13 +45,13 @@ Sunucu başsız çalışıyorsa, yani açık bir UI yoksa, o makinedeki bir term
 Aynı ağdaki bir cihaz için:
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 Her yerden bağlanması gereken bir cihaz için. Diyalogda **Anywhere** seçmeye denktir:
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 `--relay` bağlantısı, diyalogdaki gibi iki yolu da taşır. Cihaz sunucuya erişebildiğinde yerel ağ üzerinden doğrudan bağlanır ve dışarıdayken [Private Relay](/private-relay/) ile devam eder. Relay kendi kendine başlar. Çalışan bir örnek bağlantıyı bir dakika içinde alır, durdurulmuş bir örnek ise sonraki açılışında alır.
@@ -63,7 +63,7 @@ Yazdırılan bağlantı ve QR kodu, ayar iletişim kutusundakilerle tam aynıdı
 Bir masaüstü uygulamasını eşleştirmek için yazdırılan bağlantıyı o uygulamanın çalıştığı makinede açın. Uygulama onay ister ve bağlanır. macOS'ta:
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## İlgili

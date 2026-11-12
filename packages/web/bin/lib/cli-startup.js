@@ -8,6 +8,8 @@ import { getDataDir } from './cli-paths.js';
 import { hasUiPasswordConfigured } from './cli-network.js';
 import { searchPathFor } from './cli-executables.js';
 import { injectedEnvKeys } from '../../server/lib/injected-env.js';
+import { getManagedSkynexAppInstallContext } from '../../server/lib/skynex-app-updater.js';
+import { isOwnedSkynexAppLauncher } from '../../server/lib/skynex-app-launcher.js';
 
 const STARTUP_SERVICE_ID = 'dev.openchamber.web';
 
@@ -185,6 +187,14 @@ function stablePnpmEntrypoint(resolved, exists = fs.existsSync) {
 }
 
 function resolveCliEntrypoint() {
+  const managed = getManagedSkynexAppInstallContext();
+  if (managed) {
+    const dispatcher = path.join(managed.root, 'launcher.mjs');
+    if (!isOwnedSkynexAppLauncher(dispatcher, managed.root)) {
+      throw new Error('Managed startup launcher is missing or unowned. Repair the installation with the Skynex app installer, then run startup enable again.');
+    }
+    return dispatcher;
+  }
   const entry = typeof process.argv[1] === 'string' && process.argv[1].trim().length > 0
     ? process.argv[1]
     : path.join(__dirname, 'cli.js');
@@ -275,7 +285,7 @@ function buildSystemdUserService(options = {}) {
   const args = buildStartupArgs(options).map((arg) => `"${systemdEscapeArg(arg)}"`).join(' ');
   const envFilePath = getStartupEnvFilePath();
   return `[Unit]
-Description=OpenChamber web server
+Description=Skynex web server
 After=network-online.target
 
 [Service]

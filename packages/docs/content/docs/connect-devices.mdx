@@ -45,13 +45,13 @@ If the server runs headless (no UI open), create a connection link from a termin
 For a device on the same network:
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 For a device that should connect from **anywhere** — the equivalent of picking **Anywhere** in the dialog:
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 A `--relay` link carries both routes, just like the dialog: the device connects directly over your local network when it can reach the server, and falls back to the [Private Relay](/private-relay/) when away. The relay starts on its own: a running instance picks the link up within a minute, a stopped one on its next launch.
@@ -63,7 +63,7 @@ The printed link and QR code work exactly like the ones from the settings dialog
 To pair a desktop app, open the printed link on the machine where that app runs. The app asks you to confirm, then connects. On macOS:
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## Related

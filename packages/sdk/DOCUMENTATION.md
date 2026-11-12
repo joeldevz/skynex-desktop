@@ -23,7 +23,7 @@ Public author pages live in `packages/docs/content/docs/sdk.mdx`, `sdk/host.mdx`
 
 ## Invariants
 
-- `scripts/bump-version.mjs` refreshes `bun.lock` after bumping package versions; include both in the release commit. Bun resolves `workspace:*` in published archives from lockfile versions, and a frozen install can succeed with stale versions. `scripts/bump-version.test.mjs` covers the bump, frozen install, and packed dependency versions together.
+- `scripts/bump-version.mjs` updates internal `workspace:*` ranges to the release version and refreshes `bun.lock`; include both in the release commit. Bun can pack `workspace:*` using a stale lockfile version even after a frozen install. Versioned workspace ranges keep the packed dependency aligned with the bumped manifests. `scripts/bump-version.test.mjs` covers the bump, frozen install, and packed dependency versions together.
 
 - Extension activity uses `useConfigStore.isConnected` plus live status records and directory `sessionStatusReady` authority. `useUIStore.eventStreamStatus` is an unmaintained diagnostic field, not a connection gate; its default `idle` must not hide known running or idle sessions as `unknown`.
 

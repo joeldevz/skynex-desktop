@@ -1,6 +1,6 @@
 ---
 title: Installeren
-description: Installeer OpenChamber op de desktop, op het web, in VS Code of op uw telefoon.
+description: Installeer Skynex op de desktop of start de webapp.
 ---
 
 # Installeren
@@ -9,30 +9,36 @@ Kies de app die past bij hoe u werkt:
 
 - als desktopapp voor macOS, Windows en Linux
 - als webapp via de CLI, ook te installeren als app op uw telefoon via een PWA
-- als VS Code-extensie, ook voor Cursor, Windsurf en Trae
-- als mobiele app voor iPhone en Android, in openbare bèta
 
 ## Desktop
 
-Download de nieuwste versie van de [downloadpagina](https://openchamber.dev/download/) of van [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest) en open die. Voor Linux zijn er `.deb`, `.rpm` en AppImage.
+Download een beschikbare build van [Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest). De releasebestanden vermelden de beschikbare platforms en formaten.
 
-De desktopapp heeft een eigen exemplaar van [OpenCode](https://opencode.ai) aan boord (de AI-codeeragent waarop OpenChamber draait), dus u hoeft verder niets te installeren.
+De desktopapp bevat de codeeragent [OpenCode](https://opencode.ai).
 
 ## Web en PWA
 
 De webapp heeft [OpenCode](https://opencode.ai) en Node.js 24.14 of nieuwer nodig op de machine waarop hij draait.
 
+Het installatieprogramma vereist een release met CLI-bestanden. De gepubliceerde versie 0.1.1 bevat geen CLI-bestanden of `skynex-app://`-links. De wijzigingen in deze checkout zijn niet gepubliceerd. Voer dit pas uit zodra een release de CLI-bestanden bevat:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
-Open de URL die de CLI toont (meestal `http://localhost:3000`). U ziet dan de sessielijst van OpenChamber. Wilt u hem bij de hand hebben, gebruik dan de optie "Installeren" in de adresbalk van de browser en voeg hem toe als app.
+De installatie is optioneel en per gebruiker, met een vaste launcher. Het installatieprogramma en de native bundels komen uit dezelfde release. De bundels bevatten de app-afhankelijkheden en SDK. `skynex-app` start de app; `skynex` beheert agenttools. De alias `openchamber` blijft bestaan voor SSH en services.
+
+Open de getoonde URL, meestal `http://localhost:3000`. U ziet de Skynex-sessielijst. Voeg de PWA toe via de installatieoptie van uw browser.
+
+`skynex-app update` controleert SHA256 vóór activering en bewaart de vorige versie. Servers blijven draaien tot u expliciet `skynex-app restart` uitvoert. Broncode-installaties en onbeheerde installaties weigeren updates zonder bestanden of servers te wijzigen. Er is geen npm-terugval. De webapp kan een handmatige CLI-opdracht vereisen.
+
+Nieuwe links gebruiken alleen `skynex-app://`. Oude `openchamber://`-links worden niet geaccepteerd. Profielen, opslagpaden en omgevingsvariabelen behouden hun technische namen.
 
 ## VS Code
 
-Installeer OpenChamber vanuit de [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber). Cursor, Windsurf en Trae installeren hem vanuit [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber). De extensie heeft een geïnstalleerde [OpenCode](https://opencode.ai) nodig; daarna opent de OpenChamber-weergave in de zijbalk.
+De OpenChamber-vermeldingen in [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) en [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) zijn van het upstream-project. Ze verspreiden Skynex niet.
 
 ## Mobiel
 
-Installeer de iPhone-app via TestFlight of de Android-app uit de nieuwste release en koppel hem daarna aan uw computer. [Mobiele apps en PWA](/nl/mobile/) beschrijft beide stappen.
+De [mobiele handleiding](/nl/mobile/) beschrijft upstream-apps. Een mobiele Skynex-publicatie is hier niet bevestigd. Gebruik de webapp of PWA op uw telefoon.

@@ -1,10 +1,3 @@
-import { requestServerShutdown } from './cli-http.js';
-import { discoverRunningInstances } from './cli-lifecycle.js';
-import {
-  readInstanceOptions,
-  removePidFile,
-  stopInstanceProcess,
-} from './cli-process.js';
 import {
   intro as clackIntro,
   outro as clackOutro,
@@ -12,131 +5,50 @@ import {
   isQuietMode,
   shouldRenderHumanOutput,
   createSpinner,
-  printJson,
   logStatus,
 } from '../cli-output.js';
 
-function createUpdateCommand({ importFromFilePath, packageManagerPath, serveCommand }) {
+function createUpdateCommand({ importFromFilePath, packageManagerPath }) {
   return async function updateCommand(options = {}) {
-    const showOutput = shouldRenderHumanOutput(options);
-    const updateSpin = createSpinner(options);
+    const { isManagedInstall, checkForUpdates, executeUpdate, getCurrentVersion } = await importFromFilePath(packageManagerPath);
+    if (!isManagedInstall()) throw new Error('This source or unmanaged installation cannot update itself. Install a standalone skynex-app release first.');
 
-    const {
-      checkForUpdates,
-      executeUpdate,
-      detectPackageManager,
-      getCurrentVersion,
-    } = await importFromFilePath(packageManagerPath);
-
-    const runningInstances = await discoverRunningInstances();
     const currentVersion = getCurrentVersion();
+    const showOutput = shouldRenderHumanOutput(options);
+    const spinner = createSpinner(options);
+    if (showOutput) clackIntro('Skynex Update');
+    if (showOutput && !spinner) logStatus('info', `current version: ${currentVersion}`);
+    spinner?.start('Checking for updates...');
 
-    if (showOutput) {
-      clackIntro('OpenChamber Update');
-    }
-
-    if (showOutput && !updateSpin) {
-      logStatus('info', `current version: ${currentVersion}`);
-    }
-
-    updateSpin?.start('Checking for updates...');
-
-    const updateInfo = await checkForUpdates();
-    if (updateInfo.error) {
-      updateSpin?.error('Update check failed');
-      if (showOutput) {
-        clackOutro('update failed');
-      }
-      throw new Error(updateInfo.error);
-    }
-    if (!updateInfo.available) {
-      if (isJsonMode(options)) {
-        printJson({
-          currentVersion,
-          latestVersion: updateInfo.version || currentVersion,
-          updated: false,
-        });
+    try {
+      const updateInfo = await checkForUpdates({ currentVersion });
+      if (updateInfo.error) throw new Error(updateInfo.error);
+      if (!updateInfo.available) {
+        spinner?.stop('Already up to date');
+        if (isJsonMode(options)) process.stdout.write(`${JSON.stringify({ currentVersion, latestVersion: updateInfo.version || currentVersion, updated: false })}\n`);
+        else if (showOutput) {
+          if (!spinner) logStatus('success', 'you are running the latest version');
+          clackOutro('no update needed');
+        } else if (isQuietMode(options)) process.stdout.write(`up-to-date ${currentVersion}\n`);
         return;
       }
-      if (showOutput && !updateSpin) {
-        logStatus('success', 'you are running the latest version');
-      }
-      updateSpin?.stop('Already up to date');
-      if (showOutput) {
-        clackOutro('no update needed');
-      } else if (isQuietMode(options)) {
-        process.stdout.write(`up-to-date ${currentVersion}\n`);
-      }
-      return;
-    }
 
-    if (showOutput && !updateSpin) {
-      logStatus('info', `updating ${updateInfo.currentVersion || currentVersion} -> ${updateInfo.version || 'latest'}`);
-    }
-    updateSpin?.message(`Updating to ${updateInfo.version || 'latest'}...`);
+      const targetVersion = updateInfo.version;
+      spinner?.message(`Installing ${targetVersion}...`);
+      if (showOutput && !spinner) logStatus('info', `updating ${currentVersion} -> ${targetVersion}`);
+      const result = await executeUpdate({ targetVersion, silent: isJsonMode(options) || isQuietMode(options) });
+      if (!result.success) throw new Error(result.error || `Update failed with exit code ${result.exitCode}`);
 
-    if (runningInstances.length > 0) {
-      updateSpin?.message(`Stopping ${runningInstances.length} running instance(s)...`);
-      for (const instance of runningInstances) {
-        try {
-          const requested = await requestServerShutdown(instance.port, instance.host);
-          await stopInstanceProcess(instance.pid, {
-            shutdownWaitMs: requested ? 5000 : 0,
-            gracefulTimeoutMs: 2500,
-            forceTimeoutMs: 3000,
-          });
-          removePidFile(instance.pidFilePath);
-        } catch {
-        }
-      }
-    }
-
-    const pm = detectPackageManager();
-    const result = executeUpdate(pm, {
-      targetVersion: updateInfo.version,
-      silent: isJsonMode(options) || isQuietMode(options),
-    });
-    if (!result.success) {
-      updateSpin?.error(result.error || 'Update failed');
-      if (showOutput) {
-        clackOutro('update failed');
-      }
-      throw new Error(result.error || `Update failed with exit code ${result.exitCode}`);
-    }
-
-    if (runningInstances.length > 0) {
-      updateSpin?.message(`Restarting ${runningInstances.length} instance(s)...`);
-      for (const instance of runningInstances) {
-        const storedOptions = readInstanceOptions(instance.instanceFilePath) || { port: instance.port };
-        await serveCommand({
-          port: storedOptions.port || instance.port,
-          host: storedOptions.host,
-          explicitPort: true,
-          uiPassword: storedOptions.uiPassword,
-          suppressStartupSummary: true,
-          suppressUiPasswordWarning: true,
-          quiet: true,
-        });
-      }
-    }
-
-    if (showOutput && !updateSpin) {
-      logStatus('success', `updated to ${updateInfo.version || 'latest'}`);
-    }
-    updateSpin?.stop(`Updated to ${updateInfo.version || 'latest'}`);
-    if (isJsonMode(options)) {
-      printJson({
-        currentVersion,
-        latestVersion: updateInfo.version || 'latest',
-        updated: true,
-        restartedCount: runningInstances.length,
-      });
-      return;
-    }
-    if (showOutput) {
-      clackOutro('update complete');
-    } else if (isQuietMode(options)) {
-      process.stdout.write(`updated ${updateInfo.version || 'latest'}\n`);
+      spinner?.stop(`Updated to ${targetVersion}`);
+      if (isJsonMode(options)) process.stdout.write(`${JSON.stringify({ currentVersion, latestVersion: targetVersion, updated: true, restartedCount: 0 })}\n`);
+      else if (showOutput) {
+        if (!spinner) logStatus('success', `updated to ${targetVersion}`);
+        clackOutro('update complete. Restart the app to use the new version.');
+      } else if (isQuietMode(options)) process.stdout.write(`updated ${targetVersion}\n`);
+    } catch (error) {
+      spinner?.error('Update failed');
+      if (showOutput) clackOutro('update failed');
+      throw error;
     }
   };
 }

@@ -1,194 +1,20 @@
 import { spawnSync } from 'child_process';
-import crypto from 'crypto';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fetchUpdateNotes } from './changelog/update-notes.js';
-import { isEnterpriseMode } from './enterprise-mode.js';
 
-import { resolveNpmRegistryRequest } from './opencode/npm-registry-config.js';
+import { getLatestSkynexAppRelease, getManagedSkynexAppInstallContext, installSkynexAppRelease, isManagedSkynexAppInstall } from './skynex-app-updater.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PACKAGE_NAME = '@openchamber/web';
 const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
-const GITHUB_RELEASES_URL = 'https://github.com/openchamber/openchamber/releases';
-const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/openchamber/openchamber/releases';
 // The reason is kept with the package manager: a later call must still tell
 // a copy no package manager installed from one it did.
 let cachedDetection = null;
 
 function getSpawnSyncBaseOptions() {
   return process.platform === 'win32' ? { windowsHide: true } : {};
-}
-const UPDATE_CHECK_URL = process.env.OPENCHAMBER_UPDATE_API_URL || 'https://api.openchamber.dev/v1/update/check';
-
-function getOpenChamberConfigDir() {
-  if (process.platform === 'win32') {
-    const appData = process.env.APPDATA;
-    if (appData) return path.join(appData, 'openchamber');
-  }
-
-  return path.join(os.homedir(), '.config', 'openchamber');
-}
-
-function sanitizeInstallScope(scope) {
-  if (scope === 'desktop-electron' || scope === 'vscode' || scope === 'web' || scope === 'mobile-capacitor') return scope;
-  return 'web';
-}
-
-function getOrCreateInstallId(scope = 'web') {
-  const configDir = getOpenChamberConfigDir();
-  const normalizedScope = sanitizeInstallScope(scope);
-  const idPath = path.join(configDir, `install-id-${normalizedScope}`);
-
-  try {
-    const existing = fs.readFileSync(idPath, 'utf8').trim();
-    if (existing) return existing;
-  } catch {
-    // Generate new id.
-  }
-
-  const installId = crypto.randomUUID();
-  fs.mkdirSync(configDir, { recursive: true });
-  fs.writeFileSync(idPath, `${installId}\n`, { encoding: 'utf8', mode: 0o600 });
-  return installId;
-}
-
-function mapPlatform(value) {
-  if (value === 'darwin') return 'macos';
-  if (value === 'win32') return 'windows';
-  if (value === 'linux') return 'linux';
-  return 'web';
-}
-
-function mapArch(value) {
-  if (value === 'arm64' || value === 'aarch64') return 'arm64';
-  if (value === 'x64' || value === 'amd64') return 'x64';
-  return 'unknown';
-}
-
-function normalizeAppType(value) {
-  if (value === 'web' || value === 'desktop-electron' || value === 'vscode' || value === 'mobile-capacitor') return value;
-  return 'web';
-}
-
-function normalizeDeviceClass(value) {
-  if (value === 'mobile' || value === 'tablet' || value === 'desktop' || value === 'unknown') return value;
-  return 'unknown';
-}
-
-function normalizePlatform(value) {
-  if (value === 'macos' || value === 'windows' || value === 'linux' || value === 'web' || value === 'android' || value === 'ios') return value;
-  return mapPlatform(process.platform);
-}
-
-function normalizeArch(value) {
-  if (value === 'arm64' || value === 'x64' || value === 'unknown') return value;
-  return mapArch(process.arch);
-}
-
-async function resolveAndroidApkUrl(version, candidateUrl) {
-  if (typeof candidateUrl === 'string') {
-    try {
-      if (new URL(candidateUrl).pathname.toLowerCase().endsWith('.apk')) return candidateUrl;
-    } catch {
-      // Resolve malformed or non-APK values from the authoritative release assets below.
-    }
-  }
-
-  try {
-    const response = await fetch(`${GITHUB_RELEASES_API_URL}/tags/v${version}`, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'openchamber-update-check',
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) return undefined;
-
-    const release = await response.json();
-    const apkAssets = Array.isArray(release?.assets)
-      ? release.assets.filter((asset) => (
-        typeof asset?.name === 'string'
-        && asset.name.toLowerCase().endsWith('.apk')
-        && typeof asset.browser_download_url === 'string'
-      ))
-      : [];
-    const canonicalAsset = apkAssets.find((asset) => /^OpenChamber-.+-android\.apk$/i.test(asset.name));
-    return (canonicalAsset || apkAssets[0])?.browser_download_url;
-  } catch {
-    return undefined;
-  }
-}
-
-async function checkForUpdatesFromApi(currentVersion, options = {}) {
-  try {
-    const appType = normalizeAppType(options.appType);
-    const hostPlatform = mapPlatform(process.platform);
-    const hostArch = mapArch(process.arch);
-    const shouldTrustClientPlatform = appType === 'desktop-electron' || appType === 'vscode' || appType === 'mobile-capacitor';
-    const platform = shouldTrustClientPlatform ? normalizePlatform(options.platform) : hostPlatform;
-    const arch = shouldTrustClientPlatform ? normalizeArch(options.arch) : hostArch;
-    // Enterprise mode keeps the update check (security fixes must reach the
-    // company) but never reports usage, whatever the client asked for.
-    const reportUsage = options.reportUsage !== false && !isEnterpriseMode();
-    const payload = {
-      appType,
-      deviceClass: normalizeDeviceClass(options.deviceClass),
-      platform,
-      arch,
-      channel: 'stable',
-      currentVersion,
-      installId: reportUsage ? (options.installId || getOrCreateInstallId(appType)) : undefined,
-      instanceMode: options.instanceMode || 'unknown',
-      reportUsage,
-    };
-
-    const response = await fetch(UPDATE_CHECK_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (typeof data?.latestVersion !== 'string') return null;
-
-    const versionComparison = compareVersions(data.latestVersion, currentVersion);
-    if (versionComparison < 0) return null;
-
-    const releaseUrl = `${GITHUB_RELEASES_URL}/tag/v${data.latestVersion}`;
-    const downloadUrl = typeof data.downloadUrl === 'string'
-      ? data.downloadUrl
-      : typeof data.download?.url === 'string'
-        ? data.download.url
-        : undefined;
-    const updateAvailable = Boolean(data.updateAvailable) && versionComparison > 0;
-    const mobileDownloadUrl = updateAvailable && appType === 'mobile-capacitor' && platform === 'android'
-      ? await resolveAndroidApkUrl(data.latestVersion, downloadUrl)
-      : undefined;
-    return {
-      available: updateAvailable,
-      version: data.latestVersion,
-      currentVersion,
-      body: typeof data.releaseNotes === 'string' ? data.releaseNotes : undefined,
-      releaseUrl: typeof data.releaseNotesUrl === 'string' ? data.releaseNotesUrl : releaseUrl,
-      downloadUrl: mobileDownloadUrl,
-      nextSuggestedCheckInSec:
-        typeof data.nextSuggestedCheckInSec === 'number' && Number.isFinite(data.nextSuggestedCheckInSec)
-          ? data.nextSuggestedCheckInSec
-          : undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
 function normalizePathForComparison(filePath) {
@@ -503,11 +329,11 @@ export function detectPackageManagerDetails() {
 
 /** The running copy was installed by no package manager, so it cannot update itself. */
 export function isUnmanagedInstall() {
-  return (cachedDetection ?? detectPackageManagerDetails()).reason === 'unmanaged-install';
+  return !isManagedSkynexAppInstall();
 }
 
-export function detectPackageManager() {
-  return detectPackageManagerDetails().packageManager;
+export function isManagedInstall() {
+  return isManagedSkynexAppInstall();
 }
 
 function detectPackageManagerFromInstallPath(pkgPath) {
@@ -569,15 +395,6 @@ function resolvePackageManagerCommand(pm) {
   return pm;
 }
 
-function quoteCommand(command) {
-  if (!command) return command;
-  if (!/\s/.test(command)) return command;
-  if (process.platform === 'win32') {
-    return `"${command.replace(/"/g, '""')}"`;
-  }
-  return `'${command.replace(/'/g, "'\\''")}'`;
-}
-
 function isCommandAvailable(command) {
   try {
     const result = spawnSync(command, ['--version'], {
@@ -624,31 +441,6 @@ function isPackageInstalledWith(pm) {
   }
 }
 
-// npm, bun and yarn print `name@version`; pnpm separates the name and the
-// version with whitespace. An optional `v` covers yarn listing formats.
-const GLOBAL_VERSION_PATTERN = /@openchamber\/web[@\s]+v?(\d[\w.+-]*)/;
-
-/**
- * Read the globally installed version of the package as reported by the
- * package manager itself. Returns null when the listing cannot be read or
- * parsed. The listing command may exit non-zero when the package is missing,
- * so stdout is parsed regardless of the status.
- */
-function getInstalledGlobalVersion(pm) {
-  try {
-    const pmCommand = resolvePackageManagerCommand(pm);
-    const result = spawnSync(pmCommand, getGlobalListArgs(pm), {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 10000,
-      ...getSpawnSyncBaseOptions(),
-    });
-    return String(result.stdout || '').match(GLOBAL_VERSION_PATTERN)?.[1] || null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Normalize a version string into an exact install target.
  * Returns the plain version or null when the value is not a concrete version.
@@ -658,46 +450,14 @@ function normalizeTargetVersion(value) {
   return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(normalized) ? normalized : null;
 }
 
-// Dependencies whose install scripts pnpm 10+ blocks until approved. pnpm 11+
-// stops a global install in a terminal to ask about them. Keep in sync with
-// scripts/install.sh and with the "Ignored build scripts" list a fresh
-// `pnpm add -g @openchamber/web` prints.
-const PNPM_BUILD_DEPENDENCIES = ['msgpackr-extract', 'node-pty'];
-// First pnpm release that accepts `--allow-build`; older ones reject it as an
-// unknown option, and pnpm 9 and older run build scripts without approval.
-const PNPM_ALLOW_BUILD_MIN_VERSION = '10.4.0';
-
-function getPnpmAllowBuildFlags(pmCommand) {
-  const version = normalizeTargetVersion(getCommandOutput(pmCommand, ['--version']));
-  if (!version || compareVersions(version, PNPM_ALLOW_BUILD_MIN_VERSION) < 0) return '';
-  return PNPM_BUILD_DEPENDENCIES.map((name) => ` --allow-build=${name}`).join('');
-}
-
-/**
- * Get the update command for the detected package manager.
- * When an exact target version is given, it is pinned in the spec instead of
- * re-resolving the `latest` dist-tag at install time: the update check and the
- * package manager see different metadata, and dist-tag resolution can lag the
- * check behind a fresh release (stale packument cache, pnpm minimumReleaseAge).
- */
-export function getUpdateCommand(pm = detectPackageManager(), options = {}) {
+/** Return the supported update command while keeping the legacy export stable. */
+export function getUpdateCommand(pm, options = {}) {
   const targetVersion = normalizeTargetVersion(options.targetVersion);
   if (options.targetVersion != null && !targetVersion) {
     throw new Error(`Invalid target version for update: ${String(options.targetVersion)}`);
   }
-  const versionSpec = targetVersion ? `@${targetVersion}` : '@latest';
-  const resolvedCommand = resolvePackageManagerCommand(pm);
-  const pmCommand = quoteCommand(resolvedCommand);
-  switch (pm) {
-    case 'pnpm':
-      return `${pmCommand} add -g${getPnpmAllowBuildFlags(resolvedCommand)} ${PACKAGE_NAME}${versionSpec}`;
-    case 'yarn':
-      return `${pmCommand} global add ${PACKAGE_NAME}${versionSpec}`;
-    case 'bun':
-      return `${pmCommand} add -g ${PACKAGE_NAME}${versionSpec}`;
-    default:
-      return `${pmCommand} install -g ${PACKAGE_NAME}${versionSpec}`;
-  }
+  void pm;
+  return 'skynex-app update';
 }
 
 /**
@@ -710,28 +470,6 @@ export function getCurrentVersion() {
     return pkg.version || 'unknown';
   } catch {
     return 'unknown';
-  }
-}
-
-/**
- * Fetch latest version from npm registry
- */
-async function getLatestVersion() {
-  try {
-    const request = resolveNpmRegistryRequest(PACKAGE_NAME);
-    const response = await fetch(request.url, {
-      headers: { Accept: 'application/json', ...request.headers },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Registry responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data['dist-tags']?.latest || null;
-  } catch (error) {
-    return null;
   }
 }
 
@@ -770,65 +508,32 @@ function compareVersions(left, right) {
   return 0;
 }
 
-/** Release notes between the installed and the offered version, or undefined. */
-async function fetchChangelogNotes(fromVersion, toVersion) {
-  return (await fetchUpdateNotes(fromVersion, toVersion, compareVersions)) ?? undefined;
-}
-
 export async function checkForUpdates(options = {}) {
   const currentVersion = options.currentVersion || getCurrentVersion();
-  const pm = detectPackageManager();
-  const appType = normalizeAppType(options.appType);
-  const platform = normalizePlatform(options.platform);
-
-  if (currentVersion !== 'unknown') {
-    const remote = await checkForUpdatesFromApi(currentVersion, options);
-    if (remote) {
-      if (remote.available && appType === 'web') {
-        const npmLatest = await getLatestVersion();
-        if (!npmLatest || compareVersions(npmLatest, remote.version) < 0) {
-          remote.available = false;
-        }
-      }
-      return {
-        ...remote,
-        packageManager: pm,
-        updateCommand: 'openchamber update',
-      };
-    }
+  if (options.appType === 'mobile-capacitor') {
+    return { available: false, currentVersion, error: 'Standalone CLI releases do not provide Capacitor app updates.' };
   }
-
-  const latestVersion = await getLatestVersion();
-
-  if (!latestVersion || currentVersion === 'unknown') {
-    return {
-      available: false,
+  try {
+    const release = await getLatestSkynexAppRelease({
+      platform: options.platform || process.platform,
+      arch: options.arch || process.arch,
+      fetchImpl: options.fetchImpl,
+      includeChecksum: false,
+    });
+    const available = currentVersion === 'unknown' || compareVersions(release.version, currentVersion) > 0;
+    const result = {
+      available,
+      version: release.version,
       currentVersion,
-      error: 'Unable to determine versions',
+      releaseUrl: `https://github.com/joeldevz/skynex-desktop/releases/tag/v${release.version}`,
+      packageManager: 'github-releases',
+      updateCommand: 'skynex-app update',
     };
+    if (options.appType === 'web' && available) result.installBlocked = 'manual-install';
+    return result;
+  } catch (error) {
+    return { available: false, currentVersion, error: error instanceof Error ? error.message : 'Unable to check GitHub releases' };
   }
-
-  const available = compareVersions(latestVersion, currentVersion) > 0;
-  let changelog;
-  let downloadUrl;
-  if (available) {
-    changelog = await fetchChangelogNotes(currentVersion, latestVersion);
-    if (appType === 'mobile-capacitor' && platform === 'android') {
-      downloadUrl = await resolveAndroidApkUrl(latestVersion);
-    }
-  }
-
-  return {
-    available,
-    version: latestVersion,
-    currentVersion,
-    body: changelog,
-    releaseUrl: `${GITHUB_RELEASES_URL}/tag/v${latestVersion}`,
-    downloadUrl,
-    packageManager: pm,
-    // Show our CLI command, not raw package manager command
-    updateCommand: 'openchamber update',
-  };
 }
 
 /**
@@ -838,56 +543,19 @@ export async function checkForUpdates(options = {}) {
  * proof the target landed (stale dist-tag resolution, pnpm release-age policy),
  * and the caller must not report success without the version matching.
  */
-export function executeUpdate(pm = detectPackageManager(), options = {}) {
-  const command = getUpdateCommand(pm, { targetVersion: options.targetVersion });
-  if (!options?.silent) {
-    console.log(`Updating ${PACKAGE_NAME} using ${pm}...`);
-    console.log(`Running: ${command}`);
+export function executeUpdate(pm, options = {}) {
+  if (typeof pm === 'object' && pm !== null) {
+    return (async () => {
+      const installContext = getManagedSkynexAppInstallContext();
+      if (!installContext) return { success: false, error: 'This source or unmanaged install cannot update itself. Install a standalone skynex-app release first.' };
+      const release = await getLatestSkynexAppRelease({ version: pm.targetVersion, platform: pm.platform, arch: pm.arch, fetchImpl: pm.fetchImpl });
+      await installSkynexAppRelease({ release: { ...release, platform: pm.platform || process.platform, arch: pm.arch || process.arch }, installRoot: installContext.root, fetchImpl: pm.fetchImpl });
+      return { success: true, installedVersion: release.version };
+    })().catch((error) => ({ success: false, error: error instanceof Error ? error.message : 'Update failed' }));
   }
-
-  const result = spawnSync(command, {
-    stdio: 'inherit',
-    shell: true,
-    ...getSpawnSyncBaseOptions(),
-  });
-
-  if (result.status !== 0) {
-    return {
-      success: false,
-      exitCode: result.status,
-      error: `Package manager exited with code ${result.status}`,
-    };
-  }
-
-  const targetVersion = normalizeTargetVersion(options.targetVersion);
-  if (!targetVersion) {
-    return {
-      success: true,
-      exitCode: result.status,
-      installedVersion: null,
-    };
-  }
-
-  const installedVersion = getInstalledGlobalVersion(pm);
-  if (!installedVersion) {
-    return {
-      success: false,
-      exitCode: result.status,
-      error: `Could not determine the globally installed ${PACKAGE_NAME} version after the update; not reporting success`,
-    };
-  }
-
-  if (compareVersions(installedVersion, targetVersion) !== 0) {
-    return {
-      success: false,
-      exitCode: result.status,
-      error: `Installed ${PACKAGE_NAME} version ${installedVersion} does not match target ${targetVersion}. The package manager may have resolved different metadata or filtered the release.`,
-    };
-  }
-
   return {
-    success: true,
-    exitCode: result.status,
-    installedVersion,
+    success: false,
+    exitCode: 1,
+    error: 'Package-manager updates are unsupported. Install a standalone skynex-app release.',
   };
 }

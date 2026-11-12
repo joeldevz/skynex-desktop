@@ -92,6 +92,50 @@ test('checks unauthenticated identity before sending sanitized bearer headers', 
   assert.equal(calls[1].headers['X-Instance'], 'remote');
 });
 
+test('accepts an OpenCode 2 capability on a 0.x server and still authenticates its session', async () => {
+  const calls = [];
+  const result = await baseProbe({
+    clientToken: 'fixture-token',
+    chromiumFetch: async (url, options) => {
+      calls.push({ path: new URL(url).pathname, authorization: options.headers.Authorization });
+      if (url.endsWith('/api/version')) {
+        return response(200, {
+          ...compatibleVersion,
+          openchamberVersion: '0.1.1',
+          compatibility: {
+            ...compatibleVersion.compatibility,
+            capabilities: [...compatibleVersion.compatibility.capabilities, 'opencode.api.v2'],
+          },
+        });
+      }
+      return response(200, {});
+    },
+  });
+
+  assert.equal(result.status, 'ok');
+  assert.deepEqual(calls.map(({ path }) => path), ['/api/version', '/auth/session']);
+  assert.deepEqual(calls.map(({ authorization }) => authorization), ['Bearer fixture-token', 'Bearer fixture-token']);
+});
+
+for (const status of [401, 403]) {
+  test(`keeps authenticated session ${status} authoritative for an OpenCode 2 server`, async () => {
+    const result = await baseProbe({
+      chromiumFetch: async (url) => url.endsWith('/api/version')
+        ? response(200, {
+          ...compatibleVersion,
+          openchamberVersion: '0.1.1',
+          compatibility: {
+            ...compatibleVersion.compatibility,
+            capabilities: [...compatibleVersion.compatibility.capabilities, 'opencode.api.v2'],
+          },
+        })
+        : url.endsWith('/auth/session') ? response(status) : response(200, {}),
+    });
+
+    assert.equal(result.status, 'auth');
+  });
+}
+
 for (const [name, versionResponse, expected] of [
   ['401 auth', response(401), 'auth'],
   ['403 auth', response(403), 'auth'],
@@ -103,6 +147,21 @@ for (const [name, versionResponse, expected] of [
   ['array compatibility', response(200, { status: 'ok', compatibility: [] }), 'incompatible'],
   ['missing capability', response(200, { ...compatibleVersion, compatibility: { ...compatibleVersion.compatibility, capabilities: [] } }), 'incompatible'],
   ['server before OpenCode 2', response(200, { ...compatibleVersion, openchamberVersion: '1.24.2' }), 'incompatible'],
+  ['OpenCode 2 marker without runtime URL capability', response(200, {
+    ...compatibleVersion,
+    openchamberVersion: '0.1.1',
+    compatibility: { ...compatibleVersion.compatibility, capabilities: ['opencode.api.v2'] },
+  }), 'incompatible'],
+  ['OpenCode 2 marker with newer API', response(200, {
+    ...compatibleVersion,
+    openchamberVersion: '0.1.1',
+    compatibility: { ...compatibleVersion.compatibility, capabilities: [...compatibleVersion.compatibility.capabilities, 'opencode.api.v2'], apiVersion: 2 },
+  }), 'update-recommended'],
+  ['OpenCode 2 marker with newer minimum client', response(200, {
+    ...compatibleVersion,
+    openchamberVersion: '0.1.1',
+    compatibility: { ...compatibleVersion.compatibility, capabilities: [...compatibleVersion.compatibility.capabilities, 'opencode.api.v2'], minClientApiVersion: 2 },
+  }), 'update-recommended'],
   ['server without a readable version', response(200, { ...compatibleVersion, openchamberVersion: 'unknown' }), 'ok'],
   ['server without a version field', response(200, { status: 'ok', compatibility: compatibleVersion.compatibility }), 'ok'],
   ['newer API', response(200, { ...compatibleVersion, compatibility: { ...compatibleVersion.compatibility, apiVersion: 2 } }), 'update-recommended'],
@@ -126,6 +185,28 @@ test('rejects an explicit identity mismatch before bearer-bearing requests', asy
   });
   assert.equal(result.status, 'wrong-service');
   assert.equal(calls, 1);
+});
+
+test('rejects an identity mismatch before probing a marked OpenCode 2 server', async () => {
+  const calls = [];
+  const result = await baseProbe({
+    expectedServerId: 'server-a',
+    chromiumFetch: async (url) => {
+      calls.push(new URL(url).pathname);
+      if (url.endsWith('/health')) return response(200, { serverId: 'server-b' });
+      return response(200, {
+        ...compatibleVersion,
+        openchamberVersion: '0.1.1',
+        compatibility: {
+          ...compatibleVersion.compatibility,
+          capabilities: [...compatibleVersion.compatibility.capabilities, 'opencode.api.v2'],
+        },
+      });
+    },
+  });
+
+  assert.equal(result.status, 'wrong-service');
+  assert.deepEqual(calls, ['/health']);
 });
 
 test('rejects Electron manual-redirect errors before bearer-bearing requests', async () => {

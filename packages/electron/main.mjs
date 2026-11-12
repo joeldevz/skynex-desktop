@@ -266,8 +266,8 @@ const LOCAL_DESKTOP_CLIENT_DEDUPE_KEY = 'desktop-local';
 // connecting to someone else's server).
 const REMOTE_DESKTOP_CLIENT_KIND = 'desktop';
 const ENV_OVERRIDE_HOST_ID = '__env';
-const GITHUB_BUG_REPORT_URL = 'https://github.com/openchamber/openchamber/issues/new?template=bug_report.yml';
-const GITHUB_IDEAS_URL = 'https://github.com/openchamber/openchamber/discussions/categories/ideas';
+const GITHUB_BUG_REPORT_URL = 'https://github.com/joeldevz/skynex-desktop/issues/new?template=bug_report.yml';
+const GITHUB_IDEAS_URL = 'https://github.com/joeldevz/skynex-desktop/issues/new';
 const DISCORD_INVITE_URL = 'https://discord.gg/ZYRSdnwwKA';
 const INSTALLED_APPS_CACHE_TTL_SECS = 60 * 60 * 24;
 const INSTALLED_APPS_CACHE_FILE = 'discovered-apps.json';
@@ -397,7 +397,7 @@ const quitConfirmationMessage = () => {
   if (reasons.length === 0) {
     return 'Background processes (sidecar, SSH sessions) will be stopped.';
   }
-  return `OpenChamber detected ${reasons.join(', ')}. Quitting now will stop sidecar/background processes and may interrupt pending work.`;
+  return `Skynex detected ${reasons.join(', ')}. Quitting now will stop sidecar/background processes and may interrupt pending work.`;
 };
 
 const shutdownBackgroundServices = () => {
@@ -573,8 +573,8 @@ const requestQuitWithConfirmation = async () => {
   try {
     const result = await dialog.showMessageBox({
       type: 'warning',
-      title: 'Quit OpenChamber?',
-      message: 'Quit OpenChamber?',
+      title: 'Quit Skynex?',
+      message: 'Quit Skynex?',
       detail: quitConfirmationMessage(),
       buttons: ['Quit', 'Cancel'],
       defaultId: 1,
@@ -1466,7 +1466,7 @@ const maybeShowNativeNotification = (rawInput) => {
 
   const title = typeof payload.title === 'string' && payload.title.trim()
     ? payload.title.trim()
-    : 'OpenChamber';
+    : 'Skynex';
   const body = typeof payload.body === 'string' ? payload.body : '';
   const sessionId = typeof payload.sessionId === 'string' && payload.sessionId.trim()
     ? payload.sessionId.trim()
@@ -2003,7 +2003,7 @@ const setTaskbarProgress = (value) => {
 const pendingDeepLinks = [];
 const PENDING_SESSION_LINK_FALLBACK_MS = 10_000;
 
-// A session link (`openchamber://session/<id>`) can also name the message to
+// A session link (`skynex-app://session/<id>`) can also name the message to
 // show (`?message=<id>`) and the saved host that owns the session
 // (`?host=<id>`). The renderer validates the IDs and opens a session of
 // another host in that host's window, as for a notification click.
@@ -2125,7 +2125,7 @@ const confirmConnectDeepLink = async (payload) => {
   }
   const options = {
     type: 'warning',
-    title: 'Connect to OpenChamber server?',
+    title: 'Connect to Skynex server?',
     message: `Connect to "${payload.label}"?`,
     detail:
       `This will add ${payload.serverUrl} as a remote instance and route this app's activity ` +
@@ -3199,7 +3199,7 @@ const createMiniChatWindow = async ({ mode, sessionId = '', directory = '', proj
   const desktopClientToken = effectiveRuntimeConfig.clientToken || '';
   const desktopRequestHeaders = effectiveRuntimeConfig.requestHeaders || {};
   const browserWindow = new BrowserWindow({
-    title: 'OpenChamber Mini Chat',
+    title: 'Skynex Mini Chat',
     width: MINI_CHAT_WINDOW_WIDTH,
     height: MINI_CHAT_WINDOW_HEIGHT,
     minWidth: MINI_CHAT_MIN_WINDOW_WIDTH,
@@ -4833,7 +4833,9 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
         });
         const image = nativeImage.createFromBuffer(Buffer.from(screenshot.data, 'base64'));
         const size = image.getSize();
-        return { mime: 'image/jpeg', base64: screenshot.data, width: size.width, height: size.height, ...(truncated ? { truncated: true } : {}) };
+        const response = { mime: 'image/jpeg', base64: screenshot.data, width: size.width, height: size.height };
+        if (truncated) response.truncated = true;
+        return response;
       }
       const image = await wc.capturePage();
       const buffer = image.toJPEG(82);
@@ -5224,7 +5226,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
     // A page that another instance served cannot switch to Local in place. The
     // local server answers only this app's own origins, and the local token
     // stays with local pages. For such a page the main window loads the Local
-    // UI, the same way openchamber://host/local does. The app's own pages get
+    // UI, the same way skynex-app://host/local does. The app's own pages get
     // false and switch in place.
     case 'desktop_switch_to_local': {
       if (!browserWindow || browserWindow.id !== state.mainWindow?.id) return false;
@@ -5409,7 +5411,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       if (applyUpdate && process.platform === 'darwin' && typeof app.isInApplicationsFolder === 'function') {
         try {
           if (!app.isInApplicationsFolder()) {
-            throw new Error('Desktop update requires OpenChamber.app to be installed in /Applications');
+            throw new Error('Desktop update requires Skynex.app to be installed in /Applications');
           }
         } catch (error) {
           log.warn('[electron] desktop_restart blocked', error);

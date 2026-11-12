@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { parseArgs } from './cli-args.js';
+import { generateCompletionScript, parseArgs, showHelp } from './cli-args.js';
 import { INJECTED_ENV_KEY, assignInjectedEnv } from '../../server/lib/injected-env.js';
 
 describe('parseArgs ui password default', () => {
@@ -30,5 +30,25 @@ describe('parseArgs ui password default', () => {
 
     expect(parseArgs(['serve']).options.uiPassword).toBeUndefined();
     expect(parseArgs(['serve', '--ui-password', 'chosen']).options.uiPassword).toBe('chosen');
+  });
+});
+
+describe('CLI command name', () => {
+  it('uses skynex-app in help and generated shell completions', () => {
+    const originalLog = console.log;
+    let help = '';
+    console.log = (chunk) => { help += String(chunk); };
+    try {
+      showHelp();
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(help).toContain('skynex-app [COMMAND] [OPTIONS]');
+    for (const shell of ['bash', 'zsh', 'fish']) {
+      const completion = generateCompletionScript(shell);
+      expect(completion).toContain('skynex-app');
+      expect(completion).not.toContain('openchamber');
+    }
   });
 });

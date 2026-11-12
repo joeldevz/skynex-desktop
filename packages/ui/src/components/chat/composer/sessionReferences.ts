@@ -1,7 +1,7 @@
 /**
  * Other sessions and their messages, mentioned in the composer's text.
  *
- * A mention is a session link in the text (`openchamber://session/…`, with
+ * A mention is a session link in the text (`skynex-app://session/…`, with
  * `?message=` for one message), written by the `@` picker or pasted; the
  * composer draws it as a chip, and the model reads it where the user put it.
  * Beside the text, each one also goes as a context part saying what it is: a
@@ -70,7 +70,7 @@ export const sessionReferenceKey = (reference: { sessionId: string; messageId?: 
 });
 
 /** The link the `@` picker writes for a session. */
-export const sessionLinkText = (sessionId: string): string => `openchamber://session/${sessionId}`;
+export const sessionLinkText = (sessionId: string): string => `skynex-app://session/${sessionId}`;
 
 /** How a mention draws as a chip: the session's title, or the start of the message. */
 /**
@@ -114,4 +114,3 @@ export const sessionReferencesInText = (
     }
     return { references, unresolved };
 };
-

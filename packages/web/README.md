@@ -1,4 +1,4 @@
-# <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/openchamber/openchamber/raw/HEAD/docs/references/badges/openchamber-logo-dark.svg"><img src="https://github.com/openchamber/openchamber/raw/HEAD/docs/references/badges/openchamber-logo-light.svg" width="32" height="32" align="absmiddle" /></picture> @openchamber/web
+# Skynex web application
 
 [![GitHub stars](https://img.shields.io/github/stars/openchamber/openchamber?style=flat&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2YxZWNlYyIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjkuMDYsMTA4Ljc5bC00OC43LDQyLDE0Ljg4LDYyLjc5YTguNCw4LjQsMCwwLDEtMTIuNTIsOS4xN0wxMjgsMTg5LjA5LDczLjI4LDIyMi43NGE4LjQsOC40LDAsMCwxLTEyLjUyLTkuMTdsMTQuODgtNjIuNzktNDguNy00MkE4LjQ2LDguNDYsMCwwLDEsMzEuNzMsOTRMOTUuNjQsODguOGwyNC42Mi01OS42YTguMzYsOC4zNiwwLDAsMSwxNS40OCwwbDI0LjYyLDU5LjZMMjI0LjI3LDk0QTguNDYsOC40NiwwLDAsMSwyMjkuMDYsMTA4Ljc5WiIgb3BhY2l0eT0iMC4yIj48L3BhdGg%2BPHBhdGggZD0iTTIzOS4xOCw5Ny4yNkExNi4zOCwxNi4zOCwwLDAsMCwyMjQuOTIsODZsLTU5LTQuNzZMMTQzLjE0LDI2LjE1YTE2LjM2LDE2LjM2LDAsMCwwLTMwLjI3LDBMOTAuMTEsODEuMjMsMzEuMDgsODZhMTYuNDYsMTYuNDYsMCwwLDAtOS4zNywyOC44Nmw0NSwzOC44M0w1MywyMTEuNzVhMTYuMzgsMTYuMzgsMCwwLDAsMjQuNSwxNy44MkwxMjgsMTk4LjQ5bDUwLjUzLDMxLjA4QTE2LjQsMTYuNCwwLDAsMCwyMDMsMjExLjc1bC0xMy43Ni01OC4wNyw0NS0zOC44M0ExNi40MywxNi40MywwLDAsMCwyMzkuMTgsOTcuMjZabS0xNS4zNCw1LjQ3LTQ4LjcsNDJhOCw4LDAsMCwwLTIuNTYsNy45MWwxNC44OCw2Mi44YS4zNy4zNywwLDAsMS0uMTcuNDhjLS4xOC4xNC0uMjMuMTEtLjM4LDBsLTU0LjcyLTMzLjY1YTgsOCwwLDAsMC04LjM4LDBMNjkuMDksMjE1Ljk0Yy0uMTUuMDktLjE5LjEyLS4zOCwwYS4zNy4zNywwLDAsMS0uMTctLjQ4bDE0Ljg4LTYyLjhhOCw4LDAsMCwwLTIuNTYtNy45MWwtNDguNy00MmMtLjEyLS4xLS4yMy0uMTktLjEzLS41cy4xOC0uMjcuMzMtLjI5bDYzLjkyLTUuMTZBOCw4LDAsMCwwLDEwMyw5MS44NmwyNC42Mi01OS42MWMuMDgtLjE3LjExLS4yNS4zNS0uMjVzLjI3LjA4LjM1LjI1TDE1Myw5MS44NmE4LDgsMCwwLDAsNi43NSw0LjkybDYzLjkyLDUuMTZjLjE1LDAsLjI0LDAsLjMzLjI5UzIyNCwxMDIuNjMsMjIzLjg0LDEwMi43M1oiPjwvcGF0aD48L3N2Zz4%3D&logoColor=FFFCF0&labelColor=100F0F&color=66800B)](https://github.com/openchamber/openchamber/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/openchamber/openchamber?style=flat&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2YxZWNlYyIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0xMjgsMTI5LjA5VjIzMmE4LDgsMCwwLDEtMy44NC0xbC04OC00OC4xOGE4LDgsMCwwLDEtNC4xNi03VjgwLjE4YTgsOCwwLDAsMSwuNy0zLjI1WiIgb3BhY2l0eT0iMC4yIj48L3BhdGg%2BPHBhdGggZD0iTTIyMy42OCw2Ni4xNSwxMzUuNjgsMThhMTUuODgsMTUuODgsMCwwLDAtMTUuMzYsMGwtODgsNDguMTdhMTYsMTYsMCwwLDAtOC4zMiwxNHY5NS42NGExNiwxNiwwLDAsMCw4LjMyLDE0bDg4LDQ4LjE3YTE1Ljg4LDE1Ljg4LDAsMCwwLDE1LjM2LDBsODgtNDguMTdhMTYsMTYsMCwwLDAsOC4zMi0xNFY4MC4xOEExNiwxNiwwLDAsMCwyMjMuNjgsNjYuMTVaTTEyOCwzMmw4MC4zNCw0NC0yOS43NywxNi4zLTgwLjM1LTQ0Wk0xMjgsMTIwLDQ3LjY2LDc2bDMzLjktMTguNTYsODAuMzQsNDRaTTQwLDkwbDgwLDQzLjc4djg1Ljc5TDQwLDE3NS44MlptMTc2LDg1Ljc4aDBsLTgwLDQzLjc5VjEzMy44MmwzMi0xNy41MVYxNTJhOCw4LDAsMCwwLDE2LDBWMTA3LjU1TDIxNiw5MHY4NS43N1oiPjwvcGF0aD48L3N2Zz4%3D&logoColor=FFFCF0&labelColor=100F0F&color=205EA6)](https://github.com/openchamber/openchamber/releases/latest)
@@ -6,50 +6,56 @@
 
 Run [OpenCode](https://opencode.ai) in your browser. Install the CLI, open `localhost:3000`, done. Works on desktop browsers, tablets, and phones as a PWA.
 
-Full project overview, screenshots, and all features: [github.com/openchamber/openchamber](https://github.com/openchamber/openchamber)
+Skynex is a fork of [OpenChamber](https://github.com/openchamber/openchamber). The badges above refer to upstream. Fork downloads and support are at [joeldevz/skynex-desktop](https://github.com/joeldevz/skynex-desktop). The technical package name remains `@openchamber/web`.
 
 ## Install
 
+The release installer requires CLI assets in a Skynex GitHub release. Published version 0.1.1 has no CLI assets or new URL scheme. These checkout changes are not published. After a release includes the CLI assets, run:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
 ```
 
-Or install manually: `bun add -g @openchamber/web` (or npm, pnpm, yarn).
+Installation is opt-in and per-user. The managed installation uses a stable launcher and an active-version pointer. The shell script downloads `skynex-app-install.mjs` from the same release. Native bundles include all application dependencies and the SDK. Assets are named `skynex-app-<version>-<platform>-<arch>.tar.gz` with matching `.sha256` files. Skynex CLI distribution uses this repository's GitHub Releases only; there is no npm fallback.
 
 > **Prerequisites:** [OpenCode CLI](https://opencode.ai) installed, Node.js 24.14+.
 
 ## Usage
 
+The application CLI is `skynex-app`. The `openchamber` executable remains a compatibility alias for existing scripts and integrations. The separate `skynex` command manages agent tooling.
+
 ```bash
-openchamber                          # Start on port 3000
-openchamber --port 8080              # Custom port
-openchamber --lan --port 3000        # Listen on LAN (0.0.0.0)
-openchamber --ui-password secret     # Password-protect UI
-openchamber startup enable           # Start at login as a native service
-OPENCHAMBER_UI_PASSWORD=secret openchamber startup enable # Save service password env
-openchamber startup status           # Show startup service status
-openchamber startup disable          # Remove startup service
-openchamber tunnel help              # Tunnel lifecycle commands
-openchamber tunnel providers         # Show provider capabilities
-openchamber tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token <token>
-openchamber tunnel start --profile prod-main
-openchamber tunnel start --provider cloudflare --mode quick --qr
-openchamber tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
-openchamber tunnel status --all      # Show tunnel state across instances
-openchamber tunnel stop --port 3000  # Stop tunnel only (server stays running)
-openchamber connect-url --port 3000  # Add this server to OpenChamber Desktop
-openchamber connect-url --server http://host:3000 --qr
-openchamber connect-url --port 3000 --qr
-openchamber logs                     # Follow latest instance logs
-OPENCODE_PORT=4096 OPENCODE_SKIP_START=true openchamber                    # Connect to external OpenCode server
-OPENCODE_HOST=https://myhost:4096 OPENCODE_SKIP_START=true openchamber  # Connect via custom host/HTTPS
-openchamber stop                     # Stop server
-openchamber update                   # Update to latest version
+skynex-app                          # Start on port 3000
+skynex-app --port 8080              # Custom port
+skynex-app --lan --port 3000        # Listen on LAN (0.0.0.0)
+skynex-app --ui-password secret     # Password-protect UI
+skynex-app startup enable           # Start at login as a native service
+OPENCHAMBER_UI_PASSWORD=secret skynex-app startup enable # Save service password env
+skynex-app startup status           # Show startup service status
+skynex-app startup disable          # Remove startup service
+skynex-app tunnel help              # Tunnel lifecycle commands
+skynex-app tunnel providers         # Show provider capabilities
+skynex-app tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token <token>
+skynex-app tunnel start --profile prod-main
+skynex-app tunnel start --provider cloudflare --mode quick --qr
+skynex-app tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
+skynex-app tunnel status --all      # Show tunnel state across instances
+skynex-app tunnel stop --port 3000  # Stop tunnel only (server stays running)
+skynex-app connect-url --port 3000  # Add this server to Skynex Desktop
+skynex-app connect-url --server http://host:3000 --qr
+skynex-app connect-url --port 3000 --qr
+skynex-app logs                     # Follow latest instance logs
+OPENCODE_PORT=4096 OPENCODE_SKIP_START=true skynex-app                    # Connect to external OpenCode server
+OPENCODE_HOST=https://myhost:4096 OPENCODE_SKIP_START=true skynex-app  # Connect via custom host/HTTPS
+skynex-app stop                     # Stop server
+skynex-app update                   # Update to latest version
 ```
 
-`startup enable` snapshots your current environment into the native service so startup behaves like you launched `openchamber` from the same shell. This preserves provider tokens, PATH, SSH agent settings, and other CLI auth/config env vars. Use `--no-env-snapshot` for a minimal service env.
+`skynex-app update` stages a managed CLI release, verifies SHA256, then activates it while preserving the previous version. It leaves running servers alone. Run `skynex-app restart` explicitly when ready to use the new version. Source and unmanaged installations refuse updates without modifying files or running servers. Desktop updates are separate. The web UI may direct you to run the CLI command manually.
 
-When OpenChamber launches the local OpenCode server, it also registers a native
+`startup enable` snapshots your current environment into the native service so startup behaves like you launched `skynex-app` from the same shell. This preserves provider tokens, PATH, SSH agent settings, and other CLI auth/config env vars. Use `--no-env-snapshot` for a minimal service env.
+
+When Skynex launches the local OpenCode server, it also registers a native
 `openchamber` agent tool for project, session, and scheduled-task orchestration.
 The tool is not injected when connecting to an external OpenCode server.
 Behavior settings can optionally inject a managed system-prompt optimizer on
@@ -58,51 +64,51 @@ external OpenCode servers.
 
 ### Tunnel behavior notes
 
-- One active tunnel per running OpenChamber instance (port).
+- One active tunnel per running Skynex instance (port).
 - Starting a different tunnel mode/provider on the same instance replaces the active tunnel.
 - Replacing or stopping a tunnel revokes existing connect links and invalidates remote tunnel sessions.
 - Connect links are one-time tokens; generating a new link revokes the previous unused link.
 
-### Connect other OpenChamber apps
+### Connect Skynex apps
 
-Use `connect-url` when a web/API server should be added to OpenChamber Desktop or another OpenChamber app. If no server is running on the selected port, OpenChamber starts one first.
+Use `connect-url` to add a web/API server to Skynex Desktop or another Skynex app. If no server is running on the selected port, Skynex starts one first.
 
 ```bash
-openchamber connect-url --port 3000
-openchamber connect-url --port 3000 --qr
-openchamber connect-url --port 3000 --json
-openchamber connect-url --port 3000 --name "Workstation"
-openchamber connect-url --port 3000 --lan --server http://workstation.local:3000 --qr
+skynex-app connect-url --port 3000
+skynex-app connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --json
+skynex-app connect-url --port 3000 --name "Workstation"
+skynex-app connect-url --port 3000 --lan --server http://workstation.local:3000 --qr
 ```
 
 ### Headless/API-only server for Desktop
 
-Use this on a remote machine when you want OpenChamber running as a web/API server, then connect to it from OpenChamber Desktop on another machine:
+Use this on a remote machine to run Skynex as a web/API server, then connect from Skynex Desktop on another machine:
 
 ```bash
-openchamber connect-url --port 3000 --api-only --lan --server http://workstation.local:3000 --qr --ui-password your-password
+skynex-app connect-url --port 3000 --api-only --lan --server http://workstation.local:3000 --qr --ui-password your-password
 ```
 
 `--api-only` starts API routes without serving browser UI assets. `--lan` binds the server so other machines can reach it. `--server` is the address saved into the Desktop connection link. `--ui-password` protects browser access if UI routes are enabled elsewhere; the generated client token is what Desktop uses for API access.
 
-This creates a remote client token and prints an `openchamber://connect?...` link. The link contains the server URL, token, label, and payload version. In OpenChamber Desktop, paste it in **Settings -> Remote Instances -> Direct Instances -> Import Link** to add that server as an Instance.
+This creates a one-time pairing session and prints a `skynex-app://connect?...` link. The QR code contains the pairing credential. Keep it private. Import the link in Skynex Desktop's remote connection settings. New links use only `skynex-app://`; the old `openchamber://` scheme is not accepted. Existing profiles, storage paths, environment variables, and service identifiers are preserved.
 
 If the server was started with `--lan` or `--host 0.0.0.0`, `connect-url` automatically advertises a detected LAN IP instead of `127.0.0.1`. Use `--server <url>` when you want to advertise a specific DNS name, Tailscale address, reverse proxy URL, or HTTPS endpoint.
 
 If you are exposing the server beyond localhost, start it with a password:
 
 ```bash
-openchamber serve --lan --port 3000 --ui-password your-password
+skynex-app serve --lan --port 3000 --ui-password your-password
 ```
 
-Generating a client token does not automatically password-protect the hosted browser UI. `--ui-password` protects browser access; the client token lets another OpenChamber app connect to this server.
+Generating a pairing link does not automatically password-protect the hosted browser UI. `--ui-password` protects browser access; pairing lets another Skynex app connect to this server.
 
 <details>
 <summary>Connect to external OpenCode server</summary>
 
 ```bash
-OPENCODE_PORT=4096 OPENCODE_SKIP_START=true openchamber
-OPENCODE_HOST=https://myhost:4096 OPENCODE_SKIP_START=true openchamber
+OPENCODE_PORT=4096 OPENCODE_SKIP_START=true skynex-app
+OPENCODE_HOST=https://myhost:4096 OPENCODE_SKIP_START=true skynex-app
 ```
 
 | Variable | Description |
@@ -126,7 +132,7 @@ OPENCODE_HOST=https://myhost:4096 OPENCODE_SKIP_START=true openchamber
 <summary>Bind managed OpenCode to LAN / Tailscale</summary>
 
 ```bash
-OPENCHAMBER_OPENCODE_HOSTNAME=0.0.0.0 openchamber --port 3000
+OPENCHAMBER_OPENCODE_HOSTNAME=0.0.0.0 skynex-app --port 3000
 ```
 
 **Security note:** binding to `0.0.0.0` exposes the server on all network interfaces — use only on trusted networks and protect with firewall rules or `--ui-password`.
@@ -172,8 +178,8 @@ chown -R 1000:1000 data/
 <summary>Background & daemon mode</summary>
 
 ```bash
-openchamber             # Runs in background by default
-openchamber stop        # Stop background server
+skynex-app             # Runs in background by default
+skynex-app stop        # Stop background server
 ```
 
 </details>
@@ -214,7 +220,7 @@ After=opencode.service
 
 [Service]
 Type=simple
-ExecStart=openchamber serve --port 3000 --host 0.0.0.0 --ui-password your-password --foreground
+ExecStart=skynex-app serve --port 3000 --host 0.0.0.0 --ui-password your-password --foreground
 Environment="OPENCODE_HOST=http://localhost:4095"
 Environment="OPENCODE_SKIP_START=true"
 Restart=on-failure
@@ -238,14 +244,14 @@ systemctl --user enable --now opencode openchamber
 - **Remote access** - Cloudflare tunnel with QR onboarding. Scan from your phone, start coding.
 - **Mobile-first PWA** - optimized chat controls, keyboard-safe layouts, and a workspace overview in the sessions drawer
 - **Background notifications** - know when your agent finishes, even from another tab
-- **Self-update** - update and restart from the UI, server settings stay intact
+- **Managed updates** - run `skynex-app update`, then restart explicitly when ready
 - **Cross-tab tracking** - session activity stays in sync across browser tabs
 
 - Cloudflare tunnel access with quick, managed-remote, and managed-local modes
 - One-scan onboarding with tunnel QR + password URL helpers
 - Mobile-first experience: optimized chat controls, keyboard-safe layouts, and attachment-friendly UI
 - Background notifications plus reliable cross-tab session activity tracking
-- Built-in self-update + restart flow that keeps your server settings intact
+- Web update guidance may require a manual CLI command; server settings stay intact
 
 ## License
 

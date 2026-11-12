@@ -1,6 +1,6 @@
 ---
 title: 安装
-description: 在桌面、Web、VS Code 或手机上安装 OpenChamber。
+description: 安装 Skynex 桌面应用或运行 Web 应用。
 ---
 
 # 安装
@@ -9,30 +9,36 @@ description: 在桌面、Web、VS Code 或手机上安装 OpenChamber。
 
 - 面向 macOS、Windows 和 Linux 的桌面应用
 - 由 CLI 运行的 Web 应用，可以像手机应用一样安装（即 PWA）
-- VS Code 扩展，也适用于 Cursor、Windsurf 和 Trae
-- 面向 iPhone 和 Android 的移动应用，处于公开测试阶段
 
 ## 桌面
 
-从[下载页面](https://openchamber.dev/download/)或 [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest) 下载最新版本并打开。Linux 版本提供 `.deb`、`.rpm` 和 AppImage。
+从 [Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest) 下载可用构建。支持的平台和格式以该版本的附件为准。
 
-桌面应用自带一份 [OpenCode](https://opencode.ai)（OpenChamber 所基于的 AI 编程智能体），无需另外安装。
+桌面应用包含编程智能体 [OpenCode](https://opencode.ai)。
 
 ## Web + PWA
 
 Web 应用需要在运行它的机器上安装 [OpenCode](https://opencode.ai) 和 Node.js 24.14 或更高版本。
 
+安装程序要求发布版本包含 CLI 附件。已发布的 0.1.1 没有 CLI 附件，也不支持 `skynex-app://` 链接。当前工作副本的改动尚未发布。请在包含 CLI 附件的版本发布后运行：
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
-打开 CLI 输出的 URL（通常是 `http://localhost:3000`），你应该能看到 OpenChamber 的会话列表。想随时打开的话，可以用浏览器地址栏里的“安装”选项把它添加为应用。
+安装需主动选择，使用用户专属的管理目录和固定启动器。安装程序和原生包来自同一发布版本。包内包含应用依赖和 SDK。`skynex-app` 用于应用，`skynex` 用于智能体工具。SSH 和服务仍可使用 `openchamber` 可执行文件别名。
+
+打开输出的 URL，通常为 `http://localhost:3000`。页面应显示 Skynex 会话列表。可通过浏览器的安装选项添加 PWA。
+
+`skynex-app update` 在激活前验证 SHA256，并保留旧版本。运行中的服务器保持运行，需明确执行 `skynex-app restart` 才会重启。源码安装和非托管安装会拒绝更新，不修改文件或运行中的服务器。没有 npm 回退。Web 界面可能要求手动运行 CLI 命令。
+
+新链接仅使用 `skynex-app://`，不接受旧的 `openchamber://` 链接。配置、存储路径和环境变量保留现有技术名称。
 
 ## VS Code
 
-从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) 安装 OpenChamber。Cursor、Windsurf 和 Trae 从 [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) 安装。扩展需要已安装 [OpenCode](https://opencode.ai)，之后 OpenChamber 视图会出现在侧边栏中。
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) 和 [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) 上的 OpenChamber 属于上游项目，不分发 Skynex。
 
 ## 移动应用
 
-通过 TestFlight 安装 iPhone 应用，或从最新版本下载 Android 应用，然后将它与你的电脑配对。[移动应用与 PWA](/zh-cn/mobile/) 介绍了这两个步骤。
+[移动指南](/zh-cn/mobile/) 描述上游应用。此处尚未确认 Skynex 移动应用的发布。手机上可使用 Web 应用或 PWA。

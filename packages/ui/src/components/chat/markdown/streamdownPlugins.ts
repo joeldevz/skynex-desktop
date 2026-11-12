@@ -56,7 +56,7 @@ function remarkSessionLinks() {
       for (let i = 0; i < children.length; i++) {
         const child = children[i];
         if (child.type !== 'text') { walk(child); continue; }
-        const matches = Array.from(child.value.matchAll(/\bopenchamber:\/\/session\/[A-Za-z0-9_-]{1,128}(?:\?message=[A-Za-z0-9_-]{1,128})?/g));
+        const matches = Array.from(child.value.matchAll(/\bskynex-app:\/\/session\/[A-Za-z0-9_-]{1,128}(?:\?message=[A-Za-z0-9_-]{1,128})?/g));
         if (matches.length === 0) continue;
         const replacement: RootContent[] = [];
         let offset = 0;

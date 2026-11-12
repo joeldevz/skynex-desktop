@@ -1204,7 +1204,7 @@ loads history only on an explicit tap.
 A message link opens the session on one message instead. Links are built and
 parsed in `lib/sessionLinks.ts`: the web copies `?session=<id>&message=<id>` on
 its own origin, desktop and the Capacitor app copy
-`openchamber://session/<id>?message=<id>`, and VS Code offers no link because
+`skynex-app://session/<id>?message=<id>`, and VS Code offers no link because
 its sessions live on its own OpenCode. Every entry point (the web route, the
 desktop `openchamber:open-session` event, mobile deep links, a session link
 clicked in chat content) calls `openSessionLink`, which records the message in
@@ -1236,7 +1236,7 @@ server's (`packages/web/server/lib/message-search`). A linked message outside th
 loaded window is first checked with one `session.message.get` request: a 404
 shows a "not in this session" toast, anything else loads older history until
 the message or the start of the history, on every runtime including mobile.
-Chat markdown keeps `openchamber://` hrefs only for session links and turns
+Chat markdown keeps `skynex-app://` hrefs only for session links and turns
 pasted ones into links; pairing and other routes stay stripped. A web session
 link opens in place when it points at the page's origin or at the instance
 the app is connected to (the desktop page has its own scheme, so a link to

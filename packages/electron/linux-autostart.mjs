@@ -38,7 +38,7 @@ const quoteDesktopExecArg = (value) => {
 };
 
 export const buildLinuxAutostartDesktopEntry = ({
-  appName = 'OpenChamber',
+  appName = 'Skynex',
   executable,
   backgroundArg,
   env = process.env,
@@ -56,7 +56,7 @@ export const buildLinuxAutostartDesktopEntry = ({
     `Exec=${args.join(' ')}`,
     'Terminal=false',
     'X-GNOME-Autostart-enabled=true',
-    'StartupWMClass=openchamber',
+    'StartupWMClass=skynex-app',
     '',
   ].join('\n');
 };
@@ -73,7 +73,7 @@ export const readLinuxAutostartEnabled = async (options = {}) => {
 
 export const setLinuxAutostartEnabled = async ({
   enabled,
-  appName = 'OpenChamber',
+  appName = 'Skynex',
   backgroundArg,
   env = process.env,
   execPath = process.execPath,

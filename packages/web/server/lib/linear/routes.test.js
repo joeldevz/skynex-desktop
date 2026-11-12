@@ -89,7 +89,7 @@ describe('Linear auth routes', () => {
       .expect(200);
 
     expect(callback.text).toContain('Authorization Complete');
-    expect(callback.text).toContain('openchamber://focus/linear-auth');
+    expect(callback.text).toContain('skynex-app://focus/linear-auth');
 
     const status = await request(app).get('/api/linear/auth/status').expect(200);
     expect(status.body.connected).toBe(true);

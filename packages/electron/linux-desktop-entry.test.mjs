@@ -12,7 +12,7 @@ const makeLab = async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'openchamber-desktop-entry-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const appDir = path.join(root, 'mount');
-  const iconSource = path.join(appDir, 'usr/share/icons/hicolor/512x512/apps/openchamber.png');
+  const iconSource = path.join(appDir, 'usr/share/icons/hicolor/512x512/apps/skynex-app.png');
   await fs.mkdir(path.dirname(iconSource), { recursive: true });
   await fs.writeFile(iconSource, ICON);
   const dataHome = path.join(root, 'data');
@@ -26,9 +26,9 @@ const makeLab = async (t) => {
   return {
     env,
     homeDir: root,
-    desktopPath: path.join(dataHome, 'applications', 'openchamber.desktop'),
-    iconPath: path.join(dataHome, 'icons/hicolor/512x512/apps/openchamber.png'),
-    packageEntryPath: path.join(systemData, 'applications', 'openchamber.desktop'),
+    desktopPath: path.join(dataHome, 'applications', 'skynex-app.desktop'),
+    iconPath: path.join(dataHome, 'icons/hicolor/512x512/apps/skynex-app.png'),
+    packageEntryPath: path.join(systemData, 'applications', 'skynex-app.desktop'),
   };
 };
 
@@ -44,10 +44,17 @@ test('a first AppImage launch writes a visible launcher entry and its icon', asy
   assert.deepEqual(result, { status: 'integrated', changed: true, desktopPath: lab.desktopPath });
   assert.deepEqual(await fs.readFile(lab.iconPath), ICON);
   const entry = await fs.readFile(lab.desktopPath, 'utf8');
-  assert.match(entry, /^StartupWMClass=openchamber$/m);
+  assert.match(entry, /^StartupWMClass=skynex-app$/m);
+  assert.match(entry, /^MimeType=x-scheme-handler\/skynex-app;$/m);
+  assert.doesNotMatch(entry, /x-scheme-handler\/openchamber/);
   assert.match(entry, new RegExp(`^TryExec=${lab.env.APPIMAGE}$`, 'm'));
   assert.match(entry, new RegExp(`^Icon=${lab.iconPath}$`, 'm'));
   assert.doesNotMatch(entry, /NoDisplay/);
+});
+
+test('packaging registers only the Skynex external protocol', async () => {
+  const metadata = JSON.parse(await fs.readFile(new URL('./package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(metadata.build.protocols, [{ name: 'Skynex', schemes: ['skynex-app'] }]);
 });
 
 test('a second launch from the same place changes nothing', async (t) => {
@@ -80,7 +87,7 @@ test('a moved AppImage rewrites Exec and TryExec', async (t) => {
 
 test('an entry written by Gear Lever under the same name is left alone', async (t) => {
   const lab = await makeLab(t);
-  const gearLever = '[Desktop Entry]\nName=OpenChamber (2.3.0)\nExec=env DESKTOPINTEGRATION=1 /home/u/AppImages/openchamber.appimage --no-sandbox %U\nStartupWMClass=openchamber\n';
+  const gearLever = '[Desktop Entry]\nName=Skynex (2.3.0)\nExec=env DESKTOPINTEGRATION=1 /home/u/AppImages/skynex-app.appimage --no-sandbox %U\nStartupWMClass=skynex-app\n';
   await writeEntry(lab.desktopPath, gearLever);
 
   const result = await reconcileAppImageDesktopEntry({ env: lab.env, homeDir: lab.homeDir });
@@ -102,7 +109,7 @@ test('another entry claiming the window class withdraws ours', async (t) => {
   const lab = await makeLab(t);
   await reconcileAppImageDesktopEntry({ env: lab.env, homeDir: lab.homeDir });
   await writeEntry(path.join(path.dirname(lab.desktopPath), 'appimagekit_abc-OpenChamber.desktop'),
-    '[Desktop Entry]\nName=OpenChamber\nExec=/opt/x.AppImage\nStartupWMClass=openchamber\n');
+    '[Desktop Entry]\nName=Skynex\nExec=/opt/x.AppImage\nStartupWMClass=skynex-app\n');
 
   const result = await reconcileAppImageDesktopEntry({ env: lab.env, homeDir: lab.homeDir });
   assert.deepEqual(result, { status: 'external', removed: true });

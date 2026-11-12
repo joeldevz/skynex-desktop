@@ -130,7 +130,7 @@ function buildTunnelStartReplayCommand({
   tokenViaStdin,
   tokenFileProvided,
 }) {
-  const parts = ['openchamber', 'tunnel', 'start'];
+  const parts = ['skynex-app', 'tunnel', 'start'];
   if (Number.isFinite(port) && port > 0) {
     parts.push('--port', String(port));
   }
@@ -178,7 +178,7 @@ function buildTunnelStartReplayCommand({
 
 function buildTunnelProfileAddCommand({ provider, hostname }) {
   const parts = [
-    'openchamber',
+    'skynex-app',
     'tunnel',
     'profile',
     'add',

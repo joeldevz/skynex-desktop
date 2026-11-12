@@ -19,10 +19,10 @@ const buildProbeUrl = (url, pathname) => {
   }
 };
 
-// A server before 2.0 runs OpenCode 1.x and reports the same API version and
-// capabilities as a current one; only its own version tells it apart. A
-// version that does not parse says nothing either way.
-const isServerBeforeOpenCode2 = (version) => {
+// Legacy OpenChamber servers report the same transport capabilities as current
+// ones. Without an explicit OpenCode protocol marker, retain their version guard.
+const isServerBeforeOpenCode2 = (version, supportsOpenCode2) => {
+  if (supportsOpenCode2) return false;
   const major = /^(\d+)\./.exec(version)?.[1];
   return major !== undefined && Number(major) < 2;
 };
@@ -36,7 +36,8 @@ const classifyVersionPayload = (payload) => {
   if (!Array.isArray(compatibility.capabilities) || !compatibility.capabilities.includes('api.runtime-url.v1')) {
     return 'incompatible';
   }
-  if (isServerBeforeOpenCode2(openchamberVersion)) {
+  const supportsOpenCode2 = compatibility.capabilities.includes('opencode.api.v2');
+  if (isServerBeforeOpenCode2(openchamberVersion, supportsOpenCode2)) {
     return 'incompatible';
   }
   if (compatibility.apiVersion !== 1 || compatibility.minClientApiVersion > 1) {

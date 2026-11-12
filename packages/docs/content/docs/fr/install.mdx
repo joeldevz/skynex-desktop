@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Installez OpenChamber sur le desktop, le web, VS Code ou votre téléphone.
+description: Installez Skynex sur ordinateur ou lancez son application web.
 ---
 
 # Installation
@@ -9,30 +9,36 @@ Choisissez l’application qui correspond à votre façon de travailler :
 
 - l’application desktop pour macOS, Windows et Linux
 - l’application web lancée par la CLI, que vous pouvez installer comme une application de téléphone (une PWA)
-- l’extension VS Code, aussi pour Cursor, Windsurf et Trae
-- les applications mobiles pour iPhone et Android, en bêta publique
 
 ## Desktop
 
-Téléchargez la dernière version depuis la [page de téléchargement](https://openchamber.dev/download/) ou depuis [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest), puis ouvrez-la. Linux dispose de paquets `.deb`, `.rpm` et AppImage.
+Téléchargez une version disponible depuis [Skynex GitHub Releases](https://github.com/joeldevz/skynex-desktop/releases/latest). Consultez ses fichiers pour connaître les plateformes et formats disponibles.
 
-L’application desktop embarque sa propre copie d’[OpenCode](https://opencode.ai) (l’agent IA de code sur lequel tourne OpenChamber), il n’y a donc rien d’autre à installer.
+L'application desktop inclut l'agent de code [OpenCode](https://opencode.ai).
 
 ## Web + PWA
 
 L’application web a besoin d’[OpenCode](https://opencode.ai) et de Node.js 24.14 ou plus récent sur la machine qui l’exécute.
 
+L'installateur exige une version contenant les fichiers CLI. La version publiée 0.1.1 ne contient ni fichiers CLI ni liens `skynex-app://`. Les changements de ce checkout ne sont pas publiés. Exécutez cette commande seulement lorsqu'une version contient les fichiers CLI :
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
-openchamber --ui-password be-creative-here
+curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash
+skynex-app --ui-password be-creative-here
 ```
 
-Ouvrez l’URL affichée par la CLI (en général `http://localhost:3000`). Vous devriez voir la liste des sessions OpenChamber. Pour la garder sous la main, utilisez l’option « Installer » dans la barre d’adresse du navigateur et ajoutez-la comme application.
+L'installation est facultative et propre à chaque utilisateur, avec un lanceur stable. L'installateur et les archives natives proviennent de la même version. Les archives incluent les dépendances et le SDK. `skynex-app` lance l'application ; `skynex` gère les outils d'agents. L'alias `openchamber` reste disponible pour SSH et les services.
+
+Ouvrez l'URL affichée, généralement `http://localhost:3000`. La liste des sessions Skynex apparaît. Utilisez l'option d'installation du navigateur pour ajouter la PWA.
+
+`skynex-app update` vérifie SHA256 avant l'activation et conserve la version précédente. Les serveurs restent actifs jusqu'à un `skynex-app restart` explicite. Les installations depuis les sources ou non gérées refusent la mise à jour sans modifier les fichiers ni les serveurs. Aucun recours à npm n'est prévu. Le web peut demander une commande CLI manuelle.
+
+Les nouveaux liens utilisent uniquement `skynex-app://`. Les anciens liens `openchamber://` sont refusés. Les profils, chemins de stockage et variables d'environnement gardent leurs noms techniques.
 
 ## VS Code
 
-Installez OpenChamber depuis le [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber). Cursor, Windsurf et Trae l’installent depuis [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber). L’extension a besoin d’[OpenCode](https://opencode.ai) installé ; la vue OpenChamber s’ouvre ensuite dans la barre latérale.
+Les publications OpenChamber sur [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) et [Open VSX](https://open-vsx.org/extension/FedaykinDev/openchamber) appartiennent au projet amont. Elles ne distribuent pas Skynex.
 
 ## Mobile
 
-Installez l’application iPhone via TestFlight ou l’application Android depuis la dernière version, puis associez-la à votre ordinateur. [Applications mobiles et PWA](/fr/mobile/) détaille les deux étapes.
+Le [guide mobile](/fr/mobile/) décrit les applications amont. Aucune publication mobile Skynex n'est confirmée ici. Utilisez l'application web ou la PWA sur téléphone.

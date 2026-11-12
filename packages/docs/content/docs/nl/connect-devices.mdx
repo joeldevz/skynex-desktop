@@ -45,13 +45,13 @@ Draait de server zonder geopende interface, maak dan een verbindingslink vanuit 
 Voor een apparaat op hetzelfde netwerk:
 
 ```bash
-openchamber connect-url --port 3000 --qr
+skynex-app connect-url --port 3000 --qr
 ```
 
 Voor een apparaat dat **overal** moet kunnen verbinden, gelijk aan de keuze **Overal** in het venster:
 
 ```bash
-openchamber connect-url --relay --qr
+skynex-app connect-url --relay --qr
 ```
 
 Een link met `--relay` bevat beide routes. Het apparaat verbindt rechtstreeks via het lokale netwerk als het de server kan bereiken en valt buitenshuis terug op de [Privérelay](/nl/private-relay/). De relay start vanzelf: een draaiende instantie neemt de link binnen een minuut over, een gestopte instantie bij de volgende start.
@@ -63,7 +63,7 @@ De getoonde link en QR-code werken net als die uit het instellingenvenster: eenm
 Wilt u een desktopapp koppelen, open dan de getoonde link op de computer waar die app draait. De app vraagt om bevestiging en verbindt. Op macOS:
 
 ```bash
-open 'openchamber://connect?v=2&p=...'
+open 'skynex-app://connect?v=2&p=...'
 ```
 
 ## Zie ook

@@ -186,14 +186,13 @@ const instanceStateLabelKey = (state: InstanceState): I18nKey => {
 
 // Known backend failures that the user can act on from here. Everything else
 // falls back to the raw detail plus the logs button.
-type ErrorRemedy = 'uiPassword' | 'localPort' | 'noRuntime' | 'noOpencode' | 'externalPort' | null;
+type ErrorRemedy = 'uiPassword' | 'localPort' | 'noOpencode' | 'externalPort' | null;
 
 const errorRemedy = (detail?: string): ErrorRemedy => {
   const text = (detail || '').toLowerCase();
   if (!text) return null;
   if (text.includes('ui authentication') || text.includes('ui password')) return 'uiPassword';
   if (text.includes('already in use') || text.includes('eaddrinuse')) return 'localPort';
-  if (text.includes('neither bun nor npm')) return 'noRuntime';
   if (text.includes('opencode cli is not installed')) return 'noOpencode';
   if (text.includes('requires a ui password')) return 'uiPassword';
   if (text.includes('preferred remote openchamber port')) return 'externalPort';
@@ -202,12 +201,10 @@ const errorRemedy = (detail?: string): ErrorRemedy => {
 
 // Remedies the user resolves on the remote machine: explain, do not offer a button.
 const REMEDY_HINT_KEYS = {
-  noRuntime: 'settings.remoteInstances.page.error.hint.noRuntime',
   noOpencode: 'settings.remoteInstances.page.error.hint.noOpencode',
 } satisfies Record<string, I18nKey>;
 
 const remedyHintKey = (remedy: ErrorRemedy): I18nKey | null => {
-  if (remedy === 'noRuntime') return REMEDY_HINT_KEYS.noRuntime;
   if (remedy === 'noOpencode') return REMEDY_HINT_KEYS.noOpencode;
   return null;
 };
@@ -2412,38 +2409,6 @@ export const RemoteInstancesPage: React.FC = () => {
               emptyLabel={t('settings.remoteInstances.page.field.auto')}
             />
           </div>
-
-          {isManagedMode ? (
-            <div className="flex flex-col gap-1.5 py-1.5 md:flex-row md:items-center md:gap-8">
-              <div className="w-56 shrink-0">
-                <HintLabel
-                  label={t('settings.remoteInstances.page.field.installMethod')}
-                  hint={t('settings.remoteInstances.page.field.installMethodHint')}
-                />
-              </div>
-              <Select
-                value={draft.remoteOpenchamber.installMethod}
-                onValueChange={(value) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    remoteOpenchamber: {
-                      ...current.remoteOpenchamber,
-                      installMethod: value === 'npm' || value === 'bun' ? value : 'auto',
-                    },
-                  }))
-                }
-              >
-                <SelectTrigger className="w-fit min-w-[140px]">
-                  <SelectValue placeholder={t('settings.remoteInstances.page.field.selectInstallMethodPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">{t('settings.remoteInstances.page.field.installMethodAuto')}</SelectItem>
-                  <SelectItem value="bun">bun</SelectItem>
-                  <SelectItem value="npm">npm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
 
           {isManagedMode ? (
             <div className="py-1.5">

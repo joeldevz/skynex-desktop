@@ -32,6 +32,13 @@ export default defineConfig({
     // UI integration fixtures with Vite asset imports cannot execute in Bun's
     // raw TS loader. Keep them beside their UI owner and run them here.
     include: [...configDefaults.include, '../ui/src/**/*.vitest.tsx'],
+    // These contracts use node:test and run through the package's test:node script.
+    exclude: [
+      ...configDefaults.exclude,
+      'scripts/package-cli-runtime.test.mjs',
+      'scripts/skynex-app-install.test.mjs',
+      'server/lib/skynex-app-updater-context.test.mjs',
+    ],
     // The Git suites drive a real `git` binary against temporary repositories.
     // Those subprocess round-trips routinely pass the 5s default, and which
     // cases exceed it shifts with machine load, so the default made a valid
