@@ -122,6 +122,52 @@ test('C1/C3 workspaces precede global open sessions and selecting a workspace ke
   });
 });
 
+test('workspace and open-session sections scroll independently', async () => {
+  await withNavigation(async (ui) => {
+    await fixture();
+    await ui.render();
+    const workspaceSection = [...ui.container.querySelectorAll('section')]
+      .find((section) => section.getAttribute('aria-label') === 'Workspaces');
+    const sessionSection = [...ui.container.querySelectorAll('section')]
+      .find((section) => section.getAttribute('aria-label') === 'Open sessions');
+    expect(workspaceSection?.querySelector('.overflow-y-auto')).toBeTruthy();
+    expect(sessionSection?.querySelector('.overflow-y-auto')).toBeTruthy();
+    expect(workspaceSection?.querySelector('.overflow-y-auto')).not.toBe(sessionSection?.querySelector('.overflow-y-auto'));
+  });
+});
+
+test('workspace and global visibility controls only filter the list, preserving open membership', async () => {
+  await withNavigation(async (ui) => {
+    const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
+    const membership = openSessionsStore.getState().sessions;
+    await ui.render();
+
+    await act(async () => ui.button('Hide open sessions for Product').click());
+    expect(() => ui.button('App work')).toThrow();
+    expect(ui.button('Notes work')).toBeTruthy();
+    expect(openSessionsStore.getState().sessions).toBe(membership);
+
+    await act(async () => ui.button('Show open sessions for Product').click());
+    expect(ui.button('App work')).toBeTruthy();
+    expect(openSessionsStore.getState().sessions).toBe(membership);
+
+    await act(async () => ui.button('Hide all open sessions').click());
+    expect(() => ui.button('App work')).toThrow();
+    expect(() => ui.button('Notes work')).toThrow();
+    expect(openSessionsStore.getState().sessions).toBe(membership);
+
+    await act(async () => ui.button('Show open sessions for Product').click());
+    expect(ui.button('App work')).toBeTruthy();
+    expect(() => ui.button('Notes work')).toThrow();
+    expect(openSessionsStore.getState().sessions).toBe(membership);
+
+    await act(async () => ui.button('Show all open sessions').click());
+    expect(ui.button('App work')).toBeTruthy();
+    expect(ui.button('Notes work')).toBeTruthy();
+    expect(openSessionsStore.getState().sessions).toBe(membership);
+  });
+});
+
 test('C1/C3/C7 create workspace, direct session and close actions stay separate', async () => {
   await withNavigation(async (ui) => {
     const f = await fixture();
