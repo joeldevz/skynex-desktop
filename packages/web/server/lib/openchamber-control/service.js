@@ -546,12 +546,13 @@ export const createOpenChamberControlService = (dependencies) => {
       return { status: 'not-scheduled', reason: 'The prompt was not dispatched, so there is no result to return.' };
     }
     try {
-      await dispatchResults.register({
+      const registration = {
         parentSessionId: parentSessionID,
         sessionId: result.sessionId,
         dispatchedAt,
-        ...(afterIdleId !== undefined ? { afterIdleId } : {}),
-      });
+      };
+      if (afterIdleId !== undefined) registration.afterIdleId = afterIdleId;
+      await dispatchResults.register(registration);
       return { status: 'pending', note: RESULT_PENDING_NOTE };
     } catch (error) {
       return {
