@@ -259,12 +259,6 @@ jobs:
           - runner: windows-11-arm
             platform: win32
             arch: arm64
-          - runner: macos-15-intel
-            platform: darwin
-            arch: x64
-          - runner: macos-15
-            platform: darwin
-            arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -401,7 +395,7 @@ jobs:
               `Skynex-${version}-linux-arm64.deb`,
               `Skynex-${version}-linux-aarch64.rpm`,
               'latest-linux-arm64.yml',
-              ...['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64', 'darwin-x64', 'darwin-arm64'].flatMap((target) => [
+              ...['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'].flatMap((target) => [
                 `skynex-app-${version}-${target}.tar.gz`,
                 `skynex-app-${version}-${target}.tar.gz.sha256`,
               ]),

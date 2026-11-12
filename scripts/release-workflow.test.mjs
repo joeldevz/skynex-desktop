@@ -39,3 +39,19 @@ test('Skynex release uploads have write access while build-only jobs stay read-o
     assert.equal(desktopWorkflow.jobs[name].permissions.contents, 'read');
   }
 });
+
+test('Skynex publication builds and requires only Windows and Linux CLI packages', () => {
+  const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
+  const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
+  const targets = desktopWorkflow.jobs['build-cli-runtime'].strategy.matrix.include;
+  assert.deepEqual(targets.map(({ platform, arch }) => `${platform}-${arch}`), [
+    'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64',
+  ]);
+  assert.ok(targets.every(({ runner }) => !runner.startsWith('macos')));
+
+  const inventory = desktopWorkflow.jobs.publish.steps.find(({ name }) => name === 'Verify complete release asset inventory');
+  assert.ok(!inventory.run.includes('darwin'));
+  for (const target of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']) {
+    assert.ok(inventory.run.includes(`'${target}'`));
+  }
+});
