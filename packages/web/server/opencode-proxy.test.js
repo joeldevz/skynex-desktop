@@ -386,6 +386,109 @@ describe('OpenCode proxy SSE forwarding', () => {
     expect(await response.json()).toEqual({ ok: true, source: 'external-host' });
   });
 
+  it('removes the desktop UI origin before forwarding cross-site API requests', async () => {
+    let upstreamRequest;
+    const upstream = express();
+    upstream.get('/api/agent', (req, res) => {
+      upstreamRequest = {
+        origin: req.headers.origin ?? null,
+        fetchSite: req.headers['sec-fetch-site'],
+        authorization: req.headers.authorization,
+        directory: req.headers['x-opencode-directory'],
+        url: req.originalUrl,
+      };
+      if (req.headers.origin && req.headers['sec-fetch-site'] === 'cross-site') {
+        res.status(403).json({ error: 'Cross-site requests to the API are not allowed' });
+        return;
+      }
+      res.json({ agents: [{ name: 'build' }] });
+    });
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+    const baseUrl = `http://127.0.0.1:${upstreamPort}`;
+
+    const app = express();
+    let inboundOrigin;
+    app.use('/api', (req, _res, next) => {
+      inboundOrigin = req.headers.origin;
+      next();
+    });
+    registerOpenCodeProxy(app, {
+      fs: {}, os: {}, path, OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({ openCodePort: upstreamPort, openCodeBaseUrl: baseUrl, isOpenCodeReady: true, openCodeNotReadySince: 0, isRestartingOpenCode: false }),
+      getOpenCodeAuthHeaders: () => ({ Authorization: 'Bearer proxy-token' }),
+      buildOpenCodeUrl: (requestPath) => `${baseUrl}${requestPath}`,
+      ensureOpenCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+
+    const response = await fetch(`http://127.0.0.1:${proxyServer.address().port}/api/agent?directory=%2Fworkspace`, {
+      headers: {
+        Origin: 'openchamber-ui://app',
+        'Sec-Fetch-Site': 'cross-site',
+        'x-opencode-directory': '/workspace',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ agents: [{ name: 'build' }] });
+    expect(inboundOrigin).toBe('openchamber-ui://app');
+    expect(upstreamRequest).toEqual({
+      origin: null,
+      fetchSite: 'cross-site',
+      authorization: 'Bearer proxy-token',
+      directory: '/workspace',
+      url: '/api/agent?directory=%2Fworkspace',
+    });
+  });
+
+  it.each(['https://untrusted.example', 'null'])(
+    'preserves untrusted Origin %s so passwordless upstream CSRF checks can reject cross-site writes',
+    async (origin) => {
+      const upstreamRequests = [];
+      let operationExecuted = false;
+      const upstream = express();
+      upstream.post('/api/write', (req, res) => {
+        upstreamRequests.push({
+          origin: req.headers.origin ?? null,
+          fetchSite: req.headers['sec-fetch-site'],
+        });
+        if (req.headers.origin && req.headers['sec-fetch-site'] === 'cross-site') {
+          res.status(403).json({ error: 'Cross-site requests to the API are not allowed' });
+          return;
+        }
+        operationExecuted = true;
+        res.json({ ok: true });
+      });
+      upstreamServer = await listen(upstream);
+      const upstreamPort = upstreamServer.address().port;
+      const baseUrl = `http://127.0.0.1:${upstreamPort}`;
+
+      const app = express();
+      registerOpenCodeProxy(app, {
+        fs: {}, os: {}, path, OPEN_CODE_READY_GRACE_MS: 0,
+        getRuntime: () => ({ openCodePort: upstreamPort, openCodeBaseUrl: baseUrl, isOpenCodeReady: true, openCodeNotReadySince: 0, isRestartingOpenCode: false }),
+        getOpenCodeAuthHeaders: () => ({}),
+        buildOpenCodeUrl: (requestPath) => `${baseUrl}${requestPath}`,
+        ensureOpenCodeApiPrefix: () => {},
+      });
+      proxyServer = await listen(app);
+
+      const response = await fetch(`http://127.0.0.1:${proxyServer.address().port}/api/write`, {
+        method: 'POST',
+        headers: {
+          Origin: origin,
+          'Sec-Fetch-Site': 'cross-site',
+        },
+      });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'Cross-site requests to the API are not allowed' });
+      expect(upstreamRequests).toEqual([{ origin, fetchSite: 'cross-site' }]);
+      expect(operationExecuted).toBe(false);
+    },
+  );
+
   it('replays parsed urlencoded bodies to generic API proxy requests', async () => {
     const upstream = express();
     upstream.post('/api/form', express.urlencoded({ extended: true }), (req, res) => {

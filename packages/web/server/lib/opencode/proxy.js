@@ -1263,6 +1263,11 @@ export const registerOpenCodeProxy = (app, deps) => {
     router: () => resolveProxyTarget(),
     on: {
       proxyReq: (proxyReq, req) => {
+        // Only the packaged desktop origin is rewritten; passwordless auth still
+        // relies on OpenCode's Origin check for every other browser origin.
+        if (req.headers?.origin === 'openchamber-ui://app') {
+          proxyReq.removeHeader('origin');
+        }
         // Inject OpenCode auth headers
         const authHeaders = getOpenCodeAuthHeaders();
         if (authHeaders.Authorization) {

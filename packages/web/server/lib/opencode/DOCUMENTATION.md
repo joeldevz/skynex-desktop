@@ -106,6 +106,16 @@ in that user's sessions. On the fallback path the same rules are merged into
   JSON includes and token references stay inside the package. Each failed variant
   is reported separately so valid siblings remain available. No extension code runs.
 - `packages/web/server/lib/opencode/proxy.js`: OpenCode API/SSE forwarding and readiness-gate route registration.
+
+The generic OpenCode API proxy removes `Origin` from its outbound request only
+when the incoming value exactly matches the packaged desktop origin
+`openchamber-ui://app`; forwarding it makes OpenCode reject packaged desktop
+cross-site requests. Every other origin, including foreign and opaque (`null`)
+origins, remains forwarded so OpenCode's origin check continues to protect
+passwordless requests. The inbound request is unchanged, and the proxy still
+applies OpenCode authentication. This is limited to the generic API proxy; it
+does not change SSE or session-fetch forwarding, UI authentication, tunnel,
+enterprise-mode, or folder-trust checks.
 - `packages/web/server/lib/opencode/session-runtime.js`: session status/activity runtime for OpenCode SSE events.
 - `packages/web/server/lib/opencode/watcher.js`: global SSE watcher runtime for push/session event fanout.
 - `packages/web/server/lib/opencode/shared.js`: shared utilities for config, markdown, skills, and git helpers.
