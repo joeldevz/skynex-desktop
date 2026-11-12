@@ -17,10 +17,12 @@ export const OpenChamberLogo: React.FC<OpenChamberLogoProps> = ({
   className = '',
   width = 70,
   height = 70,
+  isAnimated = false,
   variant = 'default',
 }) => {
   const { t } = useI18n();
   const themeContext = useOptionalThemeSystem();
+  const animate = isAnimated && variant === 'splash';
 
   const color = useMemo(() => {
     // Startup stages share the pre-paint palette while the app theme hydrates.
@@ -44,14 +46,28 @@ export const OpenChamberLogo: React.FC<OpenChamberLogoProps> = ({
     <svg
       width={width}
       height={height}
-      viewBox="-50 -50 100 100"
+      viewBox={variant === 'splash' ? ART.animatedViewBox : ART.viewBox}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       role="img"
       aria-label={t('openChamberLogo.aria.logo')}
     >
-      <path d={ART.mark} transform={ART.transform} fill="none" stroke={color} strokeWidth={ART.strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+      {animate ? (
+        <>
+          <style>{'.skynex-logo-still{display:none}@media(prefers-reduced-motion:reduce){.skynex-logo-animated{display:none}.skynex-logo-still{display:inline}}'}</style>
+          <path className="skynex-logo-still" d={ART.mark} fill={color} />
+          <path className="skynex-logo-animated" d={ART.mark} fill={color}>
+            {ART.animation.map((animation) => (
+              <animate
+                key={animation.attributeName}
+                {...animation}
+                values={animation.values.join(';')}
+              />
+            ))}
+          </path>
+        </>
+      ) : <path d={ART.mark} fill={color} />}
     </svg>
   );
 };

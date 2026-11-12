@@ -5,7 +5,7 @@ import sharp from 'sharp';
 
 import { textOutputs } from './generate.mjs';
 import { encodeIco, svgToPng } from './raster.mjs';
-import { glyphSvg, SKYNET_S } from './geometry.mjs';
+import { flatLogoSvg, glyphSvg, noTileIconSvg, RIBBON_ANIMATION, RIBBON_VIEW_BOX, SKYNET_S } from './geometry.mjs';
 
 test('every generated text file matches scripts/brand', () => {
   const stale = [...textOutputs()]
@@ -34,7 +34,7 @@ test('the generated glyph renders the full S inside its 32px canvas', async () =
       maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
     }
   }
-  expect(SKYNET_S.startsWith('M706 322c')).toBe(true);
+  expect(SKYNET_S).toBe(readFileSync('scripts/brand/skynex-logo.svg', 'utf8').match(/<path\s+fill="#[^"]+"\s+d="([^"]+)"/)?.[1]);
   expect(visible).toBeGreaterThan(40);
   expect(minX).toBeGreaterThan(0);
   expect(minY).toBeGreaterThan(0);
@@ -42,13 +42,49 @@ test('the generated glyph renders the full S inside its 32px canvas', async () =
   expect(maxY).toBeLessThan(31);
 });
 
-test('Android notification vector has scaled S path geometry and visible stroke', () => {
+test('Android notification vector uses the supplied filled path scaled onto its icon grid', () => {
   const vector = textOutputs().get(`${process.cwd()}/packages/mobile/android/app/src/main/res/drawable/ic_stat_notify.xml`);
-  expect(vector).toContain('android:scaleX="0.03125"');
-  expect(vector).toContain('android:scaleY="0.03125"');
+  expect(vector).toContain('android:scaleX="0.112"');
+  expect(vector).toContain('android:scaleY="0.112"');
   expect(vector).toContain(`android:pathData="${SKYNET_S}"`);
-  expect(vector).toContain('android:strokeColor="#FFFFFFFF"');
-  expect(vector).toContain('android:fillColor="#00000000"');
+  expect(vector).toContain('android:fillColor="#FFFFFFFF"');
+  expect(vector).not.toContain('android:strokeColor=');
+});
+
+test('ribbon geometry and discrete opacity entrance come from the supplied source SVG', () => {
+  const source = readFileSync('scripts/brand/skynex-logo-ribbon.svg', 'utf8');
+  expect(RIBBON_VIEW_BOX).toBe('-26 -25 262 296');
+  expect(RIBBON_ANIMATION.map(({ attributeName, dur, calcMode, fill }) => ({ attributeName, dur, calcMode, fill }))).toEqual([
+    { attributeName: 'd', dur: '1.6s', calcMode: 'discrete', fill: 'freeze' },
+    { attributeName: 'opacity', dur: '0.18s', calcMode: undefined, fill: 'freeze' },
+  ]);
+  expect(RIBBON_ANIMATION[0].values.at(-1)).toBe(SKYNET_S);
+  expect(source).toContain('prefers-reduced-motion:reduce');
+  for (const file of [
+    'packages/web/index.html',
+    'packages/electron/early-startup.mjs',
+    'packages/vscode/src/webviewHtml.ts',
+    'packages/web/server/lib/opencode/static-routes-runtime.js',
+  ]) {
+    const markup = readFileSync(file, 'utf8').split('<!-- brand:flat-logo:start -->')[1]?.split('<!-- brand:flat-logo:end -->')[0];
+    expect(markup).toContain('skynex-logo-animated-frame');
+    expect(markup).toContain('skynex-logo-still');
+    expect(markup).toContain('dur="1.6s" calcMode="discrete" fill="freeze"');
+    expect(markup).toContain(`viewBox="${RIBBON_VIEW_BOX}"><path class="skynex-logo-still"`);
+  }
+});
+
+test('static generated logo and app icon preserve the supplied filled silhouette', () => {
+  for (const svg of [flatLogoSvg({ color: 'currentColor' }), noTileIconSvg()]) {
+    expect(svg).toContain(`d="${SKYNET_S}"`);
+    expect(svg).toContain('fill=');
+    expect(svg).not.toContain('stroke=');
+  }
+  for (const file of ['packages/web/public/logo-dark-512x512.svg', 'packages/electron/resources/icons/app-icon.svg']) {
+    const svg = readFileSync(file, 'utf8');
+    expect(svg).toContain(`d="${SKYNET_S}"`);
+    expect(svg).not.toContain('stroke=');
+  }
 });
 
 test('generated 18px tray states have visible unread badge and breathing opacity changes', async () => {

@@ -115,7 +115,12 @@ const parseArgs = (argv) => {
 
 /** Serves only the fixture, on an ephemeral loopback port. */
 const startFixtureServer = () => new Promise((resolvePromise, reject) => {
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
+    if (request.url === '/skynex-logo-ribbon.svg') {
+      response.writeHead(200, { "content-type": "image/svg+xml" })
+      createReadStream(join(scriptDirectory, 'brand', 'skynex-logo-ribbon.svg')).pipe(response)
+      return
+    }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
     createReadStream(fixturePath).pipe(response)
   })
@@ -135,6 +140,8 @@ const measureVariant = async (client, browserClient, url, options) => {
   const loaded = client.once("Page.loadEventFired", 30_000)
   await client.send("Page.navigate", { url })
   await loaded
+  const brand = new URL(url).searchParams.get('variant')?.startsWith('brand-')
+  if (brand) await client.send('Runtime.evaluate', { expression: 'window.brandFixtureReady', awaitPromise: true })
   await wait(options.settle * 1000)
 
   // A composited animation costs the main thread nothing and still makes the
@@ -144,19 +151,33 @@ const measureVariant = async (client, browserClient, url, options) => {
   const before = metricMap((await client.send("Performance.getMetrics")).metrics)
   await processCpu.sample()
   const frameCount = await startFrameCount(client)
+  let brandStart
+  if (brand) {
+    const result = await client.send('Runtime.evaluate', { expression: 'window.startBrandFixture()', returnByValue: true })
+    brandStart = result.result.value
+    if (!brandStart?.visible || !brandStart?.animationCount) throw new Error('Brand fixture did not render its source animation')
+  }
   const startedAt = Date.now()
   await wait(options.duration * 1000)
   const elapsedSeconds = (Date.now() - startedAt) / 1000
   await processCpu.sample()
   const { framesPerSecond } = await frameCount.stop()
   const after = metricMap((await client.send("Performance.getMetrics")).metrics)
+  let brandEnd
+  if (brand) {
+    const result = await client.send('Runtime.evaluate', { expression: 'window.brandFixtureState()', returnByValue: true })
+    brandEnd = result.result.value
+    if (!brandEnd?.visible || !brandEnd?.geometryChanged || !brandEnd?.finished || !brandEnd?.finalFrame) {
+      throw new Error('Brand fixture did not complete the supplied path animation')
+    }
+  }
   const cpu = processCpu.summarize()
   const cpuOf = (type) => round(cpu.processes
     .filter((entry) => entry.label === `chrome ${type}`)
     .reduce((total, entry) => total + entry.averagePercent, 0))
 
   const delta = (name) => Number(after[name] ?? 0) - Number(before[name] ?? 0)
-  return {
+  const metrics = {
     framesPerSecond,
     recalcStylePerSecond: round(delta("RecalcStyleCount") / elapsedSeconds),
     layoutsPerSecond: round(delta("LayoutCount") / elapsedSeconds),
@@ -166,6 +187,8 @@ const measureVariant = async (client, browserClient, url, options) => {
     gpuCpuPercent: cpuOf("GPU"),
     totalCpuPercent: cpu.totalAveragePercent,
   }
+  if (brand) metrics.brandValidity = brandEnd
+  return metrics
 }
 
 const main = async () => {

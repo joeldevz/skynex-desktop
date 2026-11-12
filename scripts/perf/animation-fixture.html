@@ -165,6 +165,8 @@
   .v-activity-static, .v-activity-collapse { display: block; }
   .v-activity-static .cell, .v-activity-collapse .cell { width: 680px; height: auto; overflow: hidden; }
   .activity-row { height: 18px; display: flex; gap: 12px; }
+  .v-brand-static .cell, .v-brand-ribbon .cell, .v-brand-settled .cell,
+  .v-brand-static svg, .v-brand-ribbon svg, .v-brand-settled svg { width: 120px; height: 120px; }
 </style>
 </head>
 <body>
@@ -185,10 +187,15 @@
   const usesActivity = variant === 'activity-static' || variant === 'activity-collapse';
   const usesBusyDots = variant.startsWith('busy-dots');
   const usesStatusLogo = variant.startsWith('status-logo-');
+  const usesBrand = variant.startsWith('brand-');
   for (let index = 0; index < count; index += 1) {
     const cell = document.createElement('div');
     cell.className = 'cell';
     const spinner = SPINNER.replace('<svg', '<svg class="spin"');
+    if (usesBrand) {
+      grid.appendChild(cell);
+      continue;
+    }
     if (usesActivity) {
       cell.innerHTML = Array.from({ length: 80 }, (_, row) =>
         '<div class="activity-row"><span>Read file</span><code>src/module-' + row + '.ts</code><span>Completed</span></div>'
@@ -218,6 +225,47 @@
     else if (usesButton) cell.innerHTML = '<button>' + spinner + '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="#456"/></svg></button>';
     else cell.innerHTML = SPINNER;
     grid.appendChild(cell);
+  }
+
+  if (usesBrand) {
+    window.brandFixtureReady = (async () => {
+      const response = await fetch('/skynex-logo-ribbon.svg');
+      if (!response.ok) throw new Error('Missing canonical ribbon SVG');
+      const source = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
+      for (const cell of grid.children) {
+        const svg = document.importNode(source.documentElement, true);
+        cell.appendChild(svg);
+        svg.pauseAnimations();
+        svg.setCurrentTime(0);
+      }
+      const svgs = [...grid.querySelectorAll('svg')];
+      const animated = [...grid.querySelectorAll('path.animated')];
+      const bounds = (path) => { const box = path.getBBox(); return [box.x, box.y, box.width, box.height]; };
+      const initialBounds = animated.map(bounds);
+      const animationCount = grid.querySelectorAll('animate').length;
+      let geometryChanged = false;
+      let finalBounds = [];
+      window.brandFixtureState = () => ({
+        visible: animated.every((path) => getComputedStyle(path).display !== 'none' && path.getBoundingClientRect().width > 0),
+        animationCount,
+        geometryChanged,
+        finished: svgs.every((svg) => svg.getCurrentTime() >= 1.6),
+        finalFrame: animated.every((path, index) => JSON.stringify(bounds(path)) === JSON.stringify(finalBounds[index])),
+      });
+      window.startBrandFixture = () => {
+        // Sample a non-final frame independently of performance counters.
+        svgs.forEach((svg) => svg.setCurrentTime(0.8));
+        geometryChanged = animated.some((path, index) => JSON.stringify(bounds(path)) !== JSON.stringify(initialBounds[index]));
+        svgs.forEach((svg) => svg.setCurrentTime(2));
+        finalBounds = animated.map(bounds);
+        if (variant === 'brand-ribbon') {
+          svgs.forEach((svg) => { svg.setCurrentTime(0); svg.unpauseAnimations(); });
+        } else {
+          if (variant === 'brand-static') grid.querySelectorAll('animate').forEach((node) => node.remove());
+        }
+        return window.brandFixtureState();
+      };
+    })();
   }
 
   // Two content regions per turn at most: prior messages and non-text parts

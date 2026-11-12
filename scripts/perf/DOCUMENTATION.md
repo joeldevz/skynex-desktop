@@ -451,6 +451,19 @@ documented contract is transform-only zero recalc/layout.
 Add a variant to `animation-fixture.html` to measure a property or technique
 that is not listed.
 
+The Skynex startup mark has finite variants at its 120 px startup size.
+`brand-ribbon` runs the supplied discrete path animation once for 1.6 seconds.
+`brand-static` removes its animation elements, and `brand-settled` holds the
+finished frame. All three load `scripts/brand/skynex-logo-ribbon.svg` from the
+fixture server. The probe checks that a middle frame changes the geometry and
+that the logo is visible. It starts the animation after settling and opening
+the measurement window, so the default settle time cannot hide its cost.
+Use a duration above 1.7 seconds for the active variant.
+
+```bash
+bun run profile:animation -- --variant brand-static --variant brand-ribbon --variant brand-settled --count 1 --duration 3 --settle 1 --json
+```
+
 ## profile:switch
 
 Clicks sidebar session rows with real mouse input and measures, per click:
