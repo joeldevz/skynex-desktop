@@ -28,6 +28,7 @@ import {
   RIBBON_VIEW_BOX,
   appIconDocument,
   appIconLayerSvgs,
+  desktopIconSvg,
   flatLogoSvg,
   glyphBreathRings,
   glyphSvg,
@@ -133,9 +134,9 @@ const androidBackgroundColor = () => `<?xml version="1.0" encoding="utf-8"?>
 const textOutputs = () => {
   const files = new Map([
     [join(ELECTRON_ICONS, 'AppIcon.icon/icon.json'), `${JSON.stringify(appIconDocument(), null, 2)}\n`],
-    [join(ELECTRON_ICONS, 'icon-win.svg'), noTileIconSvg()],
-    [join(ELECTRON_ICONS, 'app-icon.svg'), noTileIconSvg()],
-    [join(ELECTRON_ICONS, 'dev-icon-win.svg'), noTileIconSvg({ tape: true })],
+    [join(ELECTRON_ICONS, 'icon-win.svg'), desktopIconSvg()],
+    [join(ELECTRON_ICONS, 'app-icon.svg'), desktopIconSvg()],
+    [join(ELECTRON_ICONS, 'dev-icon-win.svg'), desktopIconSvg({ tape: true })],
     [join(ELECTRON_ICONS, 'tray/tray-glyph.svg'), glyphSvg({ color: '#000000', zoom: MENU_BAR_GLYPH_ZOOM })],
     [join(WEB_PUBLIC, 'favicon.svg'), glyphWithSchemeColors()],
     [join(WEB_PUBLIC, 'apple-touch-icon.svg'), noTileIconSvg({ size: 180, background: BLACK, cubeShare: 0.7 })],
@@ -171,16 +172,15 @@ const imageOutputs = async () => {
     put(join(ELECTRON_ICONS, 'AppIcon.icon/Assets', name), await svgToPng(svg, 1024));
   }
 
-  // Windows and Linux: the icon without a tile; the .ico takes the pixel cube below 32 px.
+  // Windows and Linux use a rounded white tile; construction tape marks dev icons.
+  const desktop = desktopIconSvg();
   const noTile = noTileIconSvg();
   const icoEntries = async ({ tape }) => Promise.all([16, 20, 24, 32, 40, 48, 64, 128, 256].map(async (size) => ({
     size,
-    png: size <= 24
-      ? await svgToPng(glyphSvg({ size: 32, color: '#73C991', tape }), size)
-      : await svgToPng(noTileIconSvg({ tape }), size),
+    png: await svgToPng(desktopIconSvg({ tape }), size),
   })));
-  put(join(ELECTRON_ICONS, 'icon.png'), await svgToPng(noTile, 1024));
-  put(join(ELECTRON_ICONS, 'app-icon.png'), await svgToPng(noTile, 512));
+  put(join(ELECTRON_ICONS, 'icon.png'), await svgToPng(desktop, 1024));
+  put(join(ELECTRON_ICONS, 'app-icon.png'), await svgToPng(desktop, 512));
   put(join(ELECTRON_ICONS, 'icon.ico'), encodeIco(await icoEntries({ tape: false })));
   put(join(ELECTRON_ICONS, 'dev-icon.ico'), encodeIco(await icoEntries({ tape: true })));
 

@@ -5,7 +5,7 @@ import sharp from 'sharp';
 
 import { textOutputs } from './generate.mjs';
 import { encodeIco, svgToPng } from './raster.mjs';
-import { flatLogoSvg, glyphSvg, noTileIconSvg, RIBBON_ANIMATION, RIBBON_VIEW_BOX, SKYNET_S } from './geometry.mjs';
+import { appIconDocument, appIconLayerSvgs, desktopIconSvg, flatLogoSvg, glyphSvg, noTileIconSvg, RIBBON_ANIMATION, RIBBON_VIEW_BOX, SKYNET_S } from './geometry.mjs';
 
 test('every generated text file matches scripts/brand', () => {
   const stale = [...textOutputs()]
@@ -87,6 +87,27 @@ test('static generated logo and app icon preserve the supplied filled silhouette
   }
 });
 
+test('desktop icons use a rounded white tile and the scaled charcoal supplied mark', async () => {
+  const svg = desktopIconSvg();
+  expect(svg).toContain('rx="21.2"');
+  expect(svg).toContain('transform="scale(0.82)"');
+  expect(svg).toContain(`d="${SKYNET_S}"`);
+  expect(svg).toContain('fill="#1F2024"');
+  expect(Object.keys(appIconLayerSvgs())).toEqual(['backplate.png', 'shell.png']);
+  expect(appIconDocument()['fill-specializations']).toEqual([]);
+  expect(appIconDocument().groups[0].layers.map(({ name }) => name)).toEqual(['backplate', 'shell']);
+
+  for (const [file, size] of [['icon.png', 1024], ['app-icon.png', 512]]) {
+    const image = sharp(readFileSync(`packages/electron/resources/icons/${file}`));
+    const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+    expect(info.width).toBe(size);
+    const pixel = (x, y) => [...data.subarray((y * size + x) * info.channels, (y * size + x) * info.channels + 4)];
+    expect(pixel(0, 0)[3]).toBe(0);
+    expect(pixel(Math.round(size * 0.1), Math.round(size * 0.1))).toEqual([255, 255, 255, 255]);
+    expect(pixel(Math.round(size * 0.5), Math.round(size * 0.5))).toEqual([31, 32, 36, 255]);
+  }
+});
+
 test('generated 18px tray states have visible unread badge and breathing opacity changes', async () => {
   const tray = 'packages/electron/resources/icons/tray';
   const pixels = async (name) => sharp(readFileSync(`${tray}/trayTemplate-${name}.png`)).raw().toBuffer();
@@ -121,7 +142,7 @@ test('generated 18px tray states have visible unread badge and breathing opacity
   expect(breathingDelta.largest).toBeGreaterThan(60);
 });
 
-test('generated 16px favicon and small ICO frames render the S rather than pixel cube art', async () => {
+test('generated 16px favicon keeps its glyph and small desktop ICO frames keep the tile design', async () => {
   const smallPng = readFileSync('packages/web/public/favicon-16.png');
   const { data: smallPixels } = await sharp(smallPng).raw().toBuffer({ resolveWithObject: true });
   const expectedSmall = await svgToPng(glyphSvg({ size: 32, color: '#73C991' }), 16);
@@ -144,12 +165,12 @@ test('generated 16px favicon and small ICO frames render the S rather than pixel
       const offset = ico.readUInt32LE(entry + 12);
       const png = ico.subarray(offset, offset + length);
       const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
-      const expected = await svgToPng(glyphSvg({ size: 32, color: '#73C991', tape }), expectedSize);
+      const expected = await svgToPng(desktopIconSvg({ tape }), expectedSize);
       const { data: expectedPixels } = await sharp(expected).raw().toBuffer({ resolveWithObject: true });
       expect(data.equals(expectedPixels)).toBe(true);
       let colored = 0;
       for (let i = 0; i < data.length; i += info.channels) {
-        if (data[i + 3] > 0 && data[i + 1] > data[i]) colored += 1;
+        if (data[i + 3] > 0 && data[i] < 60 && data[i + 1] < 60 && data[i + 2] < 60) colored += 1;
       }
       expect(colored).toBeGreaterThan(5);
     }

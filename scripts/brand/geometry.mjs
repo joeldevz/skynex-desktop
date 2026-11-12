@@ -72,6 +72,16 @@ export const noTileIconSvg = ({ size = 1024, background = null, cubeShare = 1, t
   );
 };
 
+/** Desktop app icon: the supplied mark on a rounded white tile. */
+export const desktopIconSvg = ({ size = 1024, tape = false } = {}) => (
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="-53 -53 106 106">`
+  + '<defs><clipPath id="desktop-tile"><rect x="-53" y="-53" width="106" height="106" rx="21.2"/></clipPath></defs>'
+  + '<rect x="-53" y="-53" width="106" height="106" rx="21.2" fill="#FFFFFF"/>'
+  + `<g transform="scale(0.82)"><path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="#1F2024"/></g>`
+  + (tape ? `<g clip-path="url(#desktop-tile)">${devTape(106)}</g>` : '')
+  + '</svg>\n'
+);
+
 // ---------------------------------------------------------------------------
 // Small glyph, one colour: menu bar, favicon, VS Code, model picker, Android
 // notification and themed icon. Drawn on a 32 grid.
@@ -131,15 +141,10 @@ export const GLYPH_UNSEEN_WALLS = 0.6;
 // transparent 1024 canvas; colour comes from the document, so Clear and Tinted
 // get real layers to work with.
 
-const LAYER_SCALE = 9.6;
-const layerSvg = (inner, defs = '') => (
-  `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>${defs}</defs>`
-  + `<g transform="translate(512 512) scale(${LAYER_SCALE})">${inner}</g></svg>`
-);
-
 export const appIconLayerSvgs = () => {
   return {
-    'shell.png': layerSvg(`<path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="white"/>`),
+    'backplate.png': '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="-53 -53 106 106"><rect x="-53" y="-53" width="106" height="106" rx="21.2" fill="white"/></svg>',
+    'shell.png': `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="-53 -53 106 106"><g transform="scale(0.82)"><path d="${SKYNET_S}" transform="${S_MARK_TRANSFORM}" fill="white"/></g></svg>`,
   };
 };
 
@@ -148,7 +153,7 @@ const solid = (rgb, appearance) => {
   const value = { solid: `srgb:${rgb.map((c) => c.toFixed(5)).join(',')},1.00000` };
   return appearance ? { appearance, value } : { value };
 };
-const position = () => [{ idiom: 'square', value: { scale: 1.15, 'translation-in-points': [-0.65, -3.25] } }];
+const position = () => [{ idiom: 'square', value: { scale: 1, 'translation-in-points': [0, 0] } }];
 const layer = (name, { glass, opacity = [{ value: 1 }], fill }) => ({
   'image-name': `${name}.png`,
   name,
@@ -159,23 +164,19 @@ const layer = (name, { glass, opacity = [{ value: 1 }], fill }) => ({
 });
 
 /**
- * The Icon Composer document. The S mark uses one glass layer over light and
- * dark automatic tiles.
+ * The Icon Composer document uses the same charcoal mark and white rounded
+ * tile in every appearance. Icon Composer applies the platform mask.
  */
 export const appIconDocument = () => {
-  const white = [0.96, 0.96, 0.97];
-  const lineGrey = [0.22, 0.22, 0.23];
-  const shellFill = [solid(lineGrey), solid(white, 'dark'), solid(white, 'tinted')];
-  const shellGlass = [{ value: false }, { appearance: 'dark', value: true }, { appearance: 'tinted', value: true }];
   return {
-    'fill-specializations': [
-      { value: { 'automatic-gradient': 'srgb:0.95000,0.95000,0.96000,1.00000' } },
-      solid([0.075, 0.075, 0.085], 'dark'),
-    ],
+    'fill-specializations': [],
     groups: [{
-      layers: [layer('shell', { glass: shellGlass, fill: shellFill })],
+      layers: [
+        layer('backplate', { glass: [{ value: false }], fill: [solid([1, 1, 1])] }),
+        layer('shell', { glass: [{ value: false }], fill: [solid([0.122, 0.125, 0.141])] }),
+      ],
       shadow: { kind: 'neutral', opacity: 0.5 },
-      translucency: { enabled: true, value: 0.5 },
+      translucency: { enabled: false, value: 0 },
     }],
     'supported-platforms': { circles: ['watchOS'], squares: 'shared' },
   };

@@ -4313,6 +4313,25 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.3] - 2026-11-12
+
+### New
+
+- **Sidebar:** Resize the Workspaces and Open sessions sections with the divider. The app remembers the split on this device, and each list scrolls independently. (thanks to @Joeldevz)
+- Sidebar: Show or hide all open sessions, or just one workspace's sessions, with the eye buttons. Hidden sessions stay open. (thanks to @Joeldevz)
+- Sidebar: Running sessions show the elapsed time of the current response. (thanks to @Joeldevz)
+
+### Improvements
+
+- Desktop and web: Start a session beside Open sessions or from the titlebar. Archive and other page buttons now share the titlebar row. (thanks to @Joeldevz)
+- Chat: Skynex's built-in slash suggestions show `/btw`. Server and extension commands remain available. (thanks to @Joeldevz)
+- Desktop: The new S icon is charcoal on a rounded white background, with a new startup animation. (thanks to @joeldevz)
+
+### Fixes
+
+- Desktop: Agents load normally with newer OpenCode versions. (thanks to @Joeldevz)
+- Updates: The update dialog shows Skynex release changes. (thanks to @Joeldevz)
+
 ## [0.1.1] - 2026-11-10
 
 ### Fixes

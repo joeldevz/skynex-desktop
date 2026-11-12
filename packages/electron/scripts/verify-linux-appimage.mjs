@@ -100,6 +100,7 @@ export const verifyExtractedPayload = ({
   root,
   targetArchitecture,
   expectedOpenCodeVersion,
+  executableName,
   runCliVersion = defaultCliVersion,
 }) => {
   const desktopPath = path.join(root, 'skynex-app.desktop');
@@ -111,7 +112,7 @@ export const verifyExtractedPayload = ({
   if (!/^Exec=AppRun(?:\s|$)/m.test(desktop)) throw new Error('Desktop identity mismatch: expected AppImage AppRun entrypoint');
   assertThemeIcon(root);
 
-  assertElfArchitecture(path.join(root, 'openchamber'), targetArchitecture, 'Electron executable');
+  assertElfArchitecture(path.join(root, executableName), targetArchitecture, 'Electron executable');
   const cliPath = path.join(root, 'resources', 'opencode-cli', 'opencode');
   assertElfArchitecture(cliPath, targetArchitecture, 'OpenCode CLI');
   const actualVersion = runCliVersion(cliPath);
@@ -160,6 +161,7 @@ const extractAppImage = (appImagePath, destination) => {
 
 const main = () => {
   const rootPackage = readJson(path.join(workspaceRoot, 'package.json'));
+  const electronPackage = readJson(path.join(electronRoot, 'package.json'));
   const target = normalizeTargetArchitecture(process.env.OPENCHAMBER_TARGET_ARCH || process.arch).node;
   const appImagePath = process.argv[2] ? path.resolve(process.argv[2]) : findAppImage(rootPackage.version, target);
   assertElfArchitecture(appImagePath, target, 'AppImage');
@@ -170,6 +172,7 @@ const main = () => {
       root: extractAppImage(appImagePath, temporaryDirectory),
       targetArchitecture: target,
       expectedOpenCodeVersion: readPinnedOpenCodeCliVersion(),
+      executableName: electronPackage.build.linux.executableName,
     });
     console.log(`[electron] verified Linux ${target} AppImage: ${appImagePath}`);
     console.log(`[electron] verified OpenCode CLI ${result.openCodeVersion} and ${result.nativeModuleCount} native modules`);

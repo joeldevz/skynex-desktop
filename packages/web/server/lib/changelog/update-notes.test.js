@@ -72,7 +72,12 @@ describe('fetchUpdateNotes', () => {
   });
 
   it('renders a successful response', async () => {
-    const ok = async () => ({ ok: true, json: async () => index });
+    let requestedUrl;
+    const ok = async (url) => {
+      requestedUrl = url;
+      return { ok: true, json: async () => index };
+    };
     expect(await fetchUpdateNotes('1.2.2', '1.2.3', compare, { fetch: ok })).toMatch(/^## \[1\.2\.3\] - 2026-03-03\n\n\*\*Comments everywhere\*\*/);
+    expect(requestedUrl).toBe('https://raw.githubusercontent.com/joeldevz/skynex-desktop/skynex/changelog/index.json');
   });
 });

@@ -1,6 +1,6 @@
 // Release notes for the update dialog.
 //
-// The repo publishes `changelog/index.json` on `main`: one object per release,
+// The fork publishes `changelog/index.json` on the `skynex` branch: one object per release,
 // newest first, with the app notes grouped as New / Improvements / Fixes /
 // SDK / Misc. This module fetches it and renders the releases between the installed
 // version (exclusive) and the offered one (inclusive) as the Markdown the
@@ -10,7 +10,7 @@
 // Any failure (network, 404, unexpected shape) yields null: the update is
 // still offered, only without notes.
 
-const CHANGELOG_INDEX_URL = 'https://raw.githubusercontent.com/openchamber/openchamber/main/changelog/index.json';
+const CHANGELOG_INDEX_URL = 'https://raw.githubusercontent.com/joeldevz/skynex-desktop/skynex/changelog/index.json';
 
 const GROUPS = [
   ['new', 'New'],

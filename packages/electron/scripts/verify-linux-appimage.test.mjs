@@ -26,7 +26,7 @@ const createPayload = () => {
   fs.writeFileSync(path.join(root, 'skynex-app.desktop'), [
     '[Desktop Entry]', 'Name=Skynex', 'Exec=AppRun --no-sandbox %U', 'Icon=skynex-app', 'StartupWMClass=skynex-app', '',
   ].join('\n'));
-  writeElf(path.join(root, 'openchamber'), 'x64');
+  writeElf(path.join(root, 'skynex-app'), 'x64');
   writeElf(path.join(root, 'resources/opencode-cli/opencode'), 'x64');
   writeElf(path.join(root, 'resources/ripgrep/rg'), 'x64');
   for (const name of ['pty.node', 'sherpa-onnx.node']) {
@@ -40,6 +40,7 @@ const verify = (root) => verifyExtractedPayload({
   root,
   targetArchitecture: 'x64',
   expectedOpenCodeVersion: '1.17.18',
+  executableName: 'skynex-app',
   runCliVersion: () => '1.17.18',
 });
 
@@ -67,9 +68,20 @@ test('verifies identity, version, and native payload architecture', () => {
       root,
       targetArchitecture: 'x64',
       expectedOpenCodeVersion: '1.17.18',
+      executableName: 'skynex-app',
       runCliVersion: () => '1.17.18',
     });
     assert.equal(result.nativeModuleCount, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('fails when the configured Electron executable is missing', () => {
+  const root = createPayload();
+  try {
+    fs.renameSync(path.join(root, 'skynex-app'), path.join(root, 'openchamber'));
+    assert.throws(() => verify(root), /Missing Electron executable: .*\/skynex-app/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -83,6 +95,7 @@ test('fails on a missing native module', () => {
       root,
       targetArchitecture: 'x64',
       expectedOpenCodeVersion: '1.17.18',
+      executableName: 'skynex-app',
       runCliVersion: () => '1.17.18',
     }), /Missing packaged native module: pty\.node/);
   } finally {
@@ -97,6 +110,7 @@ test('fails on wrong CLI version or native architecture', () => {
       root,
       targetArchitecture: 'x64',
       expectedOpenCodeVersion: '1.17.18',
+      executableName: 'skynex-app',
       runCliVersion: () => '1.17.17',
     }), /OpenCode CLI version mismatch/);
     writeElf(path.join(root, 'resources/app.asar.unpacked/node_modules/pty.node'), 'arm64');
@@ -104,6 +118,7 @@ test('fails on wrong CLI version or native architecture', () => {
       root,
       targetArchitecture: 'x64',
       expectedOpenCodeVersion: '1.17.18',
+      executableName: 'skynex-app',
       runCliVersion: () => '1.17.18',
     }), /Native module architecture mismatch/);
   } finally {
