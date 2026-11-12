@@ -764,6 +764,10 @@
       "scope": "device",
       "local": true
     },
+    "workspaceSidebarSplitRatio": {
+      "scope": "device",
+      "local": true
+    },
     "contextPanelByDirectory": {
       "scope": "device",
       "local": true

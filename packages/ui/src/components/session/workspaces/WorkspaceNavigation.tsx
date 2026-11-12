@@ -15,6 +15,7 @@ import { getRuntimeKey, isTransientRuntimeKey } from '@/lib/runtime-switch';
 import { formatWorkspaceLabel } from '@/lib/workspaces/display-name';
 import { startSubagentMembershipCleanup } from '@/sync/subagent-membership';
 import { WorkspaceCreateDialog } from './WorkspaceCreateDialog';
+import { WorkspaceNavigationSplit } from './WorkspaceNavigationSplit';
 
 const INITIAL_COLORS = ['bg-primary', 'bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4', 'bg-chart-5'] as const;
 
@@ -81,14 +82,15 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
     } catch { setFailed(true); }
   }
   return <div className="flex h-full min-h-0 flex-col text-foreground">
-    {pageButtons ? <div className="flex shrink-0 items-center justify-end gap-2 p-2">{pageButtons}</div> : null}
+    {pageButtons ? <div className="flex shrink-0 items-center justify-end gap-2 px-2 pt-2">{pageButtons}</div> : null}
     <div className="min-h-0 flex-1 overflow-hidden">
-    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-2">
-      <section className="flex min-h-24 flex-1 flex-col space-y-1 overflow-hidden" aria-label={t('workspaces.title')}>
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-2 pb-1 pt-1">
+      <WorkspaceNavigationSplit>
+      <section className="flex h-full min-h-0 flex-col space-y-1 overflow-hidden" aria-label={t('workspaces.title')}>
         <div className="flex items-center justify-between gap-2 ps-2">
           <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.title')}</h2>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="icon" disabled={sessions.length === 0} className="text-muted-foreground" aria-label={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} title={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} aria-pressed={allSessionsVisible} onClick={() => {
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button variant="ghost" size="xs" disabled={sessions.length === 0} className="text-muted-foreground" aria-label={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} title={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} aria-pressed={allSessionsVisible} onClick={() => {
               if (allSessionsVisible) {
                 setHideAllSessions(true);
                 setHiddenWorkspaceIds(new Set());
@@ -101,7 +103,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
             }}>
               <Icon name={allSessionsVisible ? 'eye' : 'eye-off'} className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setFailed(false); setCreating(true); }}>
+            <Button variant="ghost" size="xs" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setFailed(false); setCreating(true); }}>
               <Icon name="add" className="size-4" />
             </Button>
           </div>
@@ -118,7 +120,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
                 try { useUIStore.getState().closeMainSurfaces(); useWorkspacesStore.getState().selectWorkspace(workspace.id); }
                 catch { setFailed(true); }
               }}><WorkspaceInitial index={index} name={formatWorkspaceLabel(workspace.name)} /><span dir="auto" className="truncate oc-ui-start-align" title={workspace.name}>{formatWorkspaceLabel(workspace.name)}</span></Button>
-              <Button variant="ghost" size="icon" disabled={!hasSessions} className="shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/workspace:opacity-100 [@media(hover:hover)]:group-focus-within/workspace:opacity-100" aria-label={visibilityLabel} title={visibilityLabel} aria-pressed={!sessionsHidden} onClick={() => {
+              <Button variant="ghost" size="xs" disabled={!hasSessions} className="shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/workspace:opacity-100 [@media(hover:hover)]:group-focus-within/workspace:opacity-100" aria-label={visibilityLabel} title={visibilityLabel} aria-pressed={!sessionsHidden} onClick={() => {
                 if (hideAllSessions) {
                   setVisibleWorkspaceIds((current) => {
                     const next = new Set(current);
@@ -140,13 +142,22 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
         </div>
         {status === 'failed' && <Button variant="outline" onClick={() => void useWorkspacesStore.getState().load()}>{t('workspaces.actionFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
       </section>
-      <section className="flex min-h-24 flex-1 flex-col space-y-1 overflow-hidden" aria-label={t('workspaces.openSessions')}>
-        <h2 className="px-2 py-1 typography-ui-label text-muted-foreground">{t('workspaces.openSessions')}</h2>
+      <section className="flex h-full min-h-0 flex-col space-y-1 overflow-hidden" aria-label={t('workspaces.openSessions')}>
+        <div className="flex items-center justify-between gap-2 ps-2">
+          <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.openSessions')}</h2>
+          <Button variant="ghost" size="xs" className="shrink-0 text-muted-foreground" aria-label={t('sessions.sidebar.header.actions.newSession')} title={t('sessions.sidebar.header.actions.newSession')} onClick={() => {
+            useUIStore.getState().closeMainSurfaces();
+            useSessionUIStore.getState().openNewSessionDraft();
+          }}>
+            <Icon name="add" className="size-4" />
+          </Button>
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <OpenSessionCollection sessions={visibleSessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} onReorder={(id, overId) => openSessionsStore.getState().reorderSession(id, overId)} onReopen={(reference) => openSessionsStore.getState().openSession(reference)} />
         {hydration === 'failed' && <Button variant="outline" onClick={() => void openSessionsStore.getState().hydrate(null)}>{t('workspaces.closeFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
         </div>
       </section>
+      </WorkspaceNavigationSplit>
       {openFailure && <div role="alert" className="space-y-2 typography-meta text-[var(--status-error-text)]">
         <span dir="auto">{openFailure.reference.title}</span>
         <p>{t('workspaces.openFailed')}</p>
@@ -164,8 +175,8 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
       </div>}
     </div>
     </div>
+    <div role="alert" className={failed ? 'px-2.5 pb-1 typography-meta text-[var(--status-error-text)]' : 'sr-only'}>{failed ? t('workspaces.actionFailed') : ''}</div>
     {footer}
-    <div role="alert" className="min-h-6 px-2 typography-meta text-[var(--status-error-text)]">{failed ? t('workspaces.actionFailed') : ''}</div>
     <WorkspaceCreateDialog open={creating} onOpenChange={setCreating} onCreated={(workspaceId) => useWorkspacesStore.getState().selectWorkspace(workspaceId)} />
     {inlineOverview && <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) useWorkspacesStore.getState().selectWorkspace(null); }}>
       <DialogContent className="max-w-3xl"><DialogTitle>{catalog.workspaces.find((workspace) => workspace.id === selected)?.name}</DialogTitle><WorkspaceSurface /></DialogContent>

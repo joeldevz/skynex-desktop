@@ -867,6 +867,7 @@ interface UIStore {
       restart too. Any other sidebar toggle clears it. */
   sidebarFoldedForExpandedZone: boolean;
   sidebarWidth: number;
+  workspaceSidebarSplitRatio: number;
   contextPanelByDirectory: Record<string, ContextPanelDirectoryState>;
   contextRailOrder: string[];
   /** Surface ids the user hid from the context rail; stored as the hidden set
@@ -1182,6 +1183,7 @@ interface UIStore {
   setSidebarOpen: (open: boolean) => void;
   setSidebarFoldedForExpandedZone: (folded: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  setWorkspaceSidebarSplitRatio: (ratio: number) => void;
   setContextRailOrder: (order: string[]) => void;
   toggleContextEditorTree: () => void;
   toggleContextEditor: () => void;
@@ -1476,6 +1478,7 @@ export const useUIStore = create<UIStore>()(
         isSidebarOpen: true,
         sidebarFoldedForExpandedZone: false,
         sidebarWidth: LEFT_SIDEBAR_DEFAULT_WIDTH,
+        workspaceSidebarSplitRatio: 0.5,
         contextPanelByDirectory: {},
         contextRailOrder: [],
         contextRailHiddenSurfaces: [],
@@ -1695,6 +1698,10 @@ export const useUIStore = create<UIStore>()(
 
         setSidebarWidth: (width) => {
           set({ sidebarWidth: width });
+        },
+
+        setWorkspaceSidebarSplitRatio: (ratio) => {
+          set({ workspaceSidebarSplitRatio: ratio });
         },
 
         setContextRailOrder: (order) => {
@@ -3688,6 +3695,7 @@ export const useUIStore = create<UIStore>()(
           isSidebarOpen: state.isSidebarOpen,
           sidebarFoldedForExpandedZone: state.sidebarFoldedForExpandedZone,
           sidebarWidth: state.sidebarWidth,
+          workspaceSidebarSplitRatio: state.workspaceSidebarSplitRatio,
           contextPanelByDirectory: withoutForeignComparisons(state.contextPanelByDirectory),
           contextRailOrder: state.contextRailOrder,
           contextRailHiddenSurfaces: state.contextRailHiddenSurfaces,

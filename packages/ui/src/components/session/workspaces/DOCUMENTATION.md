@@ -12,7 +12,9 @@ The overview edits one workspace through callback props. The parent owns folder 
 
 The workspace rows and global open-session rows use separate bounded scrollers inside the navigation shell. Their section headings remain visible while each list scrolls. Visibility controls filter the session list in component-local state; they never mutate open-session membership or persist across a remount. A workspace eye filters sessions by captured scope or workspace assignment ID. The global eye shows all sessions or hides them all.
 
-The navigation row above the workspace list holds the sidebar's page toggles: Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks. `SessionSidebar` supplies them as `pageButtons`, each pressed while its page is open.
+`WorkspaceNavigationSplit` owns their horizontal resize separator. Pointer movement previews the height split on the container without rerendering the lists or writing settings; release, cancellation, or lost capture saves the displayed ratio once. Arrow Up/Down adjust the split by two percentage points and Home/End reach its limits. Both sections retain at least 10% of the available height. The default is 50/50; `workspaceSidebarSplitRatio` in the device-local UI store remembers the choice across remounts and restarts without syncing it to other devices. Header and footer slots stay outside the resized area.
+
+The sidebar's page toggles are Overview and Issues and PRs (desktop only), Archive, the integrations catalog (not in enterprise mode) and Scheduled tasks, each pressed while its page is open. On desktop and web they live in `SidebarTopBar` on the titlebar row; on `mobileVariant` hosts without their own chrome, `SessionSidebar` supplies them as `pageButtons` above the workspace list.
 
 The scheduled-task view uses workspace and folder rows as virtual scopes over
 the Chat task store. Selecting a workspace includes its folders; selecting a

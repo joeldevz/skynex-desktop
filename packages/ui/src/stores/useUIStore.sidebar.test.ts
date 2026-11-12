@@ -50,3 +50,21 @@ test('a manual resize stays authoritative across repeated visibility changes', (
   actions.toggleSidebar();
   expect(useUIStore.getState().sidebarWidth).toBe(420);
 });
+
+test('workspace height split defaults to half and survives persistence independently of sidebar width', async () => {
+  expect(useUIStore.getInitialState().workspaceSidebarSplitRatio).toBe(0.5);
+  useUIStore.setState(useUIStore.getInitialState(), true);
+  useUIStore.getState().setWorkspaceSidebarSplitRatio(0.3);
+  expect(originalOptions.partialize?.(useUIStore.getState())).toMatchObject({ workspaceSidebarSplitRatio: 0.3 });
+  useUIStore.persist.setOptions({ storage: {
+    getItem: () => ({ version: originalOptions.version, state: { workspaceSidebarSplitRatio: 0.3, sidebarWidth: 360 } }),
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  } });
+  useUIStore.setState(useUIStore.getInitialState(), true);
+  await useUIStore.persist.rehydrate();
+  useUIStore.getState().setSidebarOpen(false);
+  useUIStore.getState().setSidebarOpen(true);
+  useUIStore.getState().setSidebarWidth(420);
+  expect(useUIStore.getState().workspaceSidebarSplitRatio).toBe(0.3);
+});

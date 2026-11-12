@@ -170,7 +170,7 @@ export function OpenSessionCollection({ sessions, selectedId, onSelect, onClose,
         </ul>
       </SortableContext>
     </DndContext>
-    <div role="alert" className="min-h-6 typography-meta text-[var(--status-error-text)]">{failure && <><span dir="auto">{failure.title}</span>{' · '}{failure.message}</>}</div>
+    <div role="alert" className={failure ? 'min-h-6 pt-1 typography-meta text-[var(--status-error-text)]' : 'sr-only'}>{failure && <><span dir="auto">{failure.title}</span>{' · '}{failure.message}</>}</div>
     <Dialog open={Boolean(target)} onOpenChange={(open) => { if (!open && pending === null) setConfirmation(null); }}>
       <DialogContent showCloseButton={false}>
         <DialogTitle>{t('workspaces.stopAndClose')}</DialogTitle>

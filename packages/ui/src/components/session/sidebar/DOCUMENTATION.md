@@ -10,7 +10,7 @@ The sidebar presents workspace navigation and the shared application footer. `Wo
 - Explicit open-session membership is server-shared; VS Code uses its durable local fallback. Discovering sessions never adds them to that membership.
 - Header and keyboard close requests use the durable close helper. Failed closes retain workspace ownership.
 - The shared footer stays mounted with workspace navigation and owns the update dialog and application-level navigation actions.
-- A host that supplies its own footer sets `hostOwnsChrome` so `SessionSidebar` does not mount a second footer or page-action row. The navigation shell omits the page-action row when it has no page buttons.
+- Desktop and web host `SidebarPageButtons` at the inline end of `SidebarTopBar`, sharing the titlebar row with `TitlebarLeftControls`. On `mobileVariant` hosts without their own chrome, `SessionSidebar` passes `pageButtons` to `WorkspaceNavigation`; a host that supplies its own footer sets `hostOwnsChrome` so `SessionSidebar` does not mount a second footer or page-action row. The navigation shell omits the page-action row when it has no page buttons.
 - `useSessionListSync` is the sole sidebar owner of directory bootstrap demands; it must not create a second global polling lifecycle. It demands only the current directory and selected-session directory.
 - Sidebar rows come from the global session list. Showing, expanding, or restoring a project never bootstraps that directory; loading and live activity remain governed by `sessionBootstrapDemands` and global status.
 - Registered projects follow the project store's fixed order. Unregistered entries such as the Chat target remain ahead of them in their incoming order.

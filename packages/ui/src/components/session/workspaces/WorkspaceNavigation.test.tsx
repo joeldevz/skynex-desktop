@@ -22,7 +22,7 @@ const sessions: readonly OpenSessionReference[] = [
 ];
 
 async function withNavigation(run: (ui: {
-  render(): Promise<void>;
+  render(key?: number): Promise<void>;
   button(name: string): HTMLButtonElement;
   container: HTMLDivElement;
 }) => Promise<void>) {
@@ -54,7 +54,7 @@ async function withNavigation(run: (ui: {
     const root = createRoot(container);
     try {
       await run({ container,
-        render: async () => { await act(async () => root.render(<I18nProvider><WorkspaceNavigation /></I18nProvider>)); },
+        render: async (key) => { await act(async () => root.render(<I18nProvider><WorkspaceNavigation key={key} /></I18nProvider>)); },
         button: (name) => {
           const found = [...container.querySelectorAll<HTMLButtonElement>('button')]
             .find((node) => (node.getAttribute('aria-label') ?? node.textContent?.trim()) === name);
@@ -84,12 +84,14 @@ async function fixture(reorderResult: MembershipResult = { kind: 'saved' }) {
   const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
   const { useSessionUIStore } = await import('@/sync/session-ui-store');
   const { useConfigStore } = await import('@/stores/useConfigStore');
+  const { useUIStore } = await import('@/stores/useUIStore');
   const { switchRuntimeEndpoint } = await import('@/lib/runtime-switch');
   switchRuntimeEndpoint({ apiBaseUrl: '', runtimeKey: 'workspace-navigation-test' });
   const sessionSelections: string[] = [];
   const closes: Array<[string, string]> = [];
   const reorders: Array<[string, string]> = [];
   useConfigStore.setState({ isConnected: false });
+  useUIStore.setState({ workspaceSidebarSplitRatio: 0.5 });
   useWorkspacesStore.setState({ catalog: { version: 1, workspaces }, status: 'ready', selectedWorkspaceId: null });
   openSessionsStore.setState({ sessions, hydration: 'ready',
     reorderSession: async (id, overId) => { reorders.push([id, overId]); return reorderResult; },
@@ -135,6 +137,97 @@ test('workspace and open-session sections scroll independently', async () => {
     expect(workspaceSection?.querySelector('.overflow-y-auto')).not.toBe(sessionSection?.querySelector('.overflow-y-auto'));
   });
 });
+
+function splitHandle(container: HTMLElement) {
+  const handle = container.querySelector<HTMLDivElement>('[role="separator"][aria-orientation="horizontal"]');
+  const grid = handle?.parentElement;
+  if (!handle || !grid) throw new Error('Missing workspace height separator');
+  grid.getBoundingClientRect = () => ({ x: 0, y: 0, top: 0, left: 0, right: 320, bottom: 1008, width: 320, height: 1008, toJSON: () => ({}) });
+  let captured: number | null = null;
+  handle.setPointerCapture = (id) => { captured = id; };
+  handle.hasPointerCapture = (id) => captured === id;
+  handle.releasePointerCapture = () => { captured = null; };
+  return { handle, grid };
+}
+
+test('height drag previews only geometry and saves once on release, retaining membership and scroll', async () => {
+  await withNavigation(async (ui) => {
+    const f = await fixture();
+    const { useUIStore } = await import('@/stores/useUIStore');
+    const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
+    const membership = openSessionsStore.getState().sessions;
+    await ui.render();
+    const { handle, grid } = splitHandle(ui.container);
+    const scrollers = ui.container.querySelectorAll<HTMLElement>('section > .overflow-y-auto');
+    for (const scroller of scrollers) scroller.scrollTop = 30;
+    const writes: number[] = [];
+    const unsubscribe = useUIStore.subscribe((state, previous) => {
+      if (state.workspaceSidebarSplitRatio !== previous.workspaceSidebarSplitRatio) writes.push(state.workspaceSidebarSplitRatio);
+    });
+    try {
+      expect(handle.getAttribute('aria-valuenow')).toBe('50');
+      await act(async () => handle.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, clientY: 500, button: 0, bubbles: true })));
+      await act(async () => handle.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientY: 800, bubbles: true })));
+      expect(handle.getAttribute('aria-valuenow')).toBe('50');
+      for (const clientY of [510, 550, 700]) {
+        await act(async () => handle.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientY, bubbles: true })));
+      }
+      expect(grid.style.gridTemplateRows).toContain('0.7fr');
+      expect(handle.getAttribute('aria-valuenow')).toBe('70');
+      expect(useUIStore.getState().workspaceSidebarSplitRatio).toBe(0.5);
+      expect(writes).toEqual([]);
+      await ui.render();
+      expect(grid.style.gridTemplateRows).toContain('0.7fr');
+      await act(async () => handle.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true })));
+      await act(async () => handle.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true })));
+      expect(writes).toEqual([0.7]);
+      expect(openSessionsStore.getState().sessions).toBe(membership);
+      expect(f.sessionSelections).toEqual([]);
+      expect(f.closes).toEqual([]);
+      for (const scroller of scrollers) expect(scroller.scrollTop).toBe(30);
+      await ui.render(1);
+      expect(splitHandle(ui.container).handle.getAttribute('aria-valuenow')).toBe('70');
+    } finally {
+      unsubscribe();
+    }
+  });
+});
+
+test('touch resizing keeps both sections available and commits the shown position on cancellation', async () => {
+  await withNavigation(async (ui) => {
+    await fixture();
+    const { useUIStore } = await import('@/stores/useUIStore');
+    await ui.render();
+    const { handle } = splitHandle(ui.container);
+    await act(async () => handle.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, pointerType: 'touch', clientY: 500, bubbles: true })));
+    await act(async () => handle.dispatchEvent(new PointerEvent('pointermove', { pointerId: 3, pointerType: 'touch', clientY: -1000, bubbles: true })));
+    expect(handle.getAttribute('aria-valuenow')).toBe('10');
+    await act(async () => handle.dispatchEvent(new PointerEvent('pointermove', { pointerId: 3, pointerType: 'touch', clientY: 3000, bubbles: true })));
+    expect(handle.getAttribute('aria-valuenow')).toBe('90');
+    await act(async () => handle.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 3, pointerType: 'touch', bubbles: true })));
+    expect(useUIStore.getState().workspaceSidebarSplitRatio).toBe(0.9);
+    await act(async () => handle.dispatchEvent(new PointerEvent('pointermove', { pointerId: 3, clientY: 0, bubbles: true })));
+    expect(handle.getAttribute('aria-valuenow')).toBe('90');
+  });
+});
+
+for (const direction of ['ltr', 'rtl']) {
+  test(`height separator supports keyboard resizing without reversing vertical keys in ${direction}`, async () => {
+    await withNavigation(async (ui) => {
+      await fixture();
+      document.documentElement.dir = direction;
+      await ui.render();
+      const { handle } = splitHandle(ui.container);
+      handle.focus();
+      for (const [key, expected] of [['ArrowUp', '48'], ['ArrowDown', '50'], ['Home', '10'], ['End', '90']]) {
+        await act(async () => handle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })));
+        expect(handle.getAttribute('aria-valuenow')).toBe(expected);
+      }
+      expect(handle.tabIndex).toBe(0);
+      expect(document.activeElement).toBe(handle);
+    });
+  });
+}
 
 test('workspace and global visibility controls only filter the list, preserving open membership', async () => {
   await withNavigation(async (ui) => {

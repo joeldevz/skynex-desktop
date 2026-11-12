@@ -87,8 +87,7 @@ function SidebarFooterController({ mobileVariant, isVSCode }: { mobileVariant: b
   </TooltipProvider>;
 }
 
-const DESKTOP_HEADER_ACTION_BUTTON_CLASS = 'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
-const MOBILE_HEADER_ACTION_BUTTON_CLASS = 'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
+const MOBILE_HEADER_ACTION_BUTTON_CLASS = 'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none disabled:cursor-not-allowed';
 const HEADER_ACTION_ICON_CLASS = 'h-4 w-4';
 
 export const SessionSidebar = React.memo(function SessionSidebar(props: SessionSidebarProps) {
@@ -98,9 +97,9 @@ export const SessionSidebar = React.memo(function SessionSidebar(props: SessionS
       inlineOverview={Boolean(props.mobileVariant) || isVSCode}
       onSelected={props.onSessionSelected}
       footer={props.hostOwnsChrome ? undefined : <SidebarFooterController mobileVariant={Boolean(props.mobileVariant)} isVSCode={isVSCode} />}
-      pageButtons={props.hostOwnsChrome ? undefined : <SidebarPageButtons
-        showSourceBoard={!props.mobileVariant && !isVSCode}
-        buttonClassName={props.mobileVariant ? MOBILE_HEADER_ACTION_BUTTON_CLASS : DESKTOP_HEADER_ACTION_BUTTON_CLASS}
+      pageButtons={props.hostOwnsChrome || !props.mobileVariant ? undefined : <SidebarPageButtons
+        showSourceBoard={false}
+        buttonClassName={MOBILE_HEADER_ACTION_BUTTON_CLASS}
         iconClassName={HEADER_ACTION_ICON_CLASS}
       />}
     />

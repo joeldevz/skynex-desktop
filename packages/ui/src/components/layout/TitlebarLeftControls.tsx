@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { buttonVariants } from '@/components/ui/button-variants';
 import { Icon } from '@/components/icon/Icon';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
@@ -104,7 +105,17 @@ export const TitlebarLeftControls: React.FC = () => {
         maxWidth: isSidebarOpen ? 'var(--oc-left-sidebar-width, 100%)' : undefined,
       }}
     >
-      <div ref={clusterRef} className="flex min-w-0 items-center gap-2">
+      <div
+        ref={clusterRef}
+        className="flex min-w-0 items-center gap-1.5"
+        style={{
+          // Leave room at the inline end of SidebarTopBar for the four page
+          // buttons (~7.25rem) when the sidebar is open.
+          maxWidth: isSidebarOpen
+            ? 'calc(var(--oc-left-sidebar-width, 280px) - var(--oc-titlebar-start-inset, 0.75rem) - 7.5rem)'
+            : undefined,
+        }}
+      >
         {usesFramelessChrome && windowControlsSide === getInlineStartSide(direction) ? (
           <WindowsWindowControls visible position={windowControlsSide} />
         ) : null}
@@ -145,15 +156,17 @@ export const TitlebarLeftControls: React.FC = () => {
           </TooltipContent>
         </Tooltip>
 
-        {/* Labelled while the sidebar is open; collapses to an icon with a
-            tooltip so the cluster stays compact over the header otherwise. */}
         {isSidebarOpen ? (
           <button
             type="button"
             onClick={handleNewSession}
-            className={cn(ICON_BUTTON_CLASS, '-ms-1 w-auto min-w-0 px-1.5 font-normal')}
+            aria-label={t('sessions.sidebar.header.actions.newSession')}
+            className={cn(
+              buttonVariants({ variant: 'default', size: 'xs' }),
+              'app-region-no-drag w-auto min-w-0 shrink',
+            )}
           >
-            <Icon name="chat-new" className="h-4 w-4 shrink-0" />
+            <Icon name="chat-new" className="size-3.5 shrink-0" />
             <span className="truncate">{t('sessions.sidebar.header.actions.newSession')}</span>
           </button>
         ) : (
@@ -163,7 +176,7 @@ export const TitlebarLeftControls: React.FC = () => {
                 type="button"
                 onClick={handleNewSession}
                 aria-label={t('sessions.sidebar.header.actions.newSession')}
-                className={cn(ICON_BUTTON_CLASS, '-ms-1 shrink-0')}
+                className={cn(ICON_BUTTON_CLASS, '-ms-0.5 shrink-0')}
               >
                 <Icon name="chat-new" className="h-4 w-4" />
               </button>

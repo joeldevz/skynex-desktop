@@ -6,6 +6,7 @@ import { I18nProvider } from '@/lib/i18n';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useUIStore } from '@/stores/useUIStore';
 import { Sidebar } from './Sidebar';
+import { SidebarTopBar } from './SidebarTopBar';
 import { TitlebarLeftControls } from './TitlebarLeftControls';
 
 let browser: Window;
@@ -120,21 +121,48 @@ describe('TitlebarLeftControls', () => {
     expect(overlay!.style.maxWidth).toBe('');
   });
 
-  test('lets the labelled New session button shrink so its label truncates', async () => {
-    useUIStore.getState().setSidebarOpen(true);
+  test('shows the labelled New session button when the sidebar is open and collapses it to an icon when closed', async () => {
+    await act(async () => {
+      useUIStore.getState().setSidebarOpen(true);
+    });
     await renderControls();
 
-    const button = document.querySelector<HTMLButtonElement>('button.w-auto');
-    expect(button).not.toBeNull();
-    expect(button!.classList.contains('shrink-0')).toBe(false);
-    expect(button!.classList.contains('min-w-0')).toBe(true);
+    const openButton = document.querySelector<HTMLButtonElement>('button[aria-label="New session"]');
+    expect(openButton).not.toBeNull();
+    expect(openButton!.classList.contains('shrink-0')).toBe(false);
+    expect(openButton!.classList.contains('min-w-0')).toBe(true);
 
-    const label = button!.querySelector<HTMLSpanElement>('span');
+    const label = openButton!.querySelector<HTMLSpanElement>('span');
     expect(label).not.toBeNull();
     expect(label!.classList.contains('truncate')).toBe(true);
 
-    const icon = button!.querySelector<SVGElement>('svg');
+    const icon = openButton!.querySelector<SVGElement>('svg');
     expect(icon).not.toBeNull();
     expect(icon!.classList.contains('shrink-0')).toBe(true);
+
+    await act(async () => {
+      useUIStore.getState().setSidebarOpen(false);
+    });
+    await renderControls();
+
+    const closedButton = document.querySelector<HTMLButtonElement>('button[aria-label="New session"]');
+    expect(closedButton).not.toBeNull();
+    expect(closedButton!.classList.contains('shrink-0')).toBe(true);
+    expect(closedButton!.querySelector('span')).toBeNull();
+    expect(closedButton!.querySelector('svg')).not.toBeNull();
+  });
+
+  test('renders page buttons in SidebarTopBar so they share the titlebar row', async () => {
+    await act(async () => root.render(
+      <I18nProvider>
+        <TooltipProvider>
+          <SidebarTopBar />
+        </TooltipProvider>
+      </I18nProvider>,
+    ));
+
+    expect(document.querySelector('button[aria-label="Archive"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Scheduled tasks"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Issues and PRs"]')).not.toBeNull();
   });
 });

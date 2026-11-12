@@ -169,6 +169,10 @@ the panel or its overlay.
 Sidebar visibility and its persisted width are independent. Opening or closing
 the sidebar never writes a width; only resizing changes the saved choice.
 The initial width is separate from the component's minimum resize width.
+The workspace/open-session height split is also device-local: `workspaceSidebarSplitRatio`
+defaults to 0.5 and is saved after resizing ends, independently of sidebar width,
+visibility, and session membership. It is accounted for in `LOCAL_DEVICE_KEYS` and
+never crosses the settings wire.
 
 `useCommitSelectionStore.ts` shares the selected commit between desktop/mobile
 Changes and walkthrough. Choices are session-only and keyed by runtime, directory, and

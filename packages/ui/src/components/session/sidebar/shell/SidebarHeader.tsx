@@ -49,7 +49,7 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
   const isScheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
   const enterpriseMode = useEnterpriseMode();
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1">
       {showSourceBoard && overviewAvailable ? (
         <SidebarPageButton label={t('overview.title')} pressed={isOverviewOpen} onClick={() => useUIStore.getState().setOverviewOpen(!isOverviewOpen)} className={buttonClassName}>
           <Icon name="compass-3" className={iconClassName} />
