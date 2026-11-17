@@ -10,6 +10,8 @@ suggestions so a command can still be used deliberately before it is rolled out
 to the picker.
 `/btw` is currently enabled and displays the Skynex badge, like `catch-up`;
 its slash-command behavior remains the existing BTW side session.
+`/compact` is also enabled for existing sessions and uses the existing session
+compaction handler. It is not offered for a new-session draft.
 
 `ChatInput.tsx` (one directory up) is the orchestrator. It holds the composer's
 own state and wires these modules together; it should not grow logic that

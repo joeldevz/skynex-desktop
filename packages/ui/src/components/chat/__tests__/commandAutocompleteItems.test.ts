@@ -13,6 +13,7 @@ describe('filterCommandSuggestions', () => {
   const items: Item[] = [
     { name: 'summary', source: 'openchamber' },
     { name: 'btw', source: 'openchamber' },
+    { name: 'compact', source: 'openchamber', isBuiltIn: true },
     { name: 'review', source: 'opencode' },
     { name: 'triage', source: 'extension' },
   ];
@@ -34,6 +35,12 @@ describe('filterCommandSuggestions', () => {
 
   test('allows OpenChamber commands to be enabled one at a time', () => {
     expect(filterCommandSuggestions(items, new Set(['btw'])).map(({ name }) => name)).toEqual(['btw', 'review', 'triage']);
+  });
+
+  test('shows compact alongside btw without enabling the other local commands', () => {
+    const suggestions = filterCommandSuggestions(items, new Set(['btw', 'compact']));
+    expect(suggestions.map(({ name }) => name)).toEqual(['btw', 'compact', 'review', 'triage']);
+    expect(rankCommandAutocompleteItems(suggestions, 'compact').map(({ name }) => name)).toEqual(['compact']);
   });
 });
 

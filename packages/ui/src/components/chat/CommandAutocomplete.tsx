@@ -40,7 +40,7 @@ const LOCAL_COMMAND_NAMES = [
 ];
 
 // Roll out OpenChamber commands gradually by adding names once their usage is ready to teach.
-const ENABLED_OPENCHAMBER_COMMANDS: ReadonlySet<string> = new Set(['btw']);
+const ENABLED_OPENCHAMBER_COMMANDS: ReadonlySet<string> = new Set(['btw', 'compact']);
 
 export interface CommandAutocompleteHandle {
   handleKeyDown: (key: string) => void;
