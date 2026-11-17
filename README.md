@@ -10,21 +10,6 @@ Skynex is an open-source workspace for running and reviewing AI coding work on d
 
 Start agent work, see what changed, and take it through review and release. Your projects and sessions remain available when you switch devices or step away.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/desktop_dark.png"><img src="docs/references/desktop_light.png" alt="OpenChamber desktop app"></picture>
-
-<details>
-<summary>More screenshots</summary>
-
-![VS Code Extension](packages/vscode/extension.jpg)
-
-<p>
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/mobile/new_session_dark.png"><img src="docs/references/mobile/new_session_light.png" width="30%" alt="OpenChamber mobile new session"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/mobile/chat_dark.png"><img src="docs/references/mobile/chat_light.png" width="30%" alt="OpenChamber mobile chat"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/references/mobile/context_usage_dark.png"><img src="docs/references/mobile/context_usage_light.png" width="30%" alt="OpenChamber mobile context and usage"></picture>
-</p>
-
-</details>
-
 ## What you can do with Skynex
 
 ### Goals that continue on their own
