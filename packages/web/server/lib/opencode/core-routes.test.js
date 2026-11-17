@@ -1105,6 +1105,24 @@ describe('client auth routes', () => {
   });
 
   const signedIn = { resolveAuthContext: async () => ({ type: 'session' }) };
+  const getSystemInfoRouteHandler = (dependencies) => {
+    let handler;
+    const app = {
+      get(path, ...handlers) {
+        if (path === '/api/system/info') handler = handlers.at(-1);
+        return app;
+      },
+      post() { return app; },
+      use() { return app; },
+    };
+    registerServerStatusRoutes(app, { express, process, ...dependencies });
+    return handler;
+  };
+  const invokeSystemInfo = async (handler) => {
+    let body;
+    await handler({}, { json: (responseBody) => { body = responseBody; } });
+    return body;
+  };
 
   it('reports null port and tunnel URL on /api/system/info when no getters are wired', async () => {
     const app = express();
@@ -1117,6 +1135,7 @@ describe('client auth routes', () => {
       runtimeName: 'test',
       express,
       uiAuthController: signedIn,
+      getSkynexCliVersion: async () => null,
     });
 
     const response = await request(app).get('/api/system/info');
@@ -1127,6 +1146,7 @@ describe('client auth routes', () => {
     expect(response.body.startedAt).toBeTypeOf('string');
     expect(response.body.port).toBeNull();
     expect(response.body.tunnelUrl).toBeNull();
+    expect(response.body.skynexCliVersion).toBeNull();
   });
 
   it('reports the instance port and tunnel URL on /api/system/info from the wired getters', async () => {
@@ -1142,16 +1162,19 @@ describe('client auth routes', () => {
       getServerPort: () => 9988,
       getTunnelUrl: () => 'https://worktree-a.example.trycloudflare.com',
       uiAuthController: signedIn,
+      getSkynexCliVersion: async () => '0.4.0',
     });
 
     const response = await request(app).get('/api/system/info');
     expect(response.status).toBe(200);
     expect(response.body.port).toBe(9988);
     expect(response.body.tunnelUrl).toBe('https://worktree-a.example.trycloudflare.com');
+    expect(response.body.skynexCliVersion).toBe('0.4.0');
   });
 
   it('keeps the pid but not where the server is reachable on /api/system/info before login', async () => {
     const app = express();
+    const getSkynexCliVersion = vi.fn(async () => '0.4.0');
     registerServerStatusRoutes(app, {
       process,
       serverStartedAt: '2026-01-01T00:00:00.000Z',
@@ -1163,6 +1186,7 @@ describe('client auth routes', () => {
       getServerPort: () => 9988,
       getTunnelUrl: () => 'https://worktree-a.example.trycloudflare.com',
       uiAuthController: { resolveAuthContext: async () => null },
+      getSkynexCliVersion,
     });
 
     const response = await request(app).get('/api/system/info');
@@ -1171,5 +1195,113 @@ describe('client auth routes', () => {
     expect(response.body.pid).toBe(process.pid);
     expect(response.body).not.toHaveProperty('port');
     expect(response.body).not.toHaveProperty('tunnelUrl');
+    expect(response.body).not.toHaveProperty('skynexCliVersion');
+    expect(getSkynexCliVersion).not.toHaveBeenCalled();
+  });
+
+  it('keeps system metadata available when the CLI version lookup fails', async () => {
+    const app = express();
+    registerServerStatusRoutes(app, {
+      express,
+      process,
+      openchamberVersion: '1.0.0',
+      runtimeName: 'test',
+      uiAuthController: signedIn,
+      getSkynexCliVersion: async () => { throw new Error('Unavailable'); },
+    });
+    const response = await request(app).get('/api/system/info').expect(200);
+    expect(response.body.openchamberVersion).toBe('1.0.0');
+    expect(response.body.pid).toBe(process.pid);
+    expect(response.body.skynexCliVersion).toBeNull();
+  });
+
+  it('shares one in-flight CLI version lookup across concurrent authorized system info requests', async () => {
+    const requestCount = 100;
+    let authorized = 0;
+    let releaseAuthorization;
+    const allAuthorized = new Promise((resolve) => { releaseAuthorization = resolve; });
+    const authBarrier = { resolveAuthContext: async () => {
+      authorized += 1;
+      if (authorized === requestCount) releaseAuthorization();
+      await allAuthorized;
+      return { type: 'session' };
+    } };
+
+    let finishLookup;
+    const getSkynexCliVersion = vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { finishLookup = resolve; }))
+      .mockResolvedValueOnce('0.4.1');
+    const handler = getSystemInfoRouteHandler({
+      openchamberVersion: '1.0.0',
+      runtimeName: 'test',
+      uiAuthController: authBarrier,
+      getSkynexCliVersion,
+    });
+
+    const responses = Promise.all(Array.from({ length: requestCount }, () => invokeSystemInfo(handler)));
+    await allAuthorized;
+    await vi.waitFor(() => expect(getSkynexCliVersion).toHaveBeenCalledTimes(1));
+    expect(getSkynexCliVersion).toHaveBeenCalledTimes(1);
+    finishLookup('0.4.0');
+    const settledResponses = await responses;
+    expect(settledResponses).toHaveLength(requestCount);
+    expect(settledResponses.every((response) => response.skynexCliVersion === '0.4.0')).toBe(true);
+
+    const freshResponse = await invokeSystemInfo(handler);
+    expect(freshResponse.skynexCliVersion).toBe('0.4.1');
+    expect(getSkynexCliVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears a failed shared CLI version lookup so a later request can retry', async () => {
+    const requestCount = 8;
+    let authorized = 0;
+    let releaseAuthorization;
+    const allAuthorized = new Promise((resolve) => { releaseAuthorization = resolve; });
+    const authBarrier = { resolveAuthContext: async () => {
+      authorized += 1;
+      if (authorized === requestCount) releaseAuthorization();
+      await allAuthorized;
+      return { type: 'session' };
+    } };
+    let rejectLookup;
+    const lookupFailure = new Promise((_resolve, reject) => { rejectLookup = reject; });
+    const getSkynexCliVersion = vi.fn()
+      .mockReturnValueOnce(lookupFailure)
+      .mockResolvedValueOnce('0.4.1');
+    const handler = getSystemInfoRouteHandler({
+      openchamberVersion: '1.0.0',
+      runtimeName: 'test',
+      uiAuthController: authBarrier,
+      getSkynexCliVersion,
+    });
+
+    const failedResponsesPromise = Promise.all(Array.from({ length: requestCount }, () => invokeSystemInfo(handler)));
+    await allAuthorized;
+    await vi.waitFor(() => expect(getSkynexCliVersion).toHaveBeenCalledTimes(1));
+    rejectLookup(new Error('Unavailable'));
+    const failedResponses = await failedResponsesPromise;
+    expect(failedResponses.every((response) => response.skynexCliVersion === null)).toBe(true);
+    expect(getSkynexCliVersion).toHaveBeenCalledTimes(1);
+    const retryResponse = await invokeSystemInfo(handler);
+    expect(retryResponse.skynexCliVersion).toBe('0.4.1');
+    expect(getSkynexCliVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not query the CLI for an unauthenticated tunnel even with local UI access', async () => {
+    const app = express();
+    const getSkynexCliVersion = vi.fn(async () => '0.4.0');
+    registerServerStatusRoutes(app, {
+      express,
+      process,
+      uiAuthController: signedIn,
+      tunnelAuthController: {
+        classifyRequestScope: () => 'tunnel',
+        getTunnelSessionFromRequest: () => null,
+      },
+      getSkynexCliVersion,
+    });
+    const response = await request(app).get('/api/system/info').expect(200);
+    expect(response.body).not.toHaveProperty('skynexCliVersion');
+    expect(getSkynexCliVersion).not.toHaveBeenCalled();
   });
 });

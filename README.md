@@ -130,6 +130,21 @@ New connection links use `skynex-app://`. Old `openchamber://` links are not acc
 
 Skynex binds to localhost by default. Use `--lan` only on a trusted network and protect browser access with `--ui-password`.
 
+## Check installed versions
+
+The **About** dialog shows separate versions for the Skynex application, OpenCode, and Skynex CLI. The `skynex-app` command runs the application server; `skynex` manages agent tooling. Updating Skynex CLI does not change the application version.
+
+The Skynex CLI row reads the version available on the connected server's `PATH`. When connected to a remote server, it reports that server's CLI. Reopen the dialog to refresh it. If the CLI is missing, the query fails, or the server does not support the field, the row shows **unknown**.
+
+You can also check the commands installed on your current machine:
+
+```bash
+skynex-app --version
+skynex --version
+```
+
+The Skynex CLI row is included in this checkout. Older application builds need an update or rebuild to display it. Updating the CLI alone does not add the row to an older application.
+
 ## Guides
 
 Use the repository guides. Pages outside installation and quickstart may still describe upstream OpenChamber:

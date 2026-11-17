@@ -2043,6 +2043,7 @@ export const dict = {
   'aboutDialog.versionLabel': 'Sürüm {version}',
   'aboutDialog.openChamberVersionLabel': 'Skynex sürümü {version}',
   'aboutDialog.openCodeVersionLabel': 'OpenCode sürümü {version}',
+  'aboutDialog.skynexCliVersionLabel': 'Skynex CLI sürümü {version}',
   'aboutDialog.appVersionLabel': 'Uygulama sürümü {version}',
   'aboutDialog.actions.copyDiagnostics': 'Tanılamaları kopyala',
   'aboutDialog.actions.preparingDiagnostics': 'Tanılamalar hazırlanıyor...',

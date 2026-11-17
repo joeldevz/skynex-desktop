@@ -2181,6 +2181,7 @@ export const dict = {
   'aboutDialog.versionLabel': 'Versie {version}',
   'aboutDialog.openChamberVersionLabel': 'Skynex-versie {version}',
   'aboutDialog.openCodeVersionLabel': 'OpenCode-versie {version}',
+  'aboutDialog.skynexCliVersionLabel': 'Skynex CLI-versie {version}',
   'aboutDialog.appVersionLabel': 'Appversie {version}',
   'aboutDialog.actions.copyDiagnostics': 'Diagnostiek kopiëren',
   'aboutDialog.actions.preparingDiagnostics': 'Diagnostiek voorbereiden...',

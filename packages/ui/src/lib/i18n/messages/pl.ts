@@ -1395,6 +1395,7 @@ export const dict: Record<I18nKey, string> = {
   'aboutDialog.versionLabel': 'Wersja {version}',
   'aboutDialog.openChamberVersionLabel': 'Wersja Skynex {version}',
   'aboutDialog.openCodeVersionLabel': 'Wersja OpenCode {version}',
+  'aboutDialog.skynexCliVersionLabel': 'Wersja Skynex CLI {version}',
   'aboutDialog.appVersionLabel': 'Wersja aplikacji {version}',
   'branchPickerDialog.actions.cancelDeleteAria': 'Anuluj usuwanie gałęzi',
   'branchPickerDialog.actions.cancelRenameAria': 'Anuluj zmianę nazwy',

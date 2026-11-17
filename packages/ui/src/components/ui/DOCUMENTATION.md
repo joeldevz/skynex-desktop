@@ -11,6 +11,7 @@ This folder owns runtime-independent controls and their Base UI integration, inc
 - Each opening has its own hover-dismissal eligibility; closing clears it.
 - `Textarea` offers emoji on `:` in both modes (`components/emoji/`, placed by `components/inline-picker/`); its forwarded ref is the textarea element itself.
 - About links and fallback release links point to `joeldevz/skynex-desktop`. The About footer preserves OpenChamber attribution. Upstream community accounts are not Skynex support channels.
+- The About dialog reads the installed Skynex CLI version from `/api/system/info`; missing or invalid values render as unknown, and every opening refreshes the value. Older servers and runtimes without the field remain supported.
 - `OpenChamberLogo` uses the generated filled Skynex path. The finite ribbon animation is rendered only for the animated splash variant; reduced-motion users see the static mark.
 
 ## Decisions

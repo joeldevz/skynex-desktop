@@ -3,6 +3,7 @@ import { ThemeImportStorageError } from './theme-runtime.js';
 import { registerThemeCatalogRoutes } from './theme-catalog.js';
 import { collectLocalFileDiagnostics } from '../diagnostics/local-files.js';
 import { serverDiagnosticJournal } from '../diagnostics/server-journal.js';
+import { readSkynexCliVersion } from './skynex-cli-version.js';
 
 // Install before any routes or body parsers so early 4xx responses are covered too.
 export const registerHttpResponseDiagnostics = (app, journal = serverDiagnosticJournal) => {
@@ -66,6 +67,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     // and the endpoint reports null.
     getServerPort = () => null,
     getTunnelUrl = () => null,
+    getSkynexCliVersion = readSkynexCliVersion,
     // Stable server identity (hash of the public signing key — not a secret).
     // Exposed on /health and /api/version so a client can verify that a
     // learned/probed address belongs to the expected server BEFORE sending its
@@ -77,6 +79,17 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     // export (`../diagnostics/opencode-load.js`); older wiring omits it.
     readOpenCodeLoad = null,
   } = dependencies;
+
+  let skynexCliVersionLookup = null;
+  const getSharedSkynexCliVersion = () => {
+    if (!skynexCliVersionLookup) {
+      const lookup = Promise.resolve().then(getSkynexCliVersion);
+      skynexCliVersionLookup = lookup.finally(() => {
+        skynexCliVersionLookup = null;
+      });
+    }
+    return skynexCliVersionLookup;
+  };
 
   // The identity is immutable for the process lifetime; resolve once, and never
   // let an identity failure break health reporting.
@@ -403,6 +416,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     if (await isRequestAuthorized(req, res, { tunnelAuthController, uiAuthController }).catch(() => false)) {
       info.port = getServerPort();
       info.tunnelUrl = getTunnelUrl();
+      info.skynexCliVersion = await getSharedSkynexCliVersion().catch(() => null);
     }
     res.json(info);
   });

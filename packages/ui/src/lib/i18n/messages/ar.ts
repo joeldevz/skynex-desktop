@@ -2113,6 +2113,7 @@ export const dict = {
   'aboutDialog.versionLabel': 'الإصدار {version}',
   'aboutDialog.openChamberVersionLabel': 'إصدار Skynex {version}',
   'aboutDialog.openCodeVersionLabel': 'إصدار OpenCode {version}',
+  'aboutDialog.skynexCliVersionLabel': 'إصدار Skynex CLI {version}',
   'aboutDialog.appVersionLabel': 'إصدار التطبيق {version}',
   'aboutDialog.actions.copyDiagnostics': 'نسخ بيانات التشخيص',
   'aboutDialog.actions.preparingDiagnostics': 'جارٍ تجهيز بيانات التشخيص…',

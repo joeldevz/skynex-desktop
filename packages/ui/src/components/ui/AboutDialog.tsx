@@ -1,4 +1,5 @@
 import React from 'react';
+import { z } from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,10 @@ import { getDesktopAppVersion } from '@/lib/desktopNative';
 import { runtimeFetch } from '@/lib/runtime-fetch';
 
 const VERSION_SLOT = '\u0000';
+const systemInfoSchema = z.object({
+  openchamberVersion: z.string().trim().catch(''),
+  skynexCliVersion: z.string().trim().catch(''),
+});
 
 interface AboutDialogProps {
   open: boolean;
@@ -28,6 +33,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   // undefined while the first lookup runs, null once it finished without a version.
   const [version, setVersion] = React.useState<string | null | undefined>(undefined);
   const [openCodeVersion, setOpenCodeVersion] = React.useState<string | null | undefined>(undefined);
+  const [skynexCliVersion, setSkynexCliVersion] = React.useState<string | null | undefined>(undefined);
   const [isCopyingDiagnostics, setIsCopyingDiagnostics] = React.useState(false);
   const [copiedDiagnostics, setCopiedDiagnostics] = React.useState(false);
   const [diagnosticsReport, setDiagnosticsReport] = React.useState<string | null>(null);
@@ -68,19 +74,27 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
 
     let cancelled = false;
     const fetchVersion = async () => {
+      let serverVersion = '';
+      let cliVersion = '';
       try {
         const response = await runtimeFetch('/api/system/info');
         if (response.ok) {
-          const data = await response.json();
-          if (typeof data.openchamberVersion === 'string' && data.openchamberVersion.trim()) {
-            if (!cancelled) setVersion(data.openchamberVersion);
-            return;
+          const parsed = systemInfoSchema.safeParse(await response.json());
+          if (parsed.success) {
+            serverVersion = parsed.data.openchamberVersion;
+            cliVersion = parsed.data.skynexCliVersion;
           }
         }
       } catch {
         // Fall back to the native shell version when the web server is unavailable.
       }
 
+      if (cancelled) return;
+      setSkynexCliVersion(cliVersion || null);
+      if (serverVersion) {
+        setVersion(serverVersion);
+        return;
+      }
       const desktopVersion = await getDesktopAppVersion().catch(() => null);
       if (!cancelled) setVersion(desktopVersion);
     };
@@ -146,8 +160,8 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     };
   }, [open, showDiagnostics]);
 
-  // Both rows render from the first frame so the dialog height stays put while versions load.
-  const renderVersionRow = (labelKey: 'aboutDialog.openChamberVersionLabel' | 'aboutDialog.openCodeVersionLabel', value: string | null | undefined) => {
+  // All version rows render from the first frame so the dialog height stays put while they load.
+  const renderVersionRow = (labelKey: 'aboutDialog.openChamberVersionLabel' | 'aboutDialog.openCodeVersionLabel' | 'aboutDialog.skynexCliVersionLabel', value: string | null | undefined) => {
     if (value !== undefined) {
       return <p>{t(labelKey, { version: value ?? t('settings.openchamber.about.state.unknown') })}</p>;
     }
@@ -172,6 +186,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
             <div className="space-y-0.5 typography-meta text-muted-foreground">
               {renderVersionRow('aboutDialog.openChamberVersionLabel', version)}
               {renderVersionRow('aboutDialog.openCodeVersionLabel', openCodeVersion)}
+              {renderVersionRow('aboutDialog.skynexCliVersionLabel', skynexCliVersion)}
             </div>
           </div>
 

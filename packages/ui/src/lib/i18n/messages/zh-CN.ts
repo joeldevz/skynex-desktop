@@ -2147,6 +2147,7 @@ export const dict: Record<I18nKey, string> = {
   'aboutDialog.versionLabel': '版本 {version}',
   'aboutDialog.openChamberVersionLabel': 'Skynex 版本 {version}',
   'aboutDialog.openCodeVersionLabel': 'OpenCode 版本 {version}',
+  'aboutDialog.skynexCliVersionLabel': 'Skynex CLI 版本 {version}',
   'aboutDialog.appVersionLabel': '应用版本 {version}',
   'aboutDialog.actions.copyDiagnostics': '复制诊断信息',
   'aboutDialog.actions.preparingDiagnostics': '正在准备诊断信息...',
