@@ -43,8 +43,10 @@ Where the check runs:
   folder's configuration runs nothing or its current fingerprint is trusted.
   Routes that start no location (session list and detail, message pages, the
   event stream, credentials, deleting, moving or viewing a session, unloading a
-  location) pass, so a paused folder still lists and shows its sessions. Any
-  other route, including ones OpenCode adds later, is checked.
+  location) pass, so a paused folder still lists and shows its sessions. A
+  `GET /api/experimental/session/{id}/log?follow=false` also passes because it
+  reads finite historical output without opening a location. Following log
+  reads and every other route, including ones OpenCode adds later, are checked.
 - Trust is per repository: every worktree of one repository shares the
   answers, and a worktree whose configuration differs from every trusted one
   asks. The latest 20 fingerprints per repository are kept, so switching
@@ -122,6 +124,14 @@ title lookup in testing and would miss the next feature too. One guard on the
 process's `fetch` covers all of them; requests to any other origin pass
 untouched. The proxy forwards through `http-proxy-middleware`, not `fetch`, so
 it keeps its own middleware.
+
+### Why finite session log reads pass
+
+OpenCode's non-following experimental session log read does not open a
+location, so it can show historical output for a paused folder without
+starting that folder's plugins or local servers. The exception requires the
+exact log route, `GET`, and one `follow=false` query value; following streams,
+malformed query values, and neighbouring session routes stay guarded.
 
 ### Known limits
 

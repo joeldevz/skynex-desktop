@@ -165,6 +165,7 @@ describe("projectToolPart", () => {
       owner,
     )
     expect(part.state).toEqual({ status: "running", input: { path: "a" }, metadata: { title: "Editing" }, time: { start: 7 } })
+    expect(part.completedDurationMs).toBeUndefined()
   })
 
   test("error state renders the structured error as text and keeps partial output", () => {
@@ -190,6 +191,7 @@ describe("projectToolPart", () => {
       output: "partial",
       time: { start: 6, end: 9 },
     })
+    expect(part.completedDurationMs).toBe(3)
   })
 })
 

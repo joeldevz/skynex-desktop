@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 
-import { fetchUsageStats, fetchUsageTools, resolveUsageProjectID, type UsageStats, type UsageTools } from '@/lib/opencode/session-stats';
+import { fetchUsageStats, fetchUsageTools, fetchWorkspaceUsageStats, fetchWorkspaceUsageTools, type UsageStats, type UsageTools } from '@/lib/opencode/session-stats';
 import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-switch';
 
 import { rangeStart, type UsageRange } from './usageStatsModel';
 
 /**
  * In-memory cache of Stats page reports for the app session, one entry per
- * (runtime, range, project). Reopening the page or going back to a filter
+ * (runtime, range, workspace). Reopening the page or going back to a filter
  * shows the cached report without refetching; only a key with nothing cached
  * loads on its own, and the refresh button forces a new read. A runtime
  * switch drops every entry and ignores answers still in flight.
@@ -16,7 +16,7 @@ import { rangeStart, type UsageRange } from './usageStatsModel';
  * for (`stats.range`) and when (`fetchedAt`), which the page shows.
  */
 
-export type UsageStatsRequest = { range: UsageRange; projectDirectory: string | null };
+export type UsageStatsRequest = { range: UsageRange; workspaceId: string | null | '__unassigned__' };
 
 export type UsageStatsEntry = {
   /** Last successful report; kept on screen through refreshes and failed refreshes. */
@@ -48,7 +48,7 @@ export type UsageToolsFetcher = (
 ) => Promise<UsageTools>;
 
 export const usageStatsKey = (runtimeKey: string, request: UsageStatsRequest): string =>
-  `${runtimeKey}::${request.range}::${request.projectDirectory ?? '__all__'}`;
+  `${runtimeKey}::${request.range}::${request.workspaceId ?? '__all__'}`;
 
 type UsageStatsStore = {
   entries: Record<string, UsageStatsEntry>;
@@ -75,19 +75,16 @@ type UsageStatsStore = {
 
 const viewerTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-const fetchFromOpencode: UsageStatsFetcher = async ({ range, projectDirectory }, signal) => {
-  // The `project` filter takes OpenCode's project id, which only OpenCode
-  // knows: ask it for the id of the project's directory. A failed lookup is
-  // an error for this choice, never an unfiltered or empty report.
-  const projectID = projectDirectory ? await resolveUsageProjectID(projectDirectory) : undefined;
-  signal.throwIfAborted();
-  return fetchUsageStats({ from: rangeStart(range, new Date()), projectID, timezone: viewerTimeZone() }, signal);
+const fetchFromOpencode: UsageStatsFetcher = async ({ range, workspaceId }, signal) => {
+  const from = rangeStart(range, new Date());
+  const query = { from, timezone: viewerTimeZone() };
+  if (workspaceId === null) return fetchUsageStats(query, signal);
+  return fetchWorkspaceUsageStats({ ...query, workspaceId }, signal);
 };
 
-const fetchToolsFromOpencode: UsageToolsFetcher = async ({ projectDirectory }, window, signal) => {
-  const projectID = projectDirectory ? await resolveUsageProjectID(projectDirectory) : undefined;
-  signal.throwIfAborted();
-  return fetchUsageTools({ from: window.from, to: window.to, projectID, timezone: viewerTimeZone() }, signal);
+const fetchToolsFromOpencode: UsageToolsFetcher = async ({ workspaceId }, window, signal) => {
+  if (workspaceId === null) return fetchUsageTools({ ...window, timezone: viewerTimeZone() }, signal);
+  return fetchWorkspaceUsageTools({ ...window, timezone: viewerTimeZone(), workspaceId }, signal);
 };
 
 export function createUsageStatsStore(

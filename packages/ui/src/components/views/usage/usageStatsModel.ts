@@ -125,13 +125,5 @@ export const tokenSegments = (tokens: UsageTokens): TokenSegment[] => [
   { key: 'cacheWrite', value: tokens.cacheWrite },
 ];
 
-/** Project name as the sidebar shows it: its label, else the folder name. */
-export const projectDisplayName = (project: { label?: string | null; path: string }): string => {
-  const label = project.label?.trim();
-  if (label) return label;
-  const segments = project.path.split(/[\\/]/).filter(Boolean);
-  return segments[segments.length - 1] ?? project.path;
-};
-
 /** Both timestamps fall on the same calendar day in the viewer's time zone. */
 export const isSameLocalDay = (a: number, b: number): boolean => dateKey(new Date(a)) === dateKey(new Date(b));

@@ -179,6 +179,9 @@ export function projectToolPart(
     tool: tool.name,
     state,
     executed: tool.executed,
+    completedDurationMs: tool.time.completed === undefined
+      ? undefined
+      : tool.time.completed - (tool.time.ran ?? tool.time.created),
   })
 }
 

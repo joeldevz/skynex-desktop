@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, jest, mock, test } from "bun:test"
 import { z } from "zod"
 import { isAmbiguousSendFailure } from '@/sync/send-failure-classification'
 import { adoptRelayTunnel, deactivateRelayTunnel } from "@/lib/relay/runtime-tunnel"
@@ -17,6 +17,7 @@ type CapturedRequest = {
   method: string
   headers: Headers
   body: unknown
+  signal?: AbortSignal
 }
 
 const requests: CapturedRequest[] = []
@@ -34,6 +35,7 @@ const runtimeFetchMock = mock<RuntimeFetch>(async (input, init) => {
     method: String(init?.method ?? "GET").toUpperCase(),
     headers: new Headers(init?.headers),
     body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+    signal: init?.signal ?? (input instanceof Request ? input.signal : undefined),
   }
   requests.push(request)
   const next = responses.shift()
@@ -85,6 +87,12 @@ mock.module("@/lib/startupTrace", () => ({
 }))
 
 const { OpencodeApiError, createRuntimeOpencodeClient, opencodeClient } = await import(`./client?client-test=${Date.now()}`)
+type SessionUsageRecordForTest = {
+  created: number
+  source: "title" | "compaction"
+  cost: number
+  tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
+}
 const { readProjectConfigError } = await import("./configError")
 
 const sessionInfo = {
@@ -103,6 +111,10 @@ beforeEach(() => {
   runtimeKey = "test-runtime"
   opencodeClient.setDirectory(undefined)
   opencodeClient.clearConfigCache()
+})
+
+afterEach(() => {
+  jest.useRealTimers()
 })
 
 describe('runtime routing responses', () => {
@@ -156,6 +168,107 @@ describe('runtime routing responses', () => {
 })
 
 describe("request fidelity", () => {
+  test("reads session usage records through the session-log SSE route from the start", async () => {
+    const event = {
+      id: "event_usage_1",
+      created: 1_500,
+      type: "session.usage.recorded",
+      durable: { aggregateID: "ses_1", seq: 1, version: 1 },
+      data: {
+        sessionID: "ses_1",
+        source: "compaction",
+        cost: 0.25,
+        tokens: { input: 3, output: 2, reasoning: 1, cache: { read: 4, write: 5 } },
+      },
+    }
+    responses.push(new Response(`data: ${JSON.stringify(event)}\n\n`, {
+      headers: { "content-type": "text/event-stream" },
+    }))
+    const records: SessionUsageRecordForTest[] = []
+    const pendingTimers = new Set<unknown>()
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      const timer = originalSetTimeout(handler, timeout, ...args)
+      pendingTimers.add(timer)
+      return timer
+    }) as typeof setTimeout
+    globalThis.clearTimeout = ((timer?: ReturnType<typeof setTimeout>) => {
+      if (timer !== undefined) pendingTimers.delete(timer)
+      return originalClearTimeout(timer)
+    }) as typeof clearTimeout
+    try {
+      await opencodeClient.readSessionUsageRecords("ses_1", (record: SessionUsageRecordForTest) => records.push(record))
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+    expect(records).toEqual([{
+      created: 1_500,
+      sessionID: "ses_1",
+      source: "compaction",
+      cost: 0.25,
+      tokens: { input: 3, output: 2, reasoning: 1, cache: { read: 4, write: 5 } },
+    }])
+    expect(requests[0].url.pathname).toBe("/api/experimental/session/ses_1/log")
+    expect(Object.fromEntries(requests[0].url.searchParams)).toEqual({ after: "0", follow: "false" })
+    expect(pendingTimers.size).toBe(0)
+  })
+
+  test("rejects failed session-log streams", async () => {
+    responses.push(new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("stream unavailable"))
+      },
+    }), { headers: { "content-type": "text/event-stream" } }))
+    await expect(opencodeClient.readSessionUsageRecords("ses_1", () => undefined)).rejects.toThrow()
+    expect(requests[0].url.pathname).toBe("/api/experimental/session/ses_1/log")
+  })
+
+  test("times out a session-log stream that stalls after headers", async () => {
+    jest.useFakeTimers()
+    responses.push((request) => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(": connected\n\n"))
+        request.signal?.addEventListener("abort", () => controller.error(request.signal?.reason), { once: true })
+      },
+    }), { headers: { "content-type": "text/event-stream" } }))
+    let outcome: { error?: unknown } | null = null
+    const reading = opencodeClient.readSessionUsageRecords("ses_1", () => undefined).then(
+      () => { outcome = {} },
+      (error: Error) => { outcome = { error } },
+    )
+    for (let index = 0; index < 10; index += 1) await Promise.resolve()
+    expect(outcome).toBeNull()
+    jest.advanceTimersByTime(30_000)
+    for (let index = 0; index < 20; index += 1) await Promise.resolve()
+    await reading
+    const outcomeError = (outcome as { error?: Error } | null)?.error
+    expect(outcomeError?.message).toBe("OpenCode request timed out after 30000ms")
+  })
+
+  test("caller cancellation aborts a session-log read and pre-aborted reads send no request", async () => {
+    responses.push((request) => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(": connected\n\n"))
+        request.signal?.addEventListener("abort", () => controller.error(request.signal?.reason), { once: true })
+      },
+    }), { headers: { "content-type": "text/event-stream" } }))
+    const controller = new AbortController()
+    const reading = opencodeClient.readSessionUsageRecords("ses_1", () => undefined, controller.signal)
+    for (let index = 0; index < 10; index += 1) await Promise.resolve()
+    controller.abort()
+    const callerError = await reading.then(() => null, (error: Error) => error)
+    expect(callerError?.name).toBe("AbortError")
+
+    const requestsBeforeAbort = requests.length
+    const alreadyAborted = new AbortController()
+    alreadyAborted.abort()
+    await expect(opencodeClient.readSessionUsageRecords("ses_1", () => undefined, alreadyAborted.signal))
+      .rejects.toThrow()
+    expect(requests).toHaveLength(requestsBeforeAbort)
+  })
+
   test("project creation uses the OpenChamber directory route", async () => {
     responses.push(json({ success: true, restarted: false, path: "/repo/new" }))
     expect(await opencodeClient.createDirectory("/repo/new", { asProject: true }))
@@ -992,6 +1105,8 @@ describe("sendCommand context", () => {
 
 describe("directory availability batching", () => {
   const answerPaths = (request: CapturedRequest) => {
+    // SAFETY: this request body is JSON-decoded by the runtime fetch mock above, and this test
+    // invokes the paths operation whose serialized contract contains `paths`.
     const paths = (request.body as { paths: string[] }).paths
     return json({
       results: paths.map((path) => path.endsWith("/gone")
@@ -1023,6 +1138,7 @@ describe("directory availability batching", () => {
     const calls = availabilityCalls()
     expect(calls.length).toBe(2)
     for (const call of calls) {
+      // SAFETY: this captured body is the JSON payload of the tested paths operation.
       expect((call.body as { paths: string[] }).paths.length).toBeLessThanOrEqual(200)
     }
   })

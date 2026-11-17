@@ -51,6 +51,13 @@ const isGlobalRoute = (method, pathname) => (
     : GLOBAL_MUTATIONS.some((route) => route.method === method && route.pattern.test(pathname))
 );
 
+const isNonFollowingSessionLogRead = (method, url) => (
+  method === 'GET'
+    && /^\/api\/experimental\/session\/[^/]+\/log$/.test(url.pathname)
+    && url.searchParams.getAll('follow').length === 1
+    && url.searchParams.get('follow') === 'false'
+);
+
 /** The folders a request names, decoded the way OpenCode reads them. */
 const directoriesNamedBy = (url, headers) => {
   const directories = [...url.searchParams.getAll('directory'), ...url.searchParams.getAll('location[directory]')];
@@ -212,7 +219,7 @@ export const createOpenCodeTrust = ({
   const refusalFor = async ({ method, path: requestPath, headers, resolveSessionDirectory }) => {
     const url = new URL(requestPath, 'http://opencode.invalid');
     const normalizedMethod = String(method || 'GET').toUpperCase();
-    if (isGlobalRoute(normalizedMethod, url.pathname)) return null;
+    if (isGlobalRoute(normalizedMethod, url.pathname) || isNonFollowingSessionLogRead(normalizedMethod, url)) return null;
     const directories = directoriesNamedBy(url, lowercaseKeys(headers));
     const sessionID = SESSION_SCOPED.exec(url.pathname)?.[1];
     if (sessionID && resolveSessionDirectory) {

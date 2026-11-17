@@ -173,6 +173,71 @@ describe('createOpenCodeTrust', () => {
     expect((await trust.refusalFor({ ...prompt, resolveSessionDirectory: async () => { throw new Error('down'); } }))?.status).toBe(503);
   });
 
+  it('allows only non-following session log reads for an untrusted folder', async () => {
+    await write('.opencode/plugins/probe.js', 'export default {}');
+    const trust = makeTrust();
+    const headers = { 'x-opencode-directory': encodeURIComponent(repo) };
+    let sessionResolutions = 0;
+    const resolveSessionDirectory = async () => {
+      sessionResolutions += 1;
+      return repo;
+    };
+
+    const refusal = await trust.refusalFor({
+      method: 'GET',
+      path: '/api/experimental/session/ses_1/log?follow=false',
+      headers,
+      resolveSessionDirectory,
+    });
+    expect(refusal).toBeNull();
+    expect(sessionResolutions).toBe(0);
+
+    await expect(readFile(path.join(root, 'data', 'opencode-trust.json'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it.each([
+    ['follow omitted', '/api/experimental/session/ses_1/log'],
+    ['follow true', '/api/experimental/session/ses_1/log?follow=true'],
+    ['follow invalid', '/api/experimental/session/ses_1/log?follow=0'],
+    ['duplicate false and true', '/api/experimental/session/ses_1/log?follow=false&follow=true'],
+    ['duplicate false values', '/api/experimental/session/ses_1/log?follow=false&follow=false'],
+    ['POST log', '/api/experimental/session/ses_1/log?follow=false', 'POST'],
+    ['HEAD log', '/api/experimental/session/ses_1/log?follow=false', 'HEAD'],
+    ['sibling route', '/api/experimental/session/ses_1/summary?follow=false'],
+    ['empty session id', '/api/experimental/session//log?follow=false'],
+  ])('keeps %s protected for an untrusted folder', async (_label, path, method = 'GET') => {
+    await write('.opencode/plugins/probe.js', 'export default {}');
+    const refusal = await makeTrust().refusalFor({
+      method,
+      path,
+      headers: { 'x-opencode-directory': encodeURIComponent(repo) },
+    });
+    expect(refusal?.status).toBe(403);
+    expect(refusal?.body).toMatchObject({ code: OPENCODE_TRUST_REQUIRED, directory: repo });
+  });
+
+  it('does not grant trust to session actions or agent reads after a log read', async () => {
+    await write('.opencode/plugins/probe.js', 'export default {}');
+    const trust = makeTrust();
+    const headers = { 'x-opencode-directory': encodeURIComponent(repo) };
+    expect(await trust.refusalFor({
+      method: 'GET',
+      path: '/api/experimental/session/ses_1/log?follow=false',
+      headers,
+    })).toBeNull();
+
+    expect((await trust.refusalFor({
+      method: 'POST',
+      path: '/api/session/ses_1/prompt',
+      headers: {},
+      resolveSessionDirectory: async () => repo,
+    }))?.status).toBe(403);
+    expect((await trust.refusalFor({ method: 'GET', path: '/api/agent', headers }))?.status).toBe(403);
+    await expect(readFile(path.join(root, 'data', 'opencode-trust.json'), 'utf8'))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('reads the folder from the location query as well', async () => {
     await write('.opencode/plugins/probe.js', 'export default {}');
     const refusal = await makeTrust().refusalFor({

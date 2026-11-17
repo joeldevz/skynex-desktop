@@ -62,6 +62,7 @@ import {
   type SessionStatus,
   type Skill,
   type SyntheticMessage,
+  type TokenUsageInfo,
   type UserMessage,
   type Vcs,
   toModelRef,
@@ -295,9 +296,9 @@ type AbortSignalConstructorWithTimeout = typeof AbortSignal & {
   timeout?: (milliseconds: number) => AbortSignal
 }
 
-const createTimeoutSignal = (timeoutMs: number): { signal: AbortSignal; cleanup: () => void } => {
+const createTimeoutSignal = (timeoutMs: number, allowNativeTimeout = true): { signal: AbortSignal; cleanup: () => void } => {
   const abortSignal = typeof AbortSignal !== "undefined" ? (AbortSignal as AbortSignalConstructorWithTimeout) : undefined
-  if (typeof abortSignal?.timeout === "function") {
+  if (allowNativeTimeout && typeof abortSignal?.timeout === "function") {
     return { signal: abortSignal.timeout(timeoutMs), cleanup: () => undefined }
   }
 
@@ -472,6 +473,13 @@ export type MessagePage = {
   cursor: { previous?: string; next?: string }
 }
 
+type SessionUsageRecord = {
+  created: number
+  source: "title" | "compaction"
+  cost: number
+  tokens: TokenUsageInfo
+}
+
 /**
  * A message a session's pending OpenCode inbox item stands for, projected the
  * way `session.inbox.enqueued` paints it live. Control items (compaction,
@@ -504,6 +512,7 @@ export type SessionListOptions = {
   search?: string
   cursor?: string
   parentID?: string | null
+  signal?: AbortSignal
 }
 
 export type ProviderCatalog = {
@@ -1014,7 +1023,7 @@ class OpencodeService {
         search: options.search,
         cursor: options.cursor,
         parentID: options.parentID,
-      }),
+      }, { signal: options.signal }),
     )
     const spaces = options.global ? sessionPageSpacesSchema.safeParse(response).data?.spaces : undefined
     return {
@@ -1106,19 +1115,26 @@ class OpencodeService {
    */
   async getSessionMessages(
     id: string,
-    options?: { limit?: number; cursor?: string; order?: "asc" | "desc"; partShells?: boolean },
+    options?: { limit?: number; cursor?: string; order?: "asc" | "desc"; partShells?: boolean; signal?: AbortSignal },
     directory?: string | null,
   ): Promise<MessagePage> {
     const list = (headers?: Record<string, string>) => call("message.list", () =>
-      this.clientFor(directory).message.list(
-        {
-          sessionID: id,
-          limit: options?.limit,
-          cursor: options?.cursor,
-          order: options?.cursor ? undefined : options?.order,
-        },
-        headers ? { headers } : undefined,
-      ),
+      {
+        const requestOptions = headers
+          ? { headers, signal: options?.signal }
+          : options?.signal
+            ? { signal: options.signal }
+            : undefined
+        return this.clientFor(directory).message.list(
+          {
+            sessionID: id,
+            limit: options?.limit,
+            cursor: options?.cursor,
+            order: options?.cursor ? undefined : options?.order,
+          },
+          requestOptions,
+        )
+      },
     )
     let response: Awaited<ReturnType<typeof list>>
     if (options?.partShells && this.serverShellsMessagePages()) {
@@ -1142,6 +1158,46 @@ class OpencodeService {
     return {
       items,
       cursor: pageCursor({ ...response.cursor, next: lastPage ? undefined : response.cursor.next }),
+    }
+  }
+
+  async readSessionUsageRecords(
+    id: string,
+    visit: (record: SessionUsageRecord) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted()
+    const timeout = createTimeoutSignal(OPENCODE_REQUEST_TIMEOUT_MS, false)
+    const combinedController = new AbortController()
+    const abortFromCaller = () => combinedController.abort(signal?.reason)
+    const abortFromTimeout = () => combinedController.abort(timeout.signal.reason)
+    let detachAbortListeners = () => undefined
+    if (signal?.aborted) abortFromCaller()
+    else if (timeout.signal.aborted) abortFromTimeout()
+    else {
+      signal?.addEventListener("abort", abortFromCaller, { once: true })
+      timeout.signal.addEventListener("abort", abortFromTimeout, { once: true })
+      detachAbortListeners = () => {
+        signal?.removeEventListener("abort", abortFromCaller)
+        timeout.signal.removeEventListener("abort", abortFromTimeout)
+      }
+    }
+    try {
+      const log = this.client.session.log({ sessionID: id, after: 0, follow: false }, { signal: combinedController.signal })
+      for await (const item of log) {
+        combinedController.signal.throwIfAborted()
+        if (item.type === "session.usage.recorded") {
+          visit({ created: item.created, ...item.data })
+        }
+      }
+      combinedController.signal.throwIfAborted()
+    } catch (error) {
+      if (signal?.aborted) signal.throwIfAborted()
+      if (timeout.signal.aborted) throw new Error(`OpenCode request timed out after ${OPENCODE_REQUEST_TIMEOUT_MS}ms`)
+      throw normalizeOpencodeError("session.log", error)
+    } finally {
+      detachAbortListeners()
+      timeout.cleanup()
     }
   }
 

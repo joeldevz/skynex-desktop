@@ -7,7 +7,6 @@ import {
   costPerMillionTokens,
   isEmptyReport,
   isSameLocalDay,
-  projectDisplayName,
   rangeStart,
   reasoningShare,
   tokenSegments,
@@ -61,12 +60,6 @@ describe('buildActivitySeries', () => {
 test('a report with no prompts and no steps is empty', () => {
   expect(isEmptyReport({ prompts: 0, steps: 0 })).toBe(true);
   expect(isEmptyReport({ prompts: 1, steps: 0 })).toBe(false);
-});
-
-test('a project reads as its label, else its folder name', () => {
-  expect(projectDisplayName({ label: ' Chamber ', path: '/code/openchamber' })).toBe('Chamber');
-  expect(projectDisplayName({ path: '/code/openchamber/' })).toBe('openchamber');
-  expect(projectDisplayName({ label: '', path: 'C:\\code\\app' })).toBe('app');
 });
 
 test('same local day compares calendar dates, not 24 hours', () => {

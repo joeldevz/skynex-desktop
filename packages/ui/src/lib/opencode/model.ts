@@ -389,6 +389,8 @@ export type ToolPart = PartBase & {
   state: ToolState
   /** The provider actually executed the call (false for replayed/synthetic calls). */
   executed?: boolean
+  /** Stats API duration basis, absent when the wire tool has no completion time. */
+  completedDurationMs?: number
 }
 
 export type Part = TextPart | ReasoningPart | FilePart | AgentPart | ToolPart

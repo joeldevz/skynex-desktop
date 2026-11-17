@@ -13,8 +13,7 @@ import type { UsageModel, UsageStats } from '@/lib/opencode/session-stats';
 import { formatDateTimeForPreference, formatTimeForPreference } from '@/lib/timeFormat';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { useProjectsStore } from '@/stores/useProjectsStore';
-import { useProjectsInSidebarOrder } from '@/components/session/sidebar/list/useProjectsInSidebarOrder';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { useUIStore, type TimeFormatPreference } from '@/stores/useUIStore';
 
 import {
@@ -25,7 +24,6 @@ import {
   costPerMillionTokens,
   isEmptyReport,
   isSameLocalDay,
-  projectDisplayName,
   reasoningShare,
   tokenSegments,
   toolSuccessRate,
@@ -35,8 +33,8 @@ import {
 } from './usageStatsModel';
 import { selectUsageStatsEntry, selectUsageToolsEntry, useUsageStatsStore, type UsageToolsEntry } from './usageStatsStore';
 
-/** Select value for the unfiltered report; project values are OpenChamber project ids. */
-const ALL_PROJECTS = '__all__';
+const ALL_WORKSPACES = '__all__';
+const UNASSIGNED_WORKSPACE = '__unassigned__';
 
 /** One bar color per token segment; the order matches `tokenSegments`. */
 const TOKEN_SEGMENT_CLASSES = {
@@ -61,12 +59,12 @@ const RANGE_LABEL_KEYS = {
 } as const satisfies Record<UsageRange, I18nKey>;
 
 /**
- * The cached report for the chosen range and project (by directory). A key
+ * The cached report for the chosen range and workspace. A key
  * with nothing cached loads on first view; a cached key never refetches on
  * its own. See `usageStatsStore.ts`.
  */
-function useUsageStats(range: UsageRange, projectDirectory: string | null) {
-  const request = React.useMemo(() => ({ range, projectDirectory }), [range, projectDirectory]);
+function useUsageStats(range: UsageRange, workspaceId: string | null | '__unassigned__') {
+  const request = React.useMemo(() => ({ range, workspaceId }), [range, workspaceId]);
   const entry = useUsageStatsStore((store) => selectUsageStatsEntry(store, request));
   const load = useUsageStatsStore((store) => store.load);
 
@@ -95,12 +93,12 @@ export function UsageStatsView({ className }: { className?: string }): React.Rea
   const { t } = useI18n();
   // Read during render: a locale change re-renders through useI18n.
   const intlLocale = getCurrentIntlLocale();
-  const projects = useProjectsInSidebarOrder(useProjectsStore((store) => store.projects));
+  const workspaces = useWorkspacesStore((store) => store.catalog.workspaces);
   const [range, setRange] = React.useState<UsageRange>('30d');
-  const [projectChoice, setProjectChoice] = React.useState<string>(ALL_PROJECTS);
-  // A project removed from the list while chosen falls back to all projects.
-  const selectedProject = projects.find((project) => project.id === projectChoice) ?? null;
-  const { entry, refresh, tools } = useUsageStats(range, selectedProject?.path ?? null);
+  const [workspaceChoice, setWorkspaceChoice] = React.useState<string>(ALL_WORKSPACES);
+  const selectedWorkspace = workspaces.find((workspace) => workspace.id === workspaceChoice);
+  const selectedWorkspaceId = selectedWorkspace?.id ?? (workspaceChoice === UNASSIGNED_WORKSPACE ? UNASSIGNED_WORKSPACE : null);
+  const { entry, refresh, tools } = useUsageStats(range, selectedWorkspaceId);
   const timeFormatPreference = useUIStore((store) => store.timeFormatPreference);
   const stats = entry?.stats ?? null;
   const loading = entry?.loading ?? true;
@@ -130,19 +128,20 @@ export function UsageStatsView({ className }: { className?: string }): React.Rea
             aria-label={t('usageStats.range.label')}
             options={USAGE_RANGES.map((option) => ({ value: option, label: t(RANGE_LABEL_KEYS[option]) }))}
           />
-          <Select value={selectedProject ? selectedProject.id : ALL_PROJECTS} onValueChange={setProjectChoice}>
+          <Select value={selectedWorkspaceId ?? ALL_WORKSPACES} onValueChange={setWorkspaceChoice}>
             <SelectTrigger className="w-fit min-w-[140px] max-w-64" aria-label={t('usageStats.scope.label')}>
               <SelectValue>
-                {() => (selectedProject ? projectDisplayName(selectedProject) : t('usageStats.scope.all'))}
+                {() => (selectedWorkspace ? selectedWorkspace.name : selectedWorkspaceId === UNASSIGNED_WORKSPACE ? t('usageStats.scope.unassigned') : t('usageStats.scope.all'))}
               </SelectValue>
             </SelectTrigger>
             <SelectContent align="start">
-              <SelectItem value={ALL_PROJECTS}>{t('usageStats.scope.all')}</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  <span className="truncate" title={project.path}>{projectDisplayName(project)}</span>
+              <SelectItem value={ALL_WORKSPACES}>{t('usageStats.scope.all')}</SelectItem>
+              {workspaces.map((workspace) => (
+                <SelectItem key={workspace.id} value={workspace.id}>
+                  <span className="truncate" title={workspace.name}>{workspace.name}</span>
                 </SelectItem>
               ))}
+              <SelectItem value={UNASSIGNED_WORKSPACE}>{t('usageStats.scope.unassigned')}</SelectItem>
             </SelectContent>
           </Select>
           <div className="ms-auto flex min-w-0 items-center gap-1.5">

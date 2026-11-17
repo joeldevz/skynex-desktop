@@ -43,15 +43,15 @@ function setup() {
   return { store, pending, pendingTools, setRuntime: (next: string) => { runtime = next; } };
 }
 
-const A: UsageStatsRequest = { range: '7d', projectDirectory: null };
-const B: UsageStatsRequest = { range: '30d', projectDirectory: '/code/app' };
+const A: UsageStatsRequest = { range: '7d', workspaceId: null };
+const B: UsageStatsRequest = { range: '30d', workspaceId: 'workspace-a' };
 const entry = (ctx: ReturnType<typeof setup>, request: UsageStatsRequest, runtime = 'runtime-a') =>
   ctx.store.getState().entries[usageStatsKey(runtime, request)];
 
 describe('usage stats cache', () => {
-  test('keys by runtime, range and project', () => {
+  test('keys by runtime, range and workspace', () => {
     expect(usageStatsKey('r', A)).not.toBe(usageStatsKey('r', { ...A, range: '30d' }));
-    expect(usageStatsKey('r', A)).not.toBe(usageStatsKey('r', { ...A, projectDirectory: '/x' }));
+    expect(usageStatsKey('r', A)).not.toBe(usageStatsKey('r', { ...A, workspaceId: 'workspace-a' }));
     expect(usageStatsKey('r', A)).not.toBe(usageStatsKey('s', A));
   });
 
