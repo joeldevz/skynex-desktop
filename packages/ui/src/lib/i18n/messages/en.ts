@@ -39,6 +39,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict = {
+  'chat.messageBody.tts.playbackFailed': 'Voice playback failed. Check Settings → Voice and the speech voices installed on your system.',
+  'chat.messageBody.tts.listenSummary': 'Listen to summary',
+  'chat.messageBody.tts.preparing': 'Preparing audio',
+  'chat.messageBody.tts.summaryFailed': 'Could not create a spoken summary. Try again.',
   'workspaces.sessionClosed': 'Closed "{name}"',
   'workspaces.undoClose': 'Undo',
   'sessions.scheduledTasks.editor.destination.chooseFolder': 'Choose a replacement folder',

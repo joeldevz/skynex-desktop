@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { runtimeFetch } from '@/lib/runtime-fetch';
+import { audioPlaybackCache, getPlaybackCacheEpoch } from '@/lib/voice/playbackCache';
 
 export interface LocalTTSSpeakOptions {
     /** Catalog id of the local model to use; defaults to the server's default model. */
@@ -29,6 +30,7 @@ export interface LocalTTSSpeakOptions {
     onStart?: () => void;
     onEnd?: () => void;
     onError?: (error: string) => void;
+    cacheKey?: string;
 }
 
 export interface UseLocalTTSReturn {
@@ -181,8 +183,12 @@ export function useLocalTTS(): UseLocalTTSReturn {
         const session: PlaybackSession = { cancelled: false, abort: new AbortController() };
         sessionRef.current = session;
         const languageSample = options?.language === 'auto' ? text.slice(0, LANGUAGE_SAMPLE_CHARS) : undefined;
+        const cacheEpoch = getPlaybackCacheEpoch();
 
-        const fetchChunk = async (chunk: string): Promise<ArrayBuffer> => {
+        const fetchChunk = async (chunk: string, index: number): Promise<AudioBuffer> => {
+            const cacheKey = options?.cacheKey ? `${options.cacheKey}:${index}:${chunk}` : undefined;
+            const cached = cacheKey ? audioPlaybackCache.get(cacheKey) : undefined;
+            if (cached) return cached;
             const response = await runtimeFetch('/api/dictation/tts/speak', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -200,15 +206,21 @@ export function useLocalTTS(): UseLocalTTSReturn {
                 const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
                 throw new Error(errorData.error || `HTTP ${response.status}`);
             }
-            return (await response.blob()).arrayBuffer();
+            const encoded = await (await response.blob()).arrayBuffer();
+            if (session.cancelled) throw new DOMException('The operation was aborted', 'AbortError');
+            const decoded = await getAudioContext().decodeAudioData(encoded);
+            if (!session.cancelled && cacheKey && cacheEpoch === getPlaybackCacheEpoch()) {
+                audioPlaybackCache.set(cacheKey, decoded);
+            }
+            return decoded;
         };
 
-        const playBuffer = async (arrayBuffer: ArrayBuffer): Promise<void> => {
+        let hasStarted = false;
+        const playBuffer = async (audioBuffer: AudioBuffer): Promise<void> => {
             const ctx = getAudioContext();
             if (ctx.state === 'suspended') {
                 await ctx.resume();
             }
-            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
             if (session.cancelled) {
                 return;
             }
@@ -224,22 +236,25 @@ export function useLocalTTS(): UseLocalTTSReturn {
                     resolve();
                 };
                 source.start(0);
+                if (!hasStarted) {
+                    hasStarted = true;
+                    options?.onStart?.();
+                }
             });
         };
 
         try {
             setIsPlaying(true);
-            options?.onStart?.();
 
             // Pipelined: synthesize chunk N+1 while chunk N is playing.
-            let nextFetch: Promise<ArrayBuffer> = fetchChunk(chunks[0]);
+            let nextFetch: Promise<AudioBuffer> = fetchChunk(chunks[0], 0);
             for (let i = 0; i < chunks.length; i += 1) {
                 const buffer = await nextFetch;
                 if (session.cancelled) {
                     return;
                 }
                 if (i + 1 < chunks.length) {
-                    nextFetch = fetchChunk(chunks[i + 1]);
+                    nextFetch = fetchChunk(chunks[i + 1], i + 1);
                 }
                 await playBuffer(buffer);
                 if (session.cancelled) {

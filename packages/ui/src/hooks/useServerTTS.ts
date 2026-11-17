@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { runtimeFetch } from '@/lib/runtime-fetch';
+import { audioPlaybackCache, getPlaybackCacheEpoch } from '@/lib/voice/playbackCache';
 
 interface ServerTTSStatusCache {
   available: boolean;
@@ -88,6 +89,7 @@ export interface UseServerTTSReturn {
 }
 
 interface SpeakOptions {
+  cacheKey?: string;
   /** Voice to use (defaults to coral) */
   voice?: string;
   /** Model to use (defaults to gpt-4o-mini-tts) */
@@ -232,7 +234,17 @@ async function fetchTTSAudioChunk(
   options: SpeakOptions | undefined,
   config: TTSRequestConfig,
   signal: AbortSignal,
+  cacheKey?: string,
+  cacheEpoch = getPlaybackCacheEpoch(),
 ): Promise<AudioBuffer> {
+  const fullCacheKey = options?.cacheKey && cacheKey
+    ? `${options.cacheKey}:${cacheKey}:${text}:${JSON.stringify(buildTTSRequestBody(text, options, config))}`
+    : undefined;
+  const cached = fullCacheKey ? audioPlaybackCache.get(fullCacheKey) : undefined;
+  if (cached) return cached;
+  if (signal.aborted) {
+    throw new DOMException('The operation was aborted', 'AbortError');
+  }
   const response = await runtimeFetch('/api/tts/speak', {
     method: 'POST',
     headers: {
@@ -250,8 +262,19 @@ async function fetchTTSAudioChunk(
   }
 
   const audioBlob = await response.blob();
+  if (signal.aborted) {
+    throw new DOMException('The operation was aborted', 'AbortError');
+  }
   const arrayBuffer = await audioBlob.arrayBuffer();
-  return ctx.decodeAudioData(arrayBuffer);
+  if (signal.aborted) {
+    throw new DOMException('The operation was aborted', 'AbortError');
+  }
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  if (signal.aborted) {
+    throw new DOMException('The operation was aborted', 'AbortError');
+  }
+  if (fullCacheKey && cacheEpoch === getPlaybackCacheEpoch()) audioPlaybackCache.set(fullCacheKey, audioBuffer);
+  return audioBuffer;
 }
 
 /** Schedule an audio chunk and return its source and the time it finishes playing. */
@@ -464,6 +487,7 @@ export function useServerTTS(
   const stop = useCallback(() => {
     // Stop Web Audio API sources (chunked playback may have several scheduled)
     for (const source of audioSourcesRef.current) {
+      source.onended = null;
       try {
         source.stop();
       } catch {
@@ -520,14 +544,22 @@ export function useServerTTS(
 
     setError(null);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const cacheEpoch = getPlaybackCacheEpoch();
+    const isCurrent = () =>
+      abortControllerRef.current === controller && !controller.signal.aborted;
+
     try {
       // Unlock audio context first (required for mobile Safari)
       // Must be done before any async operations to stay within user gesture context
       const ctx = getAudioContext();
       if (ctx.state === 'suspended') {
         await ctx.resume();
+        if (!isCurrent()) return;
         console.log('[useServerTTS] AudioContext resumed');
       }
+      if (!isCurrent()) return;
       
       // Play a silent buffer to fully unlock audio on iOS
       const silentBuffer = ctx.createBuffer(1, 1, 22050);
@@ -535,10 +567,6 @@ export function useServerTTS(
       silentSource.buffer = silentBuffer;
       silentSource.connect(ctx.destination);
       silentSource.start(0);
-
-      // Create abort controller for this request
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
 
         const config = {
           currentProviderId,
@@ -563,13 +591,17 @@ export function useServerTTS(
             options,
             config,
             controller.signal,
+            'single',
+            cacheEpoch,
           );
+          if (!isCurrent()) return;
           const { source } = scheduleAudioChunk(ctx, audioBuffer, options, 0);
 
           audioSourcesRef.current = [source];
       
       // Set up event handlers
       source.onended = () => {
+        if (!isCurrent()) return;
         console.log('[useServerTTS] Audio playback ended');
         setIsPlaying(false);
             audioSourcesRef.current = [];
@@ -580,6 +612,11 @@ export function useServerTTS(
           console.log(
             '[useServerTTS] Starting audio playback via Web Audio API...',
           );
+      if (!isCurrent()) {
+        source.onended = null;
+        source.stop();
+        return;
+      }
       setIsPlaying(true);
       options?.onStart?.();
           return;
@@ -601,7 +638,7 @@ export function useServerTTS(
         const result = await runChunkedTTSPlayback(chunks, {
           signal: controller.signal,
           fetchChunk: (chunk) =>
-            fetchTTSAudioChunk(ctx, chunk, options, config, controller.signal),
+            fetchTTSAudioChunk(ctx, chunk, options, config, controller.signal, chunk, cacheEpoch),
           scheduleChunk: (audioBuffer, startAt) =>
             scheduleAudioChunk(ctx, audioBuffer, options, startAt),
           currentTime: () => ctx.currentTime,
@@ -609,9 +646,11 @@ export function useServerTTS(
             source.onended = handler;
           },
           onScheduled: (source) => {
+            if (!isCurrent()) return;
             sources.push(source);
           },
           onFirstScheduled: () => {
+            if (!isCurrent()) return;
             console.log(
               '[useServerTTS] Starting chunked audio playback via Web Audio API...',
             );
@@ -619,6 +658,7 @@ export function useServerTTS(
             options?.onStart?.();
           },
           onAllEnded: () => {
+            if (!isCurrent()) return;
             console.log('[useServerTTS] Chunked playback finished');
             setIsPlaying(false);
             audioSourcesRef.current = [];
@@ -627,12 +667,10 @@ export function useServerTTS(
         });
 
         if (result.status === 'aborted') {
-          // Mirror the single-request path, where stopping playback fires onended -> onEnd.
-          if (result.scheduled > 0) {
-            sendOnEnd();
-          }
           return;
         }
+
+        if (!isCurrent()) return;
 
         if (result.status === 'all-failed') {
           // Every chunk failed: surface the error like the single-request path does.
@@ -644,6 +682,7 @@ export function useServerTTS(
           return;
         }
     } catch (err) {
+      if (!isCurrent()) return;
       if ((err as Error).name === 'AbortError') {
         // Request was aborted, don't show error
         return;

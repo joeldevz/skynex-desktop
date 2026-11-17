@@ -40,6 +40,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict: Record<I18nKey, string> = {
+  'chat.messageBody.tts.playbackFailed': '语音播放失败。请检查设置 → 语音以及系统中安装的语音。',
+  'chat.messageBody.tts.listenSummary': '收听摘要',
+  'chat.messageBody.tts.preparing': '正在准备音频',
+  'chat.messageBody.tts.summaryFailed': '无法生成语音摘要。请重试。',
   'workspaces.sessionClosed': '已关闭“{name}”',
   'workspaces.undoClose': '撤销',
   'sessions.scheduledTasks.editor.destination.chooseFolder': '选择替代文件夹',

@@ -40,6 +40,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict: Record<I18nKey, string> = {
+  'chat.messageBody.tts.playbackFailed': '音声を再生できませんでした。設定 → 音声と、システムにインストールされている音声を確認してください。',
+  'chat.messageBody.tts.listenSummary': '要約を聴く',
+  'chat.messageBody.tts.preparing': '音声を準備中',
+  'chat.messageBody.tts.summaryFailed': '音声用の要約を生成できませんでした。もう一度お試しください。',
   'workspaces.sessionClosed': '「{name}」を閉じました',
   'workspaces.undoClose': '元に戻す',
   'sessions.scheduledTasks.editor.destination.chooseFolder': '代わりのフォルダーを選択',

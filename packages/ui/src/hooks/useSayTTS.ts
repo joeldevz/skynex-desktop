@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { runtimeFetch } from '@/lib/runtime-fetch';
+import { audioPlaybackCache, getPlaybackCacheEpoch } from '@/lib/voice/playbackCache';
 
 interface SayTTSStatusCache {
   available: boolean;
@@ -101,6 +102,7 @@ export interface UseSayTTSReturn {
 }
 
 interface SpeakOptions {
+  cacheKey?: string;
   /** Voice to use (defaults to Samantha) */
   voice?: string;
   /** Speech rate in words per minute (defaults to 200) */
@@ -188,6 +190,7 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
   // Stop current playback
   const stop = useCallback(() => {
     if (audioSourceRef.current) {
+      audioSourceRef.current.onended = null;
       try {
         audioSourceRef.current.stop();
       } catch {
@@ -216,13 +219,19 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
     }
 
     setError(null);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const cacheEpoch = getPlaybackCacheEpoch();
+    const isCurrent = () =>
+      abortControllerRef.current === controller && !controller.signal.aborted;
     
     try {
-      // Create abort controller for this request
-      abortControllerRef.current = new AbortController();
-      
-      // Fetch audio from server
-      const response = await runtimeFetch('/api/tts/say/speak', {
+      const audioKey = options?.cacheKey
+        ? `${options.cacheKey}:${text}:${options.voice ?? ''}:${options.rate ?? 200}:${options.language ?? ''}`
+        : undefined;
+      let audioBuffer = audioKey ? audioPlaybackCache.get(audioKey) : undefined;
+      const response = audioBuffer ? null : await runtimeFetch('/api/tts/say/speak', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,18 +242,30 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
           rate: options?.rate || 200,
           language: options?.language,
         }),
-        signal: abortControllerRef.current.signal,
+        signal: controller.signal,
       });
 
-      if (!response.ok) {
+      if (!isCurrent()) return;
+      if (response && !response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      // Get audio data from response
-      const audioBlob = await response.blob();
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      console.log('[useSayTTS] Received audio:', audioBlob.size, 'bytes');
+      if (response) {
+        const audioBlob = await response.blob();
+        if (!isCurrent()) return;
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        if (!isCurrent()) return;
+        console.log('[useSayTTS] Received audio:', audioBlob.size, 'bytes');
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+          if (!isCurrent()) return;
+        }
+        audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        if (!isCurrent()) return;
+        if (audioKey && cacheEpoch === getPlaybackCacheEpoch()) audioPlaybackCache.set(audioKey, audioBuffer);
+      }
       
       // Use Web Audio API for playback (same as useServerTTS)
       const ctx = getAudioContext();
@@ -252,12 +273,12 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
       // Resume context if suspended
       if (ctx.state === 'suspended') {
         await ctx.resume();
+        if (!isCurrent()) return;
         console.log('[useSayTTS] AudioContext resumed before playback');
       }
+      if (!isCurrent()) return;
       
-      // Decode audio data
-      console.log('[useSayTTS] Decoding audio data...');
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      if (!audioBuffer) return;
       
       // Create source node
       const source = ctx.createBufferSource();
@@ -267,6 +288,7 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
       
       // Set up event handlers
       source.onended = () => {
+        if (!isCurrent()) return;
         console.log('[useSayTTS] Audio playback ended');
         setIsPlaying(false);
         audioSourceRef.current = null;
@@ -275,11 +297,17 @@ export function useSayTTS(options: UseSayTTSOptions = {}): UseSayTTSReturn {
       
       // Start playback
       console.log('[useSayTTS] Starting audio playback via Web Audio API...');
+      if (!isCurrent()) {
+        source.onended = null;
+        source.stop();
+        return;
+      }
       setIsPlaying(true);
       options?.onStart?.();
       source.start(0);
       
     } catch (err) {
+      if (!isCurrent()) return;
       if ((err as Error).name === 'AbortError') {
         return;
       }

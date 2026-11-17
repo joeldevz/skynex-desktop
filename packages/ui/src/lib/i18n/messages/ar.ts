@@ -39,6 +39,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict = {
+  'chat.messageBody.tts.playbackFailed': 'تعذر تشغيل الصوت. تحقق من الإعدادات → الصوت والأصوات المثبتة على نظامك.',
+  'chat.messageBody.tts.listenSummary': 'الاستماع إلى الملخص',
+  'chat.messageBody.tts.preparing': 'جارٍ تجهيز الصوت',
+  'chat.messageBody.tts.summaryFailed': 'تعذر إنشاء الملخص الصوتي. حاول مرة أخرى.',
   'workspaces.sessionClosed': 'تم إغلاق "{name}"',
   'workspaces.undoClose': 'تراجع',
   'sessions.scheduledTasks.editor.destination.chooseFolder': 'اختر مجلدًا بديلًا',

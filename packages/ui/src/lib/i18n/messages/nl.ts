@@ -39,6 +39,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict = {
+  'chat.messageBody.tts.playbackFailed': 'Spraak afspelen is mislukt. Controleer Instellingen → Spraak en de stemmen die op je systeem zijn geïnstalleerd.',
+  'chat.messageBody.tts.listenSummary': 'Samenvatting beluisteren',
+  'chat.messageBody.tts.preparing': 'Audio voorbereiden',
+  'chat.messageBody.tts.summaryFailed': 'De gesproken samenvatting kon niet worden gemaakt. Probeer het opnieuw.',
   'workspaces.sessionClosed': '"{name}" gesloten',
   'workspaces.undoClose': 'Ongedaan maken',
   'sessions.scheduledTasks.editor.destination.chooseFolder': 'Kies een vervangende map',

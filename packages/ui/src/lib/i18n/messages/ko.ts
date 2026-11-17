@@ -40,6 +40,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict: Record<I18nKey, string> = {
+  'chat.messageBody.tts.playbackFailed': '음성을 재생하지 못했습니다. 설정 → 음성과 시스템에 설치된 음성을 확인하세요.',
+  'chat.messageBody.tts.listenSummary': '요약 듣기',
+  'chat.messageBody.tts.preparing': '음성 준비 중',
+  'chat.messageBody.tts.summaryFailed': '음성 요약을 만들 수 없습니다. 다시 시도하세요.',
   'workspaces.sessionClosed': '"{name}" 세션을 닫았습니다',
   'workspaces.undoClose': '실행 취소',
   'sessions.scheduledTasks.editor.destination.chooseFolder': '대체 폴더 선택',

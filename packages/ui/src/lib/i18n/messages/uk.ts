@@ -40,6 +40,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict: Record<I18nKey, string> = {
+  'chat.messageBody.tts.playbackFailed': 'Не вдалося відтворити голос. Перевірте Налаштування → Голос і встановлені в системі голоси.',
+  'chat.messageBody.tts.listenSummary': 'Прослухати підсумок',
+  'chat.messageBody.tts.preparing': 'Підготовка аудіо',
+  'chat.messageBody.tts.summaryFailed': 'Не вдалося створити голосовий підсумок. Спробуйте ще раз.',
   'workspaces.sessionClosed': '"{name}" закрито',
   'workspaces.undoClose': 'Скасувати',
   'sessions.scheduledTasks.editor.destination.chooseFolder': 'Вибрати іншу теку',

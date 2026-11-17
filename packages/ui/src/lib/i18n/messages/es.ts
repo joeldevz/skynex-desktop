@@ -40,6 +40,10 @@ import { sessionReferencesI18n } from './session-references.i18n';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 
 export const dict: Record<I18nKey, string> = {
+  'chat.messageBody.tts.playbackFailed': 'No se pudo reproducir la voz. Revisa Configuración → Voz y las voces instaladas en tu sistema.',
+  'chat.messageBody.tts.listenSummary': 'Escuchar resumen',
+  'chat.messageBody.tts.preparing': 'Preparando audio',
+  'chat.messageBody.tts.summaryFailed': 'No se pudo generar el resumen hablado. Vuelve a intentarlo.',
   'workspaces.sessionClosed': 'Se ha cerrado "{name}"',
   'workspaces.undoClose': 'Deshacer',
   'sessions.scheduledTasks.editor.destination.chooseFolder': 'Elegir una carpeta de reemplazo',

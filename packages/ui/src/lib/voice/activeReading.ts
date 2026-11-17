@@ -9,6 +9,7 @@ interface ActiveReading {
     key: string;
     token: symbol;
     stop: () => void;
+    phase: 'preparing' | 'playing';
 }
 
 const useActiveReadingStore = create<{ active: ActiveReading | null }>(() => ({ active: null }));
@@ -16,6 +17,16 @@ const useActiveReadingStore = create<{ active: ActiveReading | null }>(() => ({ 
 export const useIsReading = (key: string): boolean => (
     useActiveReadingStore((state) => state.active?.key === key)
 );
+
+export const useIsReadingPreparing = (key: string): boolean => (
+    useActiveReadingStore((state) => state.active?.key === key && state.active.phase === 'preparing')
+);
+
+export const markReadingPlaying = (token: symbol): void => {
+    const { active } = useActiveReadingStore.getState();
+    if (!active || active.token !== token || active.phase === 'playing') return;
+    useActiveReadingStore.setState({ active: { ...active, phase: 'playing' } });
+};
 
 export const isCurrentReading = (token: symbol): boolean => (
     useActiveReadingStore.getState().active?.token === token
@@ -38,7 +49,7 @@ export const stopReadingUnderKey = (key: string): void => {
 export const startReading = (key: string, stop: () => void): symbol => {
     stopActiveReading();
     const token = Symbol(key);
-    useActiveReadingStore.setState({ active: { key, token, stop } });
+    useActiveReadingStore.setState({ active: { key, token, stop, phase: 'preparing' } });
     return token;
 };
 

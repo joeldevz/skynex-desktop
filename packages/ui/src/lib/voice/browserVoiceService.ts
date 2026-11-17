@@ -53,6 +53,8 @@ class BrowserVoiceService {
   private isSpeaking = false;
   private audioContext: AudioContext | null = null;
   private audioUnlockRequired = false;
+  private cancelSpeechAttempt: (() => void) | null = null;
+  private speechRequestId = 0;
 
   /**
    * Check if browser supports Web Speech API
@@ -432,27 +434,29 @@ class BrowserVoiceService {
     text: string,
     lang: string,
     onEnd?: SpeechEndCallback,
-    options?: { rate?: number; pitch?: number; volume?: number; voiceName?: string }
+    options?: { rate?: number; pitch?: number; volume?: number; voiceName?: string; requireVoice?: boolean; onError?: ErrorCallback }
   ): Promise<void> {
     if (!('speechSynthesis' in window)) {
       throw new Error('Speech synthesis not supported');
     }
+    this.cancelSpeech();
+    const requestId = this.speechRequestId;
 
     // Resume audio context first (user gesture must have happened)
     await this.resumeAudioContext();
 
     // Wait for voices to be available (Chrome requires this)
     const voices = await this.waitForVoices();
+    if (voices.length === 0) {
+      throw new Error('No browser speech voices are available');
+    }
 
     // Small delay to ensure audio context is ready
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    // Set speaking state and pause listening to avoid hearing ourselves
-    this.isSpeaking = true;
-    this.pauseListening();
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
+    if (requestId !== this.speechRequestId) {
+      throw new Error('Speech was cancelled');
+    }
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
@@ -468,6 +472,9 @@ class BrowserVoiceService {
       if (selectedVoice) {
         console.log(`[BrowserVoiceService] Using selected voice: ${selectedVoice.name} (${selectedVoice.lang})`);
       } else {
+        if (options.requireVoice) {
+          throw new Error('The selected browser speech voice is unavailable');
+        }
         console.warn(`[BrowserVoiceService] Selected voice "${options.voiceName}" not found, falling back to language match`);
       }
     }
@@ -484,25 +491,46 @@ class BrowserVoiceService {
     if (selectedVoice) {
       utterance.voice = selectedVoice;
     }
+    this.isSpeaking = true;
+    this.pauseListening();
 
     console.log(`[BrowserVoiceService] Speaking text (${text.length} chars) in ${lang}`);
 
     return new Promise((resolve, reject) => {
       let hasStarted = false;
+      const isCurrentAttempt = () => this.cancelSpeechAttempt === cancelAttempt;
+      const cleanup = () => {
+        clearTimeout(startTimer);
+        utterance.onstart = null;
+        utterance.onend = null;
+        utterance.onerror = null;
+        if (isCurrentAttempt()) this.cancelSpeechAttempt = null;
+      };
+      const cancelAttempt = () => {
+        cleanup();
+        if (!hasStarted) reject(new Error('Speech was cancelled'));
+      };
 
       utterance.onstart = () => {
+        if (!isCurrentAttempt()) return;
         hasStarted = true;
+        clearTimeout(startTimer);
         console.log('[BrowserVoiceService] Speech started');
         resolve();
       };
 
       utterance.onend = () => {
+        if (!isCurrentAttempt()) return;
+        cleanup();
         this.isSpeaking = false;
         console.log('[BrowserVoiceService] Speech ended');
-        onEnd?.();
+        if (hasStarted) onEnd?.();
+        else reject(new Error('Speech ended before playback started'));
       };
 
       utterance.onerror = (event) => {
+        if (!isCurrentAttempt()) return;
+        cleanup();
         this.isSpeaking = false;
         console.error('[BrowserVoiceService] Speech synthesis error:', event.error);
 
@@ -519,17 +547,21 @@ class BrowserVoiceService {
           errorMessage = 'Speech was interrupted. Please try again.';
         }
 
-        reject(new Error(errorMessage));
+        if (hasStarted) options?.onError?.(errorMessage);
+        else reject(new Error(errorMessage));
       };
 
-      // Safety timeout - if onstart doesn't fire within 2 seconds, something is wrong
-      setTimeout(() => {
-        if (!hasStarted) {
-          console.warn('[BrowserVoiceService] Speech start timeout - audio may be blocked');
+      const startTimer = setTimeout(() => {
+        if (!hasStarted && isCurrentAttempt()) {
+          cleanup();
+          this.isSpeaking = false;
           this.audioUnlockRequired = true;
+          window.speechSynthesis.cancel();
+          reject(new Error('Browser speech did not start'));
         }
       }, 2000);
 
+      this.cancelSpeechAttempt = cancelAttempt;
       window.speechSynthesis.speak(utterance);
     });
   }
@@ -538,6 +570,10 @@ class BrowserVoiceService {
    * Cancel ongoing speech
    */
   cancelSpeech(): void {
+    this.speechRequestId += 1;
+    this.cancelSpeechAttempt?.();
+    this.cancelSpeechAttempt = null;
+    this.isSpeaking = false;
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }

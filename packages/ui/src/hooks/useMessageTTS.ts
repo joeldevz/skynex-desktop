@@ -6,6 +6,8 @@
  */
 
 import { useCallback, useEffect, useId, useRef } from 'react';
+import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useServerTTS } from './useServerTTS';
 import { useSayTTS } from './useSayTTS';
@@ -13,13 +15,20 @@ import { useLocalTTS } from './useLocalTTS';
 import { browserVoiceService } from '@/lib/voice/browserVoiceService';
 import { ensureLineTerminalPunctuation, sanitizeForTTS } from '@/lib/voice/summarize';
 import { requestSmallModel } from '@/lib/smallModelRequest';
+import { requestConciseSpokenSummary } from '@/lib/voice/spokenSummary';
+import { loadDesktopSettings } from '@/lib/persistence';
+import { opencodeClient } from '@/lib/opencode/client';
+import { getRuntimeKey } from '@/lib/runtime-switch';
+import { getPlaybackCacheEpoch, summaryPlaybackCache } from '@/lib/voice/playbackCache';
 import {
     finishReading,
     isCurrentReading,
+    markReadingPlaying,
     startReading,
     stopActiveReading,
     stopReadingUnderKey,
     useIsReading,
+    useIsReadingPreparing,
 } from '@/lib/voice/activeReading';
 
 // Below this length the reply is comfortable to listen to as-is; summarizing
@@ -53,13 +62,14 @@ async function summarizeForSpeech(
 }
 
 export interface PlayMessageTTSOptions {
-    /** False reads the text as-is even when the voice settings ask for a summary. */
-    summarize?: boolean;
+    /** False skips summarization; concise always requests a summary without full-text fallback. */
+    summarize?: boolean | 'concise';
 }
 
 export interface UseMessageTTSReturn {
-    /** Whether a reading under this hook's key is playing */
+    /** Whether a reading under this key is preparing or playing. */
     isPlaying: boolean;
+    isPreparing: boolean;
     /** Play the text, replacing any reading in progress */
     play: (text: string, options?: PlayMessageTTSOptions) => Promise<void>;
     /** Stop the reading under this hook's key */
@@ -70,11 +80,14 @@ export interface UseMessageTTSReturn {
  * @param readingKey Hooks passing the same key share one reading; without a
  * key the reading is private to this hook.
  */
-export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
+export function useMessageTTS(readingKey?: string, manualPlaybackEnabled = false): UseMessageTTSReturn {
+    const { t } = useI18n();
     const instanceKey = useId();
     const key = readingKey ?? instanceKey;
     const isPlaying = useIsReading(key);
+    const isPreparing = useIsReadingPreparing(key);
     const ownTokenRef = useRef<symbol | null>(null);
+    const summaryAbortRef = useRef<AbortController | null>(null);
     
     const voiceProvider = useConfigStore((state) => state.voiceProvider);
     const speechRate = useConfigStore((state) => state.speechRate);
@@ -96,20 +109,22 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
     const isServerProvider = voiceProvider === 'openai' || voiceProvider === 'openai-compatible';
     // Auto-read can be on while the per-message buttons are hidden; both
     // paths still need the selected provider's availability.
-    const voicePlaybackEnabled = showMessageTTSButtons || autoReadAloudEnabled;
+    const voicePlaybackEnabled = manualPlaybackEnabled || showMessageTTSButtons || autoReadAloudEnabled;
     const shouldCheckOpenAIAvailability = voicePlaybackEnabled && isServerProvider;
     const shouldCheckSayAvailability = voicePlaybackEnabled && voiceProvider === 'say';
 
-    const { speak: speakServerTTS, stop: stopServerTTS, isAvailable: isServerTTSAvailable } = useServerTTS({
+    const { speak: speakServerTTS, stop: stopServerTTS, isAvailable: isServerTTSAvailable, checkAvailability: checkServerAvailability } = useServerTTS({
         enabled: shouldCheckOpenAIAvailability,
         availabilityMode: voiceProvider === 'openai-compatible' ? 'openai-compatible' : 'openai',
     });
-    const { speak: speakSayTTS, stop: stopSayTTS, isAvailable: isSayTTSAvailable } = useSayTTS({
+    const { speak: speakSayTTS, stop: stopSayTTS, isAvailable: isSayTTSAvailable, checkAvailability: checkSayAvailability } = useSayTTS({
         enabled: shouldCheckSayAvailability,
     });
     const { speak: speakLocalTTS, stop: stopLocalTTS } = useLocalTTS();
     
     const stopPlayback = useCallback(() => {
+        summaryAbortRef.current?.abort();
+        summaryAbortRef.current = null;
         stopServerTTS();
         stopSayTTS();
         stopLocalTTS();
@@ -133,13 +148,69 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
         const token = startReading(key, stopPlayback);
         ownTokenRef.current = token;
         const finish = () => finishReading(token);
+        const started = () => markReadingPlaying(token);
+        const fail = () => {
+            if (!isCurrentReading(token)) return;
+            toast.error(t('chat.messageBody.tts.playbackFailed'), { id: 'tts-playback-error' });
+            finish();
+        };
         
         try {
-            // Summarized mode: replace long replies with a short spoken-prose
-            // summary from the small model; fall back to the sanitized
-            // original when summarization is unavailable.
+            const useSelectedVoice = options?.summarize === 'concise';
+            let serverAvailable = isServerTTSAvailable;
+            let sayAvailable = isSayTTSAvailable;
+            if (useSelectedVoice) {
+                if (isServerProvider) serverAvailable = await checkServerAvailability();
+                if (voiceProvider === 'say') sayAvailable = await checkSayAvailability();
+                if (!isCurrentReading(token)) return;
+                if ((isServerProvider && !serverAvailable) || (voiceProvider === 'say' && !sayAvailable)) {
+                    fail();
+                    return;
+                }
+            }
             let sourceText = text;
+            if (options?.summarize === 'concise') {
+                const controller = new AbortController();
+                summaryAbortRef.current = controller;
+                const { currentProviderId, currentModelId } = useConfigStore.getState();
+                const cacheEpoch = getPlaybackCacheEpoch();
+                const runtimeKey = getRuntimeKey();
+                const directory = opencodeClient.getDirectory();
+                const smallModelSettings = await loadDesktopSettings().catch(() => null);
+                if (!isCurrentReading(token)) return;
+                const summaryKey = smallModelSettings ? JSON.stringify([
+                    runtimeKey,
+                    directory ?? '',
+                    key,
+                    text,
+                    currentProviderId || '',
+                    currentModelId || '',
+                    smallModelSettings.smallModelUseDefault ?? null,
+                    smallModelSettings.smallModelOverride ?? '',
+                    smallModelSettings.smallModelVariant ?? '',
+                ]) : null;
+                const cachedSummary = summaryKey ? summaryPlaybackCache.get(summaryKey) : undefined;
+                const summary = cachedSummary ?? await requestConciseSpokenSummary(text, {
+                    providerID: currentProviderId || undefined,
+                    modelID: currentModelId || undefined,
+                    signal: controller.signal,
+                });
+                if (!isCurrentReading(token)) return;
+                summaryAbortRef.current = null;
+                if (!summary) {
+                    toast.error(t('chat.messageBody.tts.summaryFailed'));
+                    finish();
+                    return;
+                }
+                if (!cachedSummary && summaryKey && cacheEpoch === getPlaybackCacheEpoch()
+                    && runtimeKey === getRuntimeKey() && directory === opencodeClient.getDirectory()) {
+                    summaryPlaybackCache.set(summaryKey, summary);
+                }
+                sourceText = summary;
+            }
+            // The configured summarized mode keeps its full-text fallback.
             const shouldSummarize = options?.summarize !== false
+                && options?.summarize !== 'concise'
                 && ttsInputMode === 'summarized'
                 && text.length >= TTS_SUMMARIZE_MIN_CHARS;
             if (shouldSummarize) {
@@ -158,8 +229,25 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
             const shouldUseRaw = ttsInputMode === 'raw' && isServerProvider;
             const sanitizedText = sanitizeForTTS(sourceText);
             const textToSpeak = shouldUseRaw ? sourceText : sanitizedText;
+            const manualAudioCacheKey = options?.summarize === 'concise' ? JSON.stringify([
+                getRuntimeKey(),
+                opencodeClient.getDirectory() ?? '',
+                key,
+                text,
+                voiceProvider,
+                voiceProvider === 'openai-compatible' ? openaiCompatibleVoice : openaiVoice,
+                openaiCompatibleTtsModel ?? '',
+                speechRate,
+                speechPitch,
+                speechVolume,
+                localTtsModelId ?? '',
+                localTtsVoiceId ?? '',
+                sayVoice ?? '',
+                browserVoice ?? '',
+                textToSpeak,
+            ]) : undefined;
             
-            if (isServerProvider && isServerTTSAvailable) {
+            if (isServerProvider && serverAvailable) {
                 const voice = voiceProvider === 'openai-compatible' ? openaiCompatibleVoice : openaiVoice;
                 const baseURL = voiceProvider === 'openai-compatible' ? openaiCompatibleUrl : undefined;
                 const model = voiceProvider === 'openai-compatible' ? openaiCompatibleTtsModel : undefined;
@@ -171,26 +259,32 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
                     volume: speechVolume,
                     summarize: false,
                     baseURL,
+                    cacheKey: manualAudioCacheKey,
+                    onStart: started,
                     onEnd: finish,
-                    onError: finish,
+                    onError: fail,
                 });
             } else if (voiceProvider === 'local') {
                 await speakLocalTTS(sanitizedText, {
                     model: localTtsModelId,
                     speakerId: localTtsVoiceId,
                     speed: speechRate,
-                    language: ttsFollowTextLanguage ? 'auto' : undefined,
+                    cacheKey: manualAudioCacheKey,
+                    language: !useSelectedVoice && ttsFollowTextLanguage ? 'auto' : undefined,
+                    onStart: started,
                     onEnd: finish,
-                    onError: finish,
+                    onError: fail,
                 });
-            } else if (voiceProvider === 'say' && isSayTTSAvailable) {
+            } else if (voiceProvider === 'say' && sayAvailable) {
                 const wordsPerMinute = Math.round(100 + (speechRate - 0.5) * 200);
                 await speakSayTTS(ensureLineTerminalPunctuation(sanitizedText), {
                     voice: sayVoice,
                     rate: wordsPerMinute,
-                    language: ttsFollowTextLanguage ? 'auto' : undefined,
+                    cacheKey: manualAudioCacheKey,
+                    language: !useSelectedVoice && ttsFollowTextLanguage ? 'auto' : undefined,
+                    onStart: started,
                     onEnd: finish,
-                    onError: finish,
+                    onError: fail,
                 });
             } else {
                 // Browser TTS
@@ -206,12 +300,15 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
                         pitch: speechPitch,
                         volume: speechVolume,
                         voiceName: browserVoice || undefined,
+                        requireVoice: useSelectedVoice,
+                        onError: fail,
                     }
                 );
+                started();
             }
         } catch (err) {
             console.error('[useMessageTTS] Playback error:', err);
-            finish();
+            fail();
         }
     }, [
         voiceProvider,
@@ -227,6 +324,8 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
         openaiCompatibleTtsModel,
         isServerTTSAvailable,
         isSayTTSAvailable,
+        checkServerAvailability,
+        checkSayAvailability,
         ttsInputMode,
         speakServerTTS,
         speakSayTTS,
@@ -236,10 +335,12 @@ export function useMessageTTS(readingKey?: string): UseMessageTTSReturn {
         ttsFollowTextLanguage,
         key,
         stopPlayback,
+        t,
     ]);
     
     return {
         isPlaying,
+        isPreparing,
         play,
         stop,
     };

@@ -20,6 +20,7 @@ import type { PromptOrigin } from '@/lib/opencode/prompt-origin';
 import { openSessionLink } from '@/lib/router/openSessionFromRoute';
 import { useSessionSelector } from '@/sync/sync-context';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { ErrorResponseDetails } from '@/components/chat/ErrorResponseDetails';
 import { ForkSessionDialog, type ForkSessionExecution } from '@/components/session/ForkSessionDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -1035,7 +1036,8 @@ const AssistantMessageActionButtons = React.memo(({
 }: AssistantMessageActionButtonsProps) => {
     const { t } = useI18n();
     const chatSurfaceMode = useChatSurfaceMode();
-    const { isPlaying: isTTSPlaying, play: playTTS, stop: stopTTS } = useMessageTTS(ttsReadingKey);
+    const canSummarize = chatSurfaceMode !== 'mini-chat' && !isVSCodeRuntime();
+    const { isPlaying: isTTSPlaying, isPreparing: isTTSPreparing, play: playTTS, stop: stopTTS } = useMessageTTS(ttsReadingKey, canSummarize && hasCopyableText);
     const showMessageTTSButtons = useConfigStore((state) => state.showMessageTTSButtons);
     const voiceProvider = useConfigStore((state) => state.voiceProvider);
     const [isSharing, setIsSharing] = React.useState(false);
@@ -1078,6 +1080,9 @@ const AssistantMessageActionButtons = React.memo(({
     );
 
     const readAloudTooltip = React.useMemo(() => {
+        if (isTTSPreparing) {
+            return t('chat.messageBody.tts.preparing');
+        }
         if (isTTSPlaying) {
             return t('chat.messageBody.tts.stopSpeaking');
         }
@@ -1089,7 +1094,7 @@ const AssistantMessageActionButtons = React.memo(({
                     ? 'Custom'
                     : 'Say';
         return t('chat.messageBody.tts.readAloudWithProvider', { provider: providerLabel });
-    }, [isTTSPlaying, t, voiceProvider]);
+    }, [isTTSPlaying, isTTSPreparing, t, voiceProvider]);
 
     const handleTTSClick = React.useCallback(
         (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1179,13 +1184,41 @@ const AssistantMessageActionButtons = React.memo(({
                                 isTTSPlaying ? 'text-[var(--primary-text)]' : 'text-muted-foreground hover:text-foreground'
                             )}
                             aria-label={isTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.readAloud')}
+                            aria-busy={isTTSPreparing}
                             onPointerDown={(event) => event.stopPropagation()}
                             onClick={handleTTSClick}
                         >
-                            <Icon name="volume-up" className={cn('h-3 w-3', isTTSPlaying && 'text-[var(--primary-text)]')} />
+                            {isTTSPreparing ? <Spinner className="size-3" aria-hidden="true" /> : <Icon name="volume-up" className={cn('h-3 w-3', isTTSPlaying && 'text-[var(--primary-text)]')} />}
                         </Button>
                     </TooltipTrigger>
                     <TooltipContent sideOffset={6}>{readAloudTooltip}</TooltipContent>
+                </Tooltip>
+            )}
+            {canSummarize && hasCopyableText && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                                'h-6 w-6 bg-transparent hover:!bg-transparent active:!bg-transparent',
+                                isTTSPlaying ? 'text-[var(--primary-text)]' : 'text-muted-foreground hover:text-foreground'
+                            )}
+                            aria-label={isTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.listenSummary')}
+                            aria-busy={isTTSPreparing}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                event.preventDefault();
+                                if (isTTSPlaying) stopTTS();
+                                else if (ttsText.trim()) void playTTS(ttsText, { summarize: 'concise' });
+                            }}
+                        >
+                            {isTTSPreparing ? <Spinner className="size-3" aria-hidden="true" /> : <Icon name="chat-voice" className="h-3 w-3" />}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={6}>{isTTSPreparing ? t('chat.messageBody.tts.preparing') : isTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.listenSummary')}</TooltipContent>
                 </Tooltip>
             )}
             {chatSurfaceMode !== 'mini-chat' ? <MessageExtraActionButtons actions={extraActions} /> : null}
@@ -1893,7 +1926,8 @@ const AssistantMessageBody = React.memo(({
     const [actionSheetOpen, setActionSheetOpen] = React.useState(false);
     const footerFactsRef = React.useRef<HTMLDivElement>(null);
     useFactsFit(footerFactsRef);
-    const { isPlaying: isFooterTTSPlaying, play: playFooterTTS, stop: stopFooterTTS } = useMessageTTS(messageId);
+    const canSummarize = !isMiniChatSurface && !isVSCode;
+    const { isPlaying: isFooterTTSPlaying, isPreparing: isFooterTTSPreparing, play: playFooterTTS, stop: stopFooterTTS } = useMessageTTS(messageId, canSummarize && hasCopyableText);
     const showMessageTTSButtons = useConfigStore((state) => state.showMessageTTSButtons);
 
     // The pointer row shows copy, pin and the fork menu as buttons and keeps the
@@ -1946,14 +1980,25 @@ const AssistantMessageBody = React.memo(({
         if (!isMiniChatSurface && showMessageTTSButtons && hasCopyableText) {
             actions.push({
                 id: 'tts',
-                label: isFooterTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.readAloud'),
-                icon: <Icon name="volume-up" className={cn('h-4 w-4', isFooterTTSPlaying && 'text-[var(--primary-text)]')} />,
+                label: isFooterTTSPreparing ? t('chat.messageBody.tts.preparing') : isFooterTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.readAloud'),
+                icon: isFooterTTSPreparing ? <Spinner className="size-4" aria-hidden="true" /> : <Icon name="volume-up" className={cn('h-4 w-4', isFooterTTSPlaying && 'text-[var(--primary-text)]')} />,
                 onSelect: () => {
                     if (isFooterTTSPlaying) {
                         stopFooterTTS();
                         return;
                     }
                     if (assistantPlanText.trim()) void playFooterTTS(assistantPlanText);
+                },
+            });
+        }
+        if (canSummarize && hasCopyableText) {
+            actions.push({
+                id: 'tts-summary',
+                label: isFooterTTSPreparing ? t('chat.messageBody.tts.preparing') : isFooterTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.listenSummary'),
+                icon: isFooterTTSPreparing ? <Spinner className="size-4" aria-hidden="true" /> : <Icon name="chat-voice" className="h-4 w-4" />,
+                onSelect: () => {
+                    if (isFooterTTSPlaying) stopFooterTTS();
+                    else if (assistantPlanText.trim()) void playFooterTTS(assistantPlanText, { summarize: 'concise' });
                 },
             });
         }
@@ -1989,7 +2034,7 @@ const AssistantMessageBody = React.memo(({
             }
         }
         return actions;
-    }, [assistantPlanText, contextPinPending, contextPinned, extraActions, handleForkClick, handleForkFromHere, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyFooter, onCopyLink, onToggleContextPin, playFooterTTS, reviewTransferAction, shareTurnAsImage, showMessageTTSButtons, stopFooterTTS, t]);
+    }, [assistantPlanText, canSummarize, contextPinPending, contextPinned, extraActions, handleForkClick, handleForkFromHere, hasCopyableText, isFooterTTSPlaying, isFooterTTSPreparing, isMiniChatSurface, isReviewSessionView, onCopyFooter, onCopyLink, onToggleContextPin, playFooterTTS, reviewTransferAction, shareTurnAsImage, showMessageTTSButtons, stopFooterTTS, t]);
 
     const footerMenuActions = footerSheetActions.filter((action) => !action.onPointerRow);
 
@@ -2009,13 +2054,14 @@ const AssistantMessageBody = React.memo(({
                             size="icon"
                             className="h-6 w-6 text-[var(--primary-text)] bg-transparent hover:!bg-transparent active:!bg-transparent focus-visible:!bg-transparent focus-visible:ring-2 focus-visible:ring-ring"
                             aria-label={t('chat.messageBody.tts.stopSpeaking')}
+                            aria-busy={isFooterTTSPreparing}
                             onPointerDown={(event) => event.stopPropagation()}
                             onClick={(event) => { event.stopPropagation(); stopFooterTTS(); }}
                         >
-                            <Icon name="volume-up" className="h-3 w-3 text-[var(--primary-text)]" />
+                            {isFooterTTSPreparing ? <Spinner className="size-3" aria-hidden="true" /> : <Icon name="volume-up" className="h-3 w-3 text-[var(--primary-text)]" />}
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent sideOffset={6}>{t('chat.messageBody.tts.stopSpeaking')}</TooltipContent>
+                    <TooltipContent sideOffset={6}>{isFooterTTSPreparing ? t('chat.messageBody.tts.preparing') : t('chat.messageBody.tts.stopSpeaking')}</TooltipContent>
                 </Tooltip>
             ) : null}
             {!isMiniChatSurface && !isReviewSessionView ? (
@@ -2267,12 +2313,16 @@ const AssistantMessageBody = React.memo(({
                                     setActionSheetOpen(true);
                                 }}
                                 data-message-action-group="true"
+                                aria-busy={isFooterTTSPreparing}
                             >
-                                <Icon name="more" className="h-3.5 w-3.5" />
+                                {isFooterTTSPreparing ? <Spinner className="size-3.5" aria-hidden="true" /> : <Icon name="more" className="h-3.5 w-3.5" />}
                             </Button>
                         ) : (
                             <div
-                                className="flex shrink-0 items-center gap-1.5 pointer-events-none opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100 [&_button]:!h-[26px] [&_button]:!w-[26px] [&_svg]:!size-3.5"
+                                className={cn(
+                                    'flex shrink-0 items-center gap-1.5 pointer-events-none opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100 [&_button]:!h-[26px] [&_button]:!w-[26px] [&_svg]:!size-3.5',
+                                    isFooterTTSPlaying && 'pointer-events-auto opacity-100'
+                                )}
                                 data-message-action-group="true"
                             >
                                 {finalTurnActionButtons}
