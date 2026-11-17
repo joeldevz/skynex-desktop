@@ -26,7 +26,7 @@
     "package:cli": "node ./scripts/package-cli.mjs",
     "type-check": "tsc -b",
     "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
-    "test:node": "node --test scripts/package-cli-runtime.test.mjs scripts/skynex-app-install.test.mjs server/lib/skynex-app-updater-context.test.mjs",
+    "test:node": "node --test scripts/package-cli-runtime.test.mjs scripts/skynex-app-install.test.mjs scripts/skynex-app-bootstrap.test.mjs server/lib/skynex-app-updater-context.test.mjs",
     "test": "bun run test:node && vitest run",
     "start": "node bin/cli.js serve"
   },

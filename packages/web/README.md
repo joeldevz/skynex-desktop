@@ -18,6 +18,8 @@ curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/i
 
 Installation is opt-in and per-user. The managed installation uses a stable launcher and an active-version pointer. The shell script downloads `skynex-app-install.mjs` from the same release. Native bundles include all application dependencies and the SDK. Assets are named `skynex-app-<version>-<platform>-<arch>.tar.gz` with matching `.sha256` files. Skynex CLI distribution uses this repository's GitHub Releases only; there is no npm fallback.
 
+The application package contains only the Skynex application. Skynex CLI and Neurox are separate tools with manual installation and update workflows. Installing the application does not add tool launchers or change OpenCode configuration, agents, permissions, MCP servers, locks, or memory data.
+
 > **Prerequisites:** [OpenCode CLI](https://opencode.ai) installed, Node.js 24.14+.
 
 ## Usage

@@ -103,7 +103,7 @@ The [OpenChamber extension](https://marketplace.visualstudio.com/items?itemName=
 
 Requires Node.js 24.14+ and an installed [OpenCode CLI](https://opencode.ai). The application command is `skynex-app`. The separate `skynex` command manages agent tooling. The `openchamber` executable remains available for existing SSH integrations and services.
 
-The release installer requires a Skynex release containing CLI assets. Published version 0.1.1 has no CLI assets or `skynex-app://` links. The changes in this checkout are not published. Use this command only after a release includes `install.sh`, `skynex-app-install.mjs`, and the bundle for your platform:
+The release installer requires a release containing `install.sh`, `skynex-app-install.mjs`, and the native CLI bundle for your platform. Check the [release assets](https://github.com/joeldevz/skynex-desktop/releases/latest) before installing:
 
 ```bash
 curl -fsSL https://github.com/joeldevz/skynex-desktop/releases/latest/download/install.sh | bash

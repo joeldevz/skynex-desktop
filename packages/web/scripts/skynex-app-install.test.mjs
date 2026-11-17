@@ -33,21 +33,20 @@ function tarEntry(name, contents, mode = 0o755) {
 }
 
 function makeRelease(releaseVersion = version) {
-  const version = releaseVersion;
-  const cli = Buffer.from(`#!/usr/bin/env node\nif (process.argv.includes('--version')) process.stdout.write('${version}\\n');\n`);
+  const cli = Buffer.from(`#!/usr/bin/env node\nif (process.argv.includes('--version')) process.stdout.write('${releaseVersion}\\n');\n`);
   const tar = Buffer.concat([
-    tarEntry('skynex-app/package.json', Buffer.from(JSON.stringify({ version }))),
-    tarEntry('skynex-app/skynex-release.json', Buffer.from(JSON.stringify({ format: 1, version, platform: process.platform, arch: process.arch }))),
+    tarEntry('skynex-app/package.json', Buffer.from(JSON.stringify({ version: releaseVersion }))),
+    tarEntry('skynex-app/skynex-release.json', Buffer.from(JSON.stringify({ format: 1, version: releaseVersion, platform: process.platform, arch: process.arch }))),
     tarEntry('skynex-app/bin/cli.js', cli),
     Buffer.alloc(1024),
   ]);
   const bytes = gzipSync(tar);
-  const archiveName = `skynex-app-${version}-${process.platform}-${process.arch}.tar.gz`;
-  const archiveUrl = `https://github.com/joeldevz/skynex-desktop/releases/download/v${version}/${archiveName}`;
+  const archiveName = `skynex-app-${releaseVersion}-${process.platform}-${process.arch}.tar.gz`;
+  const archiveUrl = `https://github.com/joeldevz/skynex-desktop/releases/download/v${releaseVersion}/${archiveName}`;
   const sha256 = createHash('sha256').update(bytes).digest('hex');
   const routes = new Map([
-    [`https://api.github.com/repos/joeldevz/skynex-desktop/releases/tags/v${version}`, {
-      json: async () => ({ tag_name: `v${version}`, assets: [
+    [`https://api.github.com/repos/joeldevz/skynex-desktop/releases/tags/v${releaseVersion}`, {
+      json: async () => ({ tag_name: `v${releaseVersion}`, assets: [
         { name: archiveName, browser_download_url: archiveUrl },
         { name: `${archiveName}.sha256`, browser_download_url: `${archiveUrl}.sha256` },
       ] }),
@@ -64,100 +63,141 @@ function makeRelease(releaseVersion = version) {
 }
 
 async function fixture(run) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'skynex-install-bootstrap-'));
-  try { await run(root); } finally { await rm(root, { recursive: true, force: true }); }
+  const root = await mkdtemp(path.join(os.tmpdir(), 'skynex-install-app-only-'));
+  const home = path.join(root, 'home');
+  const env = {
+    PATH: process.env.PATH,
+    HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: path.join(home, '.config'),
+    XDG_DATA_HOME: path.join(home, '.local', 'share'),
+    XDG_STATE_HOME: path.join(home, '.local', 'state'),
+  };
+  try { await run(root, env); } finally { await rm(root, { recursive: true, force: true }); }
 }
 
-test('refuses an unowned stable launcher before requesting release data', async () => {
-  await fixture(async (root) => {
-    const bindir = path.join(root, 'bin');
-    await mkdir(bindir);
-    await writeFile(path.join(bindir, 'skynex-app'), 'user-owned launcher\n');
-    const { fetchImpl } = makeRelease();
-    let requested = false;
-    const observedFetch = async (...args) => { requested = true; return fetchImpl(...args); };
-
-    await assert.rejects(installSkynexApp({ installRoot: path.join(root, 'data'), binDir: bindir, fetchImpl: observedFetch }), /unowned|modified launcher/i);
-    assert.equal(requested, false);
-    assert.equal(await readFile(path.join(bindir, 'skynex-app'), 'utf8'), 'user-owned launcher\n');
+function install(root, env, releaseVersion = version, overrides = {}) {
+  return installSkynexApp({
+    version: releaseVersion,
+    installRoot: path.join(root, 'data', 'skynex-app'),
+    binDir: path.join(root, 'bin'),
+    fetchImpl: makeRelease(releaseVersion).fetchImpl,
+    env,
+    ...overrides,
   });
-});
+}
 
-test('activates verified payload and installs stable launchers without touching the real home', async () => {
-  await fixture(async (root) => {
-    const installRoot = path.join(root, 'data', 'skynex-app');
+test('installs only the application and leaves manual tool configuration and files untouched', async () => {
+  await fixture(async (root, env) => {
+    const configRoot = path.join(env.XDG_CONFIG_HOME, 'opencode');
+    const config = path.join(configRoot, 'opencode.jsonc');
     const binDir = path.join(root, 'bin');
-    const { fetchImpl } = makeRelease();
-    const result = await installSkynexApp({ version, installRoot, binDir, fetchImpl });
+    const stateRoot = path.join(env.XDG_STATE_HOME, 'skynex');
+    const memoryRoot = path.join(env.XDG_DATA_HOME, 'neurox');
+    await mkdir(path.join(configRoot, 'agents'), { recursive: true });
+    await mkdir(binDir, { recursive: true });
+    await mkdir(stateRoot, { recursive: true });
+    await mkdir(memoryRoot, { recursive: true });
+    const configBytes = Buffer.from('// preserve malformed user config\n{ "mcp": { "servers": { "neurox": { "command": "custom-neurox" } }\n');
+    const skynexLauncher = Buffer.from('manual skynex tool\n');
+    const neuroxLauncher = Buffer.from('manual neurox tool\n');
+    const agent = Buffer.from('user agent\n');
+    const lock = Buffer.from('manual lock\n');
+    const memory = Buffer.from([0, 1, 2, 255]);
+    await writeFile(config, configBytes);
+    await writeFile(path.join(binDir, 'skynex'), skynexLauncher);
+    await writeFile(path.join(binDir, 'neurox'), neuroxLauncher);
+    await writeFile(path.join(configRoot, 'agents', 'custom.md'), agent);
+    await writeFile(path.join(stateRoot, 'lock.json'), lock);
+    await writeFile(path.join(memoryRoot, 'memory.db'), memory);
 
+    const result = await install(root, env);
+
+    const appRoot = path.join(root, 'data', 'skynex-app', 'versions', version, 'skynex-app');
     assert.equal(result.version, version);
-    assert.equal(await readFile(path.join(installRoot, 'managed.json'), 'utf8'), '{"format":1,"application":"skynex-app"}\n');
-    assert.deepEqual((await readdir(binDir)).sort(), ['openchamber', 'skynex-app']);
-    assert.equal(fs.existsSync(path.join(installRoot, 'launcher.mjs')), true);
-    const launched = spawnSync(process.execPath, [path.join(binDir, 'skynex-app'), '--version'], { encoding: 'utf8' });
+    assert.deepEqual((await readdir(binDir)).sort(), ['neurox', 'openchamber', 'skynex', 'skynex-app']);
+    assert.deepEqual(await readFile(config), configBytes);
+    assert.deepEqual(await readFile(path.join(binDir, 'skynex')), skynexLauncher);
+    assert.deepEqual(await readFile(path.join(binDir, 'neurox')), neuroxLauncher);
+    assert.deepEqual(await readFile(path.join(configRoot, 'agents', 'custom.md')), agent);
+    assert.deepEqual(await readFile(path.join(stateRoot, 'lock.json')), lock);
+    assert.deepEqual(await readFile(path.join(memoryRoot, 'memory.db')), memory);
+    assert.equal(fs.existsSync(path.join(appRoot, 'companions')), false);
+    assert.equal(fs.existsSync(path.join(appRoot, 'node_modules', '@skynex-ai', 'cli')), false);
+    const launched = spawnSync(process.execPath, [path.join(root, 'bin', 'skynex-app'), '--version'], { encoding: 'utf8' });
     assert.equal(launched.status, 0, launched.stderr);
     assert.equal(launched.stdout.trim(), version);
   });
 });
 
-test('installs a newer version through existing owned launchers and preserves the previous release', async () => {
-  await fixture(async (root) => {
-    const installRoot = path.join(root, 'data', 'skynex-app');
-    const binDir = path.join(root, 'bin');
-    await installSkynexApp({ version, installRoot, binDir, fetchImpl: makeRelease().fetchImpl });
-    const originalLauncher = await readFile(path.join(binDir, 'skynex-app'));
+test('does not create OpenCode configuration on a clean application install', async () => {
+  await fixture(async (root, env) => {
+    const configRoot = path.join(env.XDG_CONFIG_HOME, 'opencode');
+    await install(root, env);
+    assert.equal(fs.existsSync(configRoot), false);
+  });
+});
+
+test('activates a newer app version through the existing owned launchers', async () => {
+  await fixture(async (root, env) => {
+    const first = await install(root, env);
+    const launcher = await readFile(path.join(root, 'bin', 'skynex-app'));
     const nextVersion = '8.7.7-test.2';
-
-    await installSkynexApp({ version: nextVersion, installRoot, binDir, fetchImpl: makeRelease(nextVersion).fetchImpl });
-
-    assert.deepEqual(await readFile(path.join(binDir, 'skynex-app')), originalLauncher);
-    assert.deepEqual(JSON.parse(await readFile(path.join(installRoot, 'active.json'), 'utf8')), {
+    const next = await install(root, env, nextVersion);
+    assert.equal(first.version, version);
+    assert.equal(next.version, nextVersion);
+    assert.deepEqual(await readFile(path.join(root, 'bin', 'skynex-app')), launcher);
+    assert.deepEqual(JSON.parse(await readFile(path.join(root, 'data', 'skynex-app', 'active.json'), 'utf8')), {
       version: nextVersion, directory: `versions/${nextVersion}`,
     });
-    assert.equal(fs.existsSync(path.join(installRoot, 'versions', version, 'skynex-app', 'bin', 'cli.js')), true);
-    for (const name of ['skynex-app', 'openchamber']) {
-      const launched = spawnSync(process.execPath, [path.join(binDir, name), '--version'], { encoding: 'utf8' });
+    assert.equal(fs.existsSync(path.join(root, 'data', 'skynex-app', 'versions', version, 'skynex-app', 'bin', 'cli.js')), true);
+    for (const file of [path.join(root, 'bin', 'skynex-app'), path.join(root, 'bin', 'openchamber'), path.join(root, 'data', 'skynex-app', 'launcher.mjs')]) {
+      const launched = spawnSync(process.execPath, [file, '--version'], { encoding: 'utf8', env });
       assert.equal(launched.status, 0, launched.stderr);
       assert.equal(launched.stdout.trim(), nextVersion);
     }
-    const registeredStartup = spawnSync(process.execPath, [path.join(installRoot, 'launcher.mjs'), '--version'], { encoding: 'utf8' });
-    assert.equal(registeredStartup.status, 0, registeredStartup.stderr);
-    assert.equal(registeredStartup.stdout.trim(), nextVersion);
   });
 });
 
 test('refuses an unowned managed startup dispatcher before requesting release data', async () => {
-  await fixture(async (root) => {
-    const installRoot = path.join(root, 'data', 'skynex-app');
-    const binDir = path.join(root, 'bin');
-    await installSkynexApp({ version, installRoot, binDir, fetchImpl: makeRelease().fetchImpl });
-    const dispatcher = path.join(installRoot, 'launcher.mjs');
+  await fixture(async (root, env) => {
+    await install(root, env);
+    const dispatcher = path.join(root, 'data', 'skynex-app', 'launcher.mjs');
     await writeFile(dispatcher, 'user-owned startup command\n');
     let requested = false;
-    const fetchImpl = async (...args) => { requested = true; return makeRelease('8.7.7-test.2').fetchImpl(...args); };
-
-    await assert.rejects(installSkynexApp({ version: '8.7.7-test.2', installRoot, binDir, fetchImpl }), /unowned|modified launcher/i);
+    await assert.rejects(install(root, env, '8.7.7-test.2', {
+      fetchImpl: async (...args) => { requested = true; return makeRelease('8.7.7-test.2').fetchImpl(...args); },
+    }), /unowned|modified launcher/i);
     assert.equal(requested, false);
     assert.equal(await readFile(dispatcher, 'utf8'), 'user-owned startup command\n');
   });
 });
 
-test('rolls activation and launcher files back when launcher installation fails', async () => {
-  await fixture(async (root) => {
-    const installRoot = path.join(root, 'data', 'skynex-app');
+test('refuses an unowned application launcher before requesting release data', async () => {
+  await fixture(async (root, env) => {
     const binDir = path.join(root, 'bin');
-    const { fetchImpl } = makeRelease();
+    await mkdir(binDir);
+    const userLauncher = Buffer.from('user-owned launcher\n');
+    await writeFile(path.join(binDir, 'skynex-app'), userLauncher);
+    let requested = false;
+    await assert.rejects(install(root, env, version, {
+      fetchImpl: async (...args) => { requested = true; return makeRelease().fetchImpl(...args); },
+    }), /unowned|modified launcher/i);
+    assert.equal(requested, false);
+    assert.deepEqual(await readFile(path.join(binDir, 'skynex-app')), userLauncher);
+  });
+});
+
+test('rolls back activation and app launchers when launcher installation fails', async () => {
+  await fixture(async (root, env) => {
     let writes = 0;
     const failSecondWrite = (...args) => {
       writes += 1;
       if (writes === 2) throw new Error('injected launcher write failure');
       return fs.writeFileSync(...args);
     };
-
-    await assert.rejects(installSkynexApp({ version, installRoot, binDir, fetchImpl, writeFileImpl: failSecondWrite }), /injected launcher write failure/);
-    assert.deepEqual(await readdir(binDir), []);
-    assert.equal(fs.existsSync(path.join(installRoot, 'launcher.mjs')), false);
-    assert.equal(fs.existsSync(path.join(installRoot, 'active.json')), false);
-    assert.equal(fs.existsSync(installRoot), false);
+    await assert.rejects(install(root, env, version, { writeFileImpl: failSecondWrite }), /injected launcher write failure/);
+    assert.deepEqual(await readdir(path.join(root, 'bin')).catch((error) => error.code === 'ENOENT' ? [] : Promise.reject(error)), []);
+    assert.equal(fs.existsSync(path.join(root, 'data', 'skynex-app')), false);
   });
 });

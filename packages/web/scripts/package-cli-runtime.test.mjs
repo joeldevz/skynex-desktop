@@ -146,6 +146,14 @@ async function packageFixture(fixture, overrides = {}) {
   });
 }
 
+async function stageFixture(fixture, overrides = {}) {
+  const { stageCliRuntime } = await loadPackageRuntime();
+  return stageCliRuntime({
+    webRoot: fixture.webRoot,
+    ...overrides,
+  });
+}
+
 test('packages the complete production closure and dereferences the workspace SDK link', async () => {
   await withFixture(async (fixture) => {
     const result = await packageFixture(fixture);
@@ -160,6 +168,7 @@ test('packages the complete production closure and dereferences the workspace SD
     assert.ok(files.includes('skynex-app/dist/index.html'));
     assert.ok(files.includes('skynex-app/public/asset.svg'));
     assert.ok(files.includes('skynex-app/node_modules/@openchamber/sdk/dist/index.js'));
+    assert.equal(files.some((name) => name.includes('@skynex-ai/cli') || name.includes('/companions/')), false);
     assert.ok(files.includes('skynex-app/node_modules/sdk-dependency/index.js'));
     assert.ok(files.includes('skynex-app/node_modules/root-lib/node_modules/shared-lib/index.js'));
     assert.ok(files.includes('skynex-app/node_modules/required-peer/index.js'));
@@ -221,11 +230,9 @@ test('writes a release marker, safe USTAR members, platform archive name, and ma
 
 test('refuses to package a native runtime for a different host platform or architecture', async () => {
   await withFixture(async (fixture) => {
-    const { stageCliRuntime } = await loadPackageRuntime();
     const otherPlatform = process.platform === 'linux' ? 'darwin' : 'linux';
     await assert.rejects(
-      stageCliRuntime({
-        webRoot: fixture.webRoot,
+      stageFixture(fixture, {
         outputRoot: path.join(fixture.tempRoot, 'stage-cross-target'),
         platform: otherPlatform,
         arch: process.arch,
@@ -233,8 +240,7 @@ test('refuses to package a native runtime for a different host platform or archi
       /host|native|cross[- ]target/i,
     );
     await assert.rejects(
-      stageCliRuntime({
-        webRoot: fixture.webRoot,
+      stageFixture(fixture, {
         outputRoot: path.join(fixture.tempRoot, 'stage-cross-arch'),
         platform: process.platform,
         arch: process.arch === 'x64' ? 'arm64' : 'x64',
@@ -261,10 +267,8 @@ test('fails with the missing required dependency name', async () => {
 
 test('rejects staging inside the source tree and a symlink destination', async () => {
   await withFixture(async (fixture) => {
-    const { stageCliRuntime } = await loadPackageRuntime();
     await assert.rejects(
-      stageCliRuntime({
-        webRoot: fixture.webRoot,
+      stageFixture(fixture, {
         outputRoot: path.join(fixture.webRoot, 'stage'),
       }),
       /source|inside|overlap|collision/i,
@@ -275,7 +279,7 @@ test('rejects staging inside the source tree and a symlink destination', async (
     await mkdir(realDestination);
     await symlink(realDestination, symlinkDestination, 'dir');
     await assert.rejects(
-      stageCliRuntime({ webRoot: fixture.webRoot, outputRoot: symlinkDestination }),
+      stageFixture(fixture, { outputRoot: symlinkDestination }),
       /symlink|symbolic|destination/i,
     );
     assert.deepEqual(await readdir(realDestination), []);
@@ -300,7 +304,6 @@ test('rejects an archive output directory that resolves through a symlink', asyn
 
 test('refuses package-content symlinks outside the source roots without changing external data', async () => {
   await withFixture(async (fixture) => {
-    const { stageCliRuntime } = await loadPackageRuntime();
     const externalRoot = path.join(fixture.tempRoot, 'external-data');
     const externalSentinel = path.join(externalRoot, 'sentinel.txt');
     const packageRoot = await createPackage(path.join(fixture.webRoot, 'node_modules'), 'escape-package', '1.0.0');
@@ -313,8 +316,7 @@ test('refuses package-content symlinks outside the source roots without changing
     await symlink(externalRoot, path.join(packageRoot, 'external-link'), 'dir');
 
     await assert.rejects(
-      stageCliRuntime({
-        webRoot: fixture.webRoot,
+      stageFixture(fixture, {
         outputRoot: path.join(fixture.tempRoot, 'stage-package-symlink'),
       }),
       /symlink|symbolic|outside|escape/i,
@@ -325,7 +327,6 @@ test('refuses package-content symlinks outside the source roots without changing
 
 test('refuses a nonempty unowned staging directory without replacing its contents', async () => {
   await withFixture(async (fixture) => {
-    const { stageCliRuntime } = await loadPackageRuntime();
     const outputRoot = path.join(fixture.tempRoot, 'unowned-stage');
     const markerPath = path.join(outputRoot, 'keep.marker');
     const sentinelPath = path.join(outputRoot, 'sentinel.txt');
@@ -334,7 +335,7 @@ test('refuses a nonempty unowned staging directory without replacing its content
     await writeFile(sentinelPath, 'preserve this file\n');
 
     await assert.rejects(
-      stageCliRuntime({ webRoot: fixture.webRoot, outputRoot }),
+      stageFixture(fixture, { outputRoot }),
       /nonempty|non-empty|owned|collision|existing/i,
     );
     assert.equal(await readFile(markerPath, 'utf8'), 'owned by another operation\n');
@@ -379,10 +380,8 @@ test('rejects an overlong UTF-8 USTAR path without leaving a partial archive', a
     await mkdir(path.dirname(sourceFile), { recursive: true });
     await writeFile(sourceFile, 'must not be archived\n');
     assert.ok(Buffer.byteLength(`skynex-app/${longRelativePath.split(path.sep).join('/')}`, 'utf8') > 255);
-    const { packageCliRuntime } = await loadPackageRuntime();
-
     await assert.rejects(
-      packageCliRuntime({ webRoot: fixture.webRoot, outputDir: fixture.outputDir }),
+      packageFixture(fixture),
       /USTAR|tar path|path.{0,20}(255|length|long)|255/i,
     );
     const outputEntries = await readdir(fixture.outputDir).catch((error) => {
