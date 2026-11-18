@@ -14,6 +14,9 @@ const electronDir = path.join(repoRoot, 'packages', 'electron');
 const resourcesDir = path.join(electronDir, 'resources');
 const resourcesWebDistDir = path.join(resourcesDir, 'web-dist');
 const webDistDir = path.join(webDir, 'dist');
+const prebuiltAssetsDir = process.env.OPENCHAMBER_PREBUILT_WEB_ASSETS?.trim();
+const distOnly = process.argv.includes('--dist-only');
+const stageOnly = process.argv.includes('--stage-only');
 
 const quoteWindowsCommandArg = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
@@ -76,16 +79,51 @@ const copyDir = async (src, dst) => {
   }
 };
 
-const bunExe = resolveBun();
+if (distOnly && (!prebuiltAssetsDir || stageOnly)) {
+  throw new Error('--dist-only requires prebuilt SDK and web assets');
+}
 
-// The bundled server imports @openchamber/sdk from its built `dist`, which
-// nothing else in packaging rebuilds: a stale one makes the app quit at start
-// once the server needs an export added since the last SDK build.
-console.log('[electron] building @openchamber/sdk dist...');
-run(bunExe, ['run', 'build'], sdkDir);
+if (stageOnly) {
+  if (!(await fs.stat(path.join(webDistDir, 'index.html'))).isFile()) {
+    throw new Error('Missing staged web entry');
+  }
+} else if (prebuiltAssetsDir) {
+  const sourceSdkDistDir = path.join(prebuiltAssetsDir, 'sdk', 'dist');
+  const sourceWebDistDir = path.join(prebuiltAssetsDir, 'web', 'dist');
+  for (const sourceDir of [sourceSdkDistDir, sourceWebDistDir]) {
+    const entries = await fs.readdir(sourceDir).catch(() => []);
+    if (entries.length === 0) {
+      throw new Error(`Prebuilt web assets are missing or empty: ${sourceDir}`);
+    }
+  }
 
-console.log('[electron] building web UI dist...');
-run(bunExe, ['run', 'build'], webDir);
+  const replaceDist = async (sourceDir, destinationDir) => {
+    const stagedDir = await fs.mkdtemp(path.join(path.dirname(destinationDir), `${path.basename(destinationDir)}-staging-`));
+    try {
+      await copyDir(sourceDir, stagedDir);
+      await removeDir(destinationDir);
+      await fs.rename(stagedDir, destinationDir);
+    } catch (error) {
+      await removeDir(stagedDir);
+      throw error;
+    }
+  };
+
+  console.log('[electron] staging prebuilt SDK and web assets...');
+  await replaceDist(sourceSdkDistDir, path.join(sdkDir, 'dist'));
+  await replaceDist(sourceWebDistDir, webDistDir);
+} else {
+  const bunExe = resolveBun();
+  // The bundled server imports @openchamber/sdk from its built `dist`, which
+  // nothing else in packaging rebuilds. A stale dist can omit a required export.
+  console.log('[electron] building @openchamber/sdk dist...');
+  run(bunExe, ['run', 'build'], sdkDir);
+
+  console.log('[electron] building web UI dist...');
+  run(bunExe, ['run', 'build'], webDir);
+}
+
+if (distOnly) process.exit(0);
 
 console.log('[electron] staging packaged resources...');
 await fs.mkdir(resourcesDir, { recursive: true });

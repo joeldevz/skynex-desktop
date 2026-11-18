@@ -195,6 +195,21 @@ IPC results if its endpoint changes while the read is pending.
 
 ## Development
 
+### Desktop release asset benchmark
+
+The `Desktop release` workflow defaults to `publish`, with per-job SDK and web
+builds. `benchmark-baseline` keeps those builds; `benchmark-shared` builds the
+SDK and web assets once on Linux and stages them before dependency installation
+in each matrix job. The install hook validates the staged SDK in shared mode
+and still runs the other install hooks. Both benchmark modes export artifacts without
+creating or modifying a release.
+
+Compare both benchmark modes at the same
+commit and matrix. Each workflow step reports its own duration, including
+dependency installation, asset build or staging, and packaging. The benchmark
+keeps native dependency installation, rebuilds, CLI checks, Linux manifest
+checks, and release-inventory source unchanged.
+
 ### Direct-host probe invariants
 
 After app readiness, direct-host probes use Chromium `net.fetch`, not Node fetch.

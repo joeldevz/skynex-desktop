@@ -7,23 +7,28 @@ on:
         description: 'Version to release (e.g., 0.1.0)'
         required: true
         type: string
+      mode:
+        description: 'Publish normally or benchmark either build path without publishing'
+        required: false
+        default: publish
+        type: choice
+        options:
+          - publish
+          - benchmark-baseline
+          - benchmark-shared
 
 permissions:
   contents: read
 
 jobs:
-  create-release:
+  prepare-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
       - name: Validate version
         id: get_version
         env:
@@ -36,10 +41,48 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+  shared-web-assets:
+    if: inputs.mode == 'benchmark-shared'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build shared SDK and web assets
+        run: bun run --cwd packages/web build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shared-web-assets
+          path: |
+            packages/sdk/dist/
+            packages/web/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  create-release:
+    needs: prepare-release
+    if: inputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      version: ${{ needs.prepare-release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Extract changelog for release
         id: release_notes
         env:
-          VERSION: ${{ steps.get_version.outputs.version }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           title=$(node scripts/changelog/release-notes.mjs "$VERSION" artifacts/release-notes.md)
           echo "name=Skynex v$VERSION: $title" >> "$GITHUB_OUTPUT"
@@ -48,7 +91,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
+          tag_name: v${{ needs.prepare-release.outputs.version }}
           draft: true
           generate_release_notes: false
           body_path: artifacts/release-notes.md
@@ -57,10 +100,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
-    needs: create-release
+    needs: [prepare-release, create-release, shared-web-assets]
+    if: >-
+      !cancelled() &&
+      needs.prepare-release.result == 'success' &&
+      (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
+       inputs.mode == 'benchmark-baseline' ||
+       inputs.mode == 'publish' && needs.create-release.result == 'success')
     runs-on: windows-2022
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -77,11 +126,24 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+      - name: Download shared web assets
+        if: inputs.mode == 'benchmark-shared'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: shared-web-assets
+          path: artifacts/shared-web-assets
+      - name: Stage shared SDK and web dist
+        if: inputs.mode == 'benchmark-shared'
+        env:
+          OPENCHAMBER_PREBUILT_WEB_ASSETS: ${{ github.workspace }}/artifacts/shared-web-assets
+        run: node packages/electron/scripts/build-web-assets.mjs --dist-only
       - name: Install dependencies
+        env:
+          OPENCHAMBER_PREBUILT_SDK: ${{ inputs.mode == 'benchmark-shared' && '1' || '' }}
         run: bun install --frozen-lockfile
       - name: Set packaged app version
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node -e "const fs = require('node:fs'); const path = 'packages/electron/package.json'; const pkg = JSON.parse(fs.readFileSync(path, 'utf8')); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n')"
       - name: Get bundled OpenCode CLI version
         id: opencode_cli_version
@@ -94,9 +156,9 @@ jobs:
           path: packages/electron/.cache/opencode-cli
           key: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-${{ steps.opencode_cli_version.outputs.version }}
           restore-keys: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-
-      - name: Build web assets
+      - name: Stage web assets
         working-directory: packages/electron
-        run: bun run build:web-assets
+        run: bun run build:web-assets ${{ inputs.mode == 'benchmark-shared' && '--stage-only' || '' }}
       - name: Prepare bundled OpenCode CLI
         working-directory: packages/electron
         shell: bash
@@ -123,16 +185,6 @@ jobs:
         run: |
           node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
           bun run verify:opencode-cli:packaged
-      - name: Upload Windows installers to draft release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          tag_name: v${{ needs.create-release.outputs.version }}
-          draft: true
-          files: |
-            packages/electron/dist/Skynex-${{ needs.create-release.outputs.version }}-win-${{ matrix.arch }}.exe
-            packages/electron/dist/Skynex-${{ needs.create-release.outputs.version }}-win-${{ matrix.arch }}.exe.blockmap
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Windows manifest artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -140,9 +192,24 @@ jobs:
           path: packages/electron/dist/latest.yml
           if-no-files-found: error
           retention-days: 1
+      - name: Upload Windows installers artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-installers-${{ matrix.arch }}
+          path: |
+            packages/electron/dist/Skynex-${{ needs.prepare-release.outputs.version }}-win-${{ matrix.arch }}.exe
+            packages/electron/dist/Skynex-${{ needs.prepare-release.outputs.version }}-win-${{ matrix.arch }}.exe.blockmap
+          if-no-files-found: error
+          retention-days: 1
 
   build-linux:
-    needs: create-release
+    needs: [prepare-release, create-release, shared-web-assets]
+    if: >-
+      !cancelled() &&
+      needs.prepare-release.result == 'success' &&
+      (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
+       inputs.mode == 'benchmark-baseline' ||
+       inputs.mode == 'publish' && needs.create-release.result == 'success')
     permissions:
       contents: read
     strategy:
@@ -180,11 +247,24 @@ jobs:
           set -euo pipefail
           test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
           test "$(node -p 'process.arch')" = "$OPENCHAMBER_TARGET_ARCH"
+      - name: Download shared web assets
+        if: inputs.mode == 'benchmark-shared'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: shared-web-assets
+          path: artifacts/shared-web-assets
+      - name: Stage shared SDK and web dist
+        if: inputs.mode == 'benchmark-shared'
+        env:
+          OPENCHAMBER_PREBUILT_WEB_ASSETS: ${{ github.workspace }}/artifacts/shared-web-assets
+        run: node packages/electron/scripts/build-web-assets.mjs --dist-only
       - name: Install dependencies
+        env:
+          OPENCHAMBER_PREBUILT_SDK: ${{ inputs.mode == 'benchmark-shared' && '1' || '' }}
         run: bun install --frozen-lockfile
       - name: Set packaged app version
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node -e "const fs = require('node:fs'); const path = 'packages/electron/package.json'; const pkg = JSON.parse(fs.readFileSync(path, 'utf8')); pkg.version = process.env.VERSION; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n')"
       - name: Install rpmbuild for the .rpm package
         run: sudo apt-get update && sudo apt-get install -y rpm
@@ -199,13 +279,17 @@ jobs:
           path: packages/electron/.cache/opencode-cli
           key: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-${{ steps.opencode_cli_version.outputs.version }}
           restore-keys: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-
-      - name: Build and package Linux AppImage, .deb and .rpm
+      - name: Build or stage web assets
+        working-directory: packages/electron
+        env:
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: bun run build:web-assets ${{ inputs.mode == 'benchmark-shared' && '--stage-only' || '' }}
+      - name: Prepare native runtime and package Linux outputs
         working-directory: packages/electron
         env:
           OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          bun run build:web-assets
           bun run prepare:opencode-cli
           bun run verify:opencode-cli
           bun run prepare:ripgrep
@@ -217,7 +301,7 @@ jobs:
       - name: Validate Linux update manifest
         working-directory: packages/electron
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
           ARTIFACT_ARCH: ${{ matrix.artifact_arch }}
           DEB_ARCH: ${{ matrix.deb_arch }}
           RPM_ARCH: ${{ matrix.rpm_arch }}
@@ -232,15 +316,21 @@ jobs:
         with:
           name: linux-release-${{ matrix.arch }}
           path: |
-            packages/electron/dist/Skynex-${{ needs.create-release.outputs.version }}-linux-${{ matrix.artifact_arch }}.AppImage
-            packages/electron/dist/Skynex-${{ needs.create-release.outputs.version }}-linux-${{ matrix.deb_arch }}.deb
-            packages/electron/dist/Skynex-${{ needs.create-release.outputs.version }}-linux-${{ matrix.rpm_arch }}.rpm
+            packages/electron/dist/Skynex-${{ needs.prepare-release.outputs.version }}-linux-${{ matrix.artifact_arch }}.AppImage
+            packages/electron/dist/Skynex-${{ needs.prepare-release.outputs.version }}-linux-${{ matrix.deb_arch }}.deb
+            packages/electron/dist/Skynex-${{ needs.prepare-release.outputs.version }}-linux-${{ matrix.rpm_arch }}.rpm
             packages/electron/dist/${{ matrix.manifest }}
           if-no-files-found: error
           retention-days: 1
 
   build-cli-runtime:
-    needs: create-release
+    needs: [prepare-release, create-release, shared-web-assets]
+    if: >-
+      !cancelled() &&
+      needs.prepare-release.result == 'success' &&
+      (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
+       inputs.mode == 'benchmark-baseline' ||
+       inputs.mode == 'publish' && needs.create-release.result == 'success')
     permissions:
       contents: read
     strategy:
@@ -275,9 +365,24 @@ jobs:
         run: |
           set -euo pipefail
           test "$(node -p 'process.arch')" = "$EXPECTED_ARCH"
-      - name: Install dependencies and build runtime payload
+      - name: Download shared web assets
+        if: inputs.mode == 'benchmark-shared'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: shared-web-assets
+          path: artifacts/shared-web-assets
+      - name: Stage shared SDK and web dist
+        if: inputs.mode == 'benchmark-shared'
+        env:
+          OPENCHAMBER_PREBUILT_WEB_ASSETS: ${{ github.workspace }}/artifacts/shared-web-assets
+        run: node packages/electron/scripts/build-web-assets.mjs --dist-only
+      - name: Install dependencies
+        env:
+          OPENCHAMBER_PREBUILT_SDK: ${{ inputs.mode == 'benchmark-shared' && '1' || '' }}
+        run: bun install --frozen-lockfile
+      - name: Build runtime assets
+        if: inputs.mode != 'benchmark-shared'
         run: |
-          bun install --frozen-lockfile
           bun run --cwd packages/sdk build
           bun run --cwd packages/web build
       - name: Verify native ripgrep payload
@@ -286,7 +391,7 @@ jobs:
           node --input-type=module -e "import { rgPath } from '@vscode/ripgrep'; import { spawnSync } from 'node:child_process'; const result = spawnSync(rgPath, ['--version'], { encoding: 'utf8' }); if (result.status !== 0 || !result.stdout.startsWith('ripgrep ')) throw new Error('Native ripgrep smoke failed'); console.log(result.stdout.trim());"
       - name: Package and smoke-test standalone CLI
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
           ARCHIVE_ARCH: ${{ matrix.arch }}
           ARCHIVE_PLATFORM: ${{ matrix.platform }}
         shell: bash
@@ -309,8 +414,8 @@ jobs:
         with:
           name: cli-runtime-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            artifacts/cli/skynex-app-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
-            artifacts/cli/skynex-app-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz.sha256
+            artifacts/cli/skynex-app-${{ needs.prepare-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+            artifacts/cli/skynex-app-${{ needs.prepare-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz.sha256
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -320,8 +425,16 @@ jobs:
           path: artifacts/cli/skynex-app-install.mjs
           if-no-files-found: error
           retention-days: 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.platform == 'linux' && matrix.arch == 'x64' && (inputs.mode == 'benchmark-baseline' || inputs.mode == 'benchmark-shared')
+        with:
+          name: cli-install-script
+          path: scripts/install.sh
+          if-no-files-found: error
+          retention-days: 1
 
   publish:
+    if: inputs.mode == 'publish'
     needs: [create-release, build-windows, build-linux, build-cli-runtime]
     runs-on: ubuntu-latest
     permissions:
@@ -335,6 +448,11 @@ jobs:
           pattern: windows-manifest-*
           path: artifacts/windows
           merge-multiple: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: windows-installers-*
+          path: artifacts/windows-installers
+          merge-multiple: true
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: linux-release-*
@@ -357,13 +475,14 @@ jobs:
           mkdir -p artifacts/ready
           cp artifacts/windows/windows-manifest-x64/latest.yml artifacts/ready/latest.yml
           cp artifacts/windows/windows-manifest-arm64/latest.yml artifacts/ready/latest-arm64.yml
+          cp artifacts/windows-installers/* artifacts/ready/
           cp artifacts/linux/linux-release-x64/* artifacts/ready/
           cp artifacts/linux/linux-release-arm64/* artifacts/ready/
           cp artifacts/cli/* artifacts/ready/
           cp scripts/install.sh artifacts/ready/install.sh
           test "$(grep -c "^version: $VERSION$" artifacts/ready/latest.yml)" -eq 1
           test "$(grep -c "^version: $VERSION$" artifacts/ready/latest-arm64.yml)" -eq 1
-      - name: Upload Linux packages and manifests to draft release
+      - name: Upload packages and manifests to draft release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
