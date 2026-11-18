@@ -973,6 +973,17 @@ function getRequestReplyDirectory(
  * that selection and the first prompt needs no switch at all.
  */
 export type SessionCreateSelection = { model?: ModelSelection; agent?: string; workspaceScope?: WorkspaceSessionScope }
+type DraftTargetGuard = { draftId: number; revision: number; runtimeKey: string }
+
+function isDraftTargetGuardCurrent(guard: DraftTargetGuard): boolean {
+  const draft = useSessionUIStore.getState().newSessionDraft
+  return getRuntimeKey() === guard.runtimeKey
+    && draft.open
+    && draft.draftId === guard.draftId
+    && (draft.workspaceTargetRevision ?? 0) === guard.revision
+    && draft.workspaceTargetPending !== true
+    && draft.workspaceTargetError !== true
+}
 
 export async function createSession(
   title?: string,
@@ -981,6 +992,7 @@ export async function createSession(
   selectionTransition?: "submitted-draft",
   selection?: SessionCreateSelection,
   navigation: "open" | "preserve" = "open",
+  draftTargetGuard?: DraftTargetGuard,
 ): Promise<Session | null> {
   const runtimeKey = getRuntimeKey()
   const runtimeClient = opencodeClient.getSdkClient()
@@ -993,8 +1005,8 @@ export async function createSession(
     const scope = selection?.workspaceScope
     if (scope) {
       const access = await checkWorkspaceScopeAccess(scope, useProjectsStore.getState().projects.map((project) => project.path))
+      if (getRuntimeKey() !== runtimeKey || (draftTargetGuard && !isDraftTargetGuardCurrent(draftTargetGuard))) return null
       if (access.kind === 'unavailable') throw new Error(access.reason)
-      if (getRuntimeKey() !== runtimeKey) return null
     }
     const effectiveDirectory = scope?.primaryDirectory ?? directoryOverride ?? dir()
     const created = await opencodeClient.createSession(
@@ -1003,7 +1015,8 @@ export async function createSession(
     )
     const session = { ...created, title: created.title || title || created.id, directory: created.directory || effectiveDirectory || '' }
 
-    if (getRuntimeKey() !== runtimeKey || opencodeClient.getSdkClient() !== runtimeClient) return null
+    if (getRuntimeKey() !== runtimeKey || opencodeClient.getSdkClient() !== runtimeClient
+      || (draftTargetGuard && !isDraftTargetGuardCurrent(draftTargetGuard))) return null
     const sessionDirectory = session.directory || effectiveDirectory || null
     // Pre-populate routing index so SSE events arriving before session.created
     // can be routed to the correct child store
@@ -1029,7 +1042,9 @@ export async function createSession(
         if (getRuntimeKey() !== runtimeKey) return session
         useSessionUIStore.setState({ openSessionFailure: result.kind === 'retained' ? { reference, result } : null })
       }
-      useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory, selectionTransition, 'restore')
+      if (!draftTargetGuard || isDraftTargetGuardCurrent(draftTargetGuard)) {
+        useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory, selectionTransition, 'restore')
+      }
     }
     useSessionUIStore.getState().markSessionAsOpenChamberCreated(session.id)
     useGlobalSessionsStore.getState().upsertSession(session)

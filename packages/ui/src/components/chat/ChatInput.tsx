@@ -10,7 +10,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { isServerOwnedMessageQueue, createMessageQueueTarget, getMessageQueueKey, useMessageQueueStore, type QueuedContextPart, type QueuedMessage, type QueuedMessageGoal } from '@/stores/messageQueueStore';
 import { useAutoReviewStore } from '@/stores/useAutoReviewStore';
 import { useSessionGoalArmStore } from '@/stores/useSessionGoalArmStore';
-import { useSessionUIStore, type NewSessionDraftState } from '@/sync/session-ui-store';
+import { isDraftTargetSnapshotCurrent, useSessionUIStore, type NewSessionDraftState } from '@/sync/session-ui-store';
 import { useSelectionStore } from '@/sync/selection-store';
 import { prepareUserMessageResume } from '@/sync/user-message-resume';
 import { prepareLocalAttachments, useDraftAttachedFiles, useInputStore, type SyntheticContextPart } from '@/sync/input-store';
@@ -121,6 +121,7 @@ import { useTrackerSources } from '@/lib/trackers/sources';
 import { trackerReferenceSource, type TrackerReferenceSource } from '@/components/references/referencePickerItems';
 import type { ComposerTrackerPicker } from './composer/ui/ComposerAttachmentControls';
 import { Icon } from "@/components/icon/Icon";
+import { Button } from '@/components/ui/button';
 import { DraftPresetChips } from './DraftPresetChips';
 import type { ResolvedStarter } from './useDraftStarters';
 import { useChatSearchDirectory } from '@/hooks/useChatSearchDirectory';
@@ -475,6 +476,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     const [autocompleteQuery, setAutocompleteQuery] = React.useState('');
     const closeAutocomplete = React.useCallback(() => setOpenAutocomplete(null), []);
     const [mobileControlsPanel, setMobileControlsPanel] = React.useState<MobileControlsPanel>(null);
+    const [agentPickerRequest, setAgentPickerRequest] = React.useState<number | undefined>(undefined);
     const [mobileAttachMenuOpen, setMobileAttachMenuOpen] = React.useState(false);
     const [mobileDraftPicker, setMobileDraftPicker] = React.useState<'project' | 'branch' | null>(null);
     // Message history navigation state (up/down arrow to recall previous messages)
@@ -1727,6 +1729,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // Comment mode's only submit is attach; every other send path must be
         // inert while it is open.
         if (isMobileCommentOpen()) return;
+        if (newSessionDraftOpen && (newSessionDraft.workspaceTargetPending || newSessionDraft.workspaceTargetError)) return;
         if (isBtwActive && currentSessionId && (btwPanel.creating || useBtwStore.getState().byParent[currentSessionId]?.pendingSend)) return;
         // "Run in parallel" launches the run instead of sending a message.
         if (parallel.isActive && !options?.queuedOnly) {
@@ -1741,6 +1744,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // Snapshot the draft and current-session identity before the first
         // async gap so a later sidebar selection cannot reroute the send.
         const capturedDraftSnapshot = newSessionDraftOpen ? { ...newSessionDraft } : null;
+        const isCapturedDraftTargetCurrent = () => {
+            if (!capturedDraftSnapshot) return true;
+            const current = useSessionUIStore.getState().newSessionDraft;
+            return isDraftTargetSnapshotCurrent(capturedDraftSnapshot, current);
+        };
         // Magic prompts come from the directory this send lands in, routed the
         // way sendMessage routes it: the /btw fork, the session, else the
         // draft. A new chat has no folder yet and reads the global prompts.
@@ -2019,6 +2027,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             delivery?: 'steer';
             skills?: SkillMentions;
             queuedGoal?: QueuedMessageGoal | null;
+            onDelivered?: (receipt: { sessionId: string; directory: string | null }) => void;
         } | undefined;
         if (isBtwActive && btwSessionId && btwDirectory) {
             sendMessageOptions = {
@@ -2090,6 +2099,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // Inline review comments and synthetic context are consumed before
         // assembly so a failed send can restore exactly what it took. What is
         // here belongs to this send: queueing took its own context with it.
+        if (!isCapturedDraftTargetCurrent()) return;
         const syntheticParts = isBtwActive ? [] : consumePendingSyntheticParts(mailboxTarget);
         const consumedDraftTarget = inlineDraftTarget;
         const drafts: InlineCommentDraft[] = consumedDraftTarget
@@ -2121,6 +2131,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // Comments become synthetic context, which the send-time expansion
         // below skips, so their own words expand here.
         const expandedDrafts = await expandCommentSnippets(drafts, useSnippetsStore.getState().expandText);
+        if (!isCapturedDraftTargetCurrent()) {
+            restoreConsumedInput();
+            return;
+        }
 
         const outgoing = buildOutgoingMessage({
             queued: queuedMessagesToSend,
@@ -2173,6 +2187,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             primaryAttachments,
             opencodeClient,
         );
+        if (!isCapturedDraftTargetCurrent()) {
+            restoreConsumedInput();
+            return;
+        }
 
         // Clear input (the queue was taken above)
         if (!queuedOnly) {
@@ -2334,6 +2352,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             return;
         }
 
+        let deliveryReceipt: { sessionId: string; directory: string | null } | null = null;
+        sendMessageOptions = {
+            ...sendMessageOptions,
+            onDelivered: (receipt) => { deliveryReceipt = receipt; },
+        };
         const sendPromise = sendMessage(
             primaryText,
             providerIdToSend,
@@ -2354,8 +2377,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             // had no session at all, so a mid-send session switch cannot
             // redirect the write to an unrelated session.
             const sessionState = useSessionUIStore.getState();
-            const linkTargetSessionId = currentSessionId ?? sessionState.currentSessionId;
-            const linkTargetDirectory = currentSessionId
+            const linkTargetSessionId = deliveryReceipt?.sessionId ?? currentSessionId ?? sessionState.currentSessionId;
+            const linkTargetDirectory = deliveryReceipt
+                ? deliveryReceipt.directory
+                : currentSessionId
                 ? currentSessionDirectoryForSync ?? currentDirectory
                 : sessionState.currentSessionDirectory
                     ?? (linkTargetSessionId ? sessionState.getDirectoryForSession(linkTargetSessionId) : null)
@@ -4537,6 +4562,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                     and returns unchanged when the comment exits. */}
                 {!mobileCommentActive ? (<>
                 {!isMobile && showDraftTargetSelectors ? <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"><DraftWorkspaceTargetSelector workspaces={draftWorkspaceTarget.workspaces} status={draftWorkspaceTarget.status} selectedWorkspaceId={draftWorkspaceTarget.selectedWorkspaceId} isChatSelected={newSessionDraft?.target === 'chat'} onSelect={draftWorkspaceTarget.selectTarget} onRetry={() => { void draftWorkspaceTarget.retry(); }} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /><DraftWorkspaceFolderTargetSelector workspace={draftWorkspaceTarget.workspaces.find((workspace) => workspace.id === draftWorkspaceTarget.selectedWorkspaceId)} selectedFolderId={draftWorkspaceTarget.selectedFolderId} onSelect={draftWorkspaceTarget.selectTarget} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /></div> : null}
+                {!isMobile && showDraftTargetSelectors && newSessionDraft?.unavailableWorkspaceAgent ? <div className="mb-1.5 flex flex-wrap items-center gap-x-2 rounded-md bg-status-warning/10 px-2 py-1 typography-meta text-status-warning" role="alert"><span>{t('workspaces.generalAgentFallback', { agent: newSessionDraft.unavailableWorkspaceAgent, fallback: currentAgentName ?? newSessionDraft.workspaceDefaults?.agent ?? '' })}</span><Button type="button" variant="link" size="xs" className="text-status-warning" onClick={() => setAgentPickerRequest((request) => (request ?? 0) + 1)}>{t('workspaces.changeAgent')}</Button></div> : null}
+                {!isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetPending ? <div className="mb-1.5 min-h-5 typography-meta text-muted-foreground" role="status">{t('common.loading')}</div> : null}
+                {!isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetError ? <div className="mb-1.5 typography-meta text-status-warning" role="alert">{t('workspaces.generalTargetFailed')} {t(newSessionDraft.workspaceTargetErrorReason === 'outside-editor-roots' ? 'workspaces.editorRoots' : newSessionDraft.workspaceTargetErrorReason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported' : 'workspaces.scopeUnavailable')}</div> : null}
                 {!isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && (showDraftTargetSelectors || draftPresentationExiting) && selectedDraftProject ? (
                     <div className={draftPresentationClassName}>
                         <DraftTargetSelectors
@@ -4561,6 +4589,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                     </div>
                 ) : null}
                 {isMobile && showDraftTargetSelectors ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><DraftWorkspaceTargetSelector mobile workspaces={draftWorkspaceTarget.workspaces} status={draftWorkspaceTarget.status} selectedWorkspaceId={draftWorkspaceTarget.selectedWorkspaceId} isChatSelected={newSessionDraft?.target === 'chat'} onSelect={draftWorkspaceTarget.selectTarget} onRetry={() => { void draftWorkspaceTarget.retry(); }} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /><DraftWorkspaceFolderTargetSelector mobile workspace={draftWorkspaceTarget.workspaces.find((workspace) => workspace.id === draftWorkspaceTarget.selectedWorkspaceId)} selectedFolderId={draftWorkspaceTarget.selectedFolderId} onSelect={draftWorkspaceTarget.selectTarget} disabled={Boolean(newSessionDraft?.pendingWorktreeRequestId || newSessionDraft?.bootstrapPendingDirectory)} /></div> : null}
+                {isMobile && showDraftTargetSelectors && newSessionDraft?.unavailableWorkspaceAgent ? <div className="flex flex-wrap items-center gap-x-2 rounded-md bg-status-warning/10 px-2 py-1 typography-meta text-status-warning" role="alert"><span>{t('workspaces.generalAgentFallback', { agent: newSessionDraft.unavailableWorkspaceAgent, fallback: currentAgentName ?? newSessionDraft.workspaceDefaults?.agent ?? '' })}</span><Button type="button" variant="link" size="xs" className="text-status-warning" onClick={() => handleOpenAgentPanel()}>{t('workspaces.changeAgent')}</Button></div> : null}
+                {isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetPending ? <div className="min-h-5 typography-meta text-muted-foreground" role="status">{t('common.loading')}</div> : null}
+                {isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetError ? <div className="typography-meta text-status-warning" role="alert">{t('workspaces.generalTargetFailed')} {t(newSessionDraft.workspaceTargetErrorReason === 'outside-editor-roots' ? 'workspaces.editorRoots' : newSessionDraft.workspaceTargetErrorReason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported' : 'workspaces.scopeUnavailable')}</div> : null}
                 {isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && showDraftTargetSelectors && selectedDraftProject ? (
                     <MobileDraftTargetTriggers
                         selectedProject={selectedDraftProject}
@@ -4850,6 +4881,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                         btwSelection={effectiveBtwSelection}
                         pinnedSelection={pinnedComposerSelection}
                         onRunInParallel={!isMobile && !isBtwActive && !columnPinned ? handleRunInParallel : undefined}
+                        openAgentPickerRequest={agentPickerRequest}
                         parallelRun={parallelRun}
                         waitingForOpenCode={waitingForOpenCode}
                     />
@@ -4895,6 +4927,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                         className="hidden"
                         mobilePanel={mobileControlsPanel}
                         onMobilePanelChange={setMobileControlsPanel}
+                        openAgentPickerRequest={agentPickerRequest}
                     />
                 ) : null}
             </div>

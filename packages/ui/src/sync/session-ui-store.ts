@@ -370,6 +370,8 @@ type SendMessageOptions = {
    * replaces the composer's armed goal, which belongs to the composer text.
    */
   queuedGoal?: QueuedMessageGoal | null
+  /** Reports the session and directory that accepted this send. */
+  onDelivered?: (receipt: { sessionId: string; directory: string | null }) => void
 }
 
 type AssistantMessageSessionExecution = {
@@ -418,6 +420,13 @@ type NewSessionDraftTarget = "chat" | "project"
 export type NewSessionDraftState = {
   workspaceScope?: WorkspaceSessionScope
   workspaceDefaults?: WorkspaceDefaults
+  unavailableWorkspaceAgent?: string | null
+  workspaceTargetPending?: boolean
+  workspaceTargetError?: boolean
+  workspaceTargetErrorReason?: string
+  workspaceTargetPreparationId?: string | null
+  workspaceTargetAttemptWorkspaceId?: string | null
+  workspaceTargetRevision?: number
   draftId: number
   open: boolean
   selectedProjectId?: string | null
@@ -475,6 +484,9 @@ export type SessionUIState = {
   openNewSessionDraft: (options?: Partial<NewSessionDraftState> & { automatic?: boolean }) => void
   openWorkspaceDraft: (workspaceId: string, selection: FolderSelection, overrides?: WorkspaceDefaults) => void
   setNewSessionDraftWorkspaceTarget: (workspaceId: string | null, selection?: FolderSelection) => void
+  beginGeneralWorkspaceTargetPreparation: (draftId: number, preparationId: string, workspaceId: string) => boolean
+  failGeneralWorkspaceTargetPreparation: (draftId: number, preparationId: string, runtimeKey: string, reason?: string) => void
+  commitGeneralWorkspaceTargetPreparation: (draftId: number, preparationId: string, runtimeKey: string, scope: WorkspaceSessionScope, defaults: WorkspaceDefaults, unavailableAgent: string | null) => boolean
   prepareChatDraftDirectory: () => Promise<string | null>
   closeNewSessionDraft: () => void
   setNewSessionDraftTarget: (target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null }, options?: { force?: boolean }) => void
@@ -815,7 +827,26 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
   directoryOverride: null,
   parentID: null,
   target: "chat",
+  workspaceTargetRevision: 0,
 }
+
+export const isDraftTargetSnapshotCurrent = (
+  captured: NewSessionDraftState,
+  current: NewSessionDraftState,
+): boolean => current.open
+  && current.draftId === captured.draftId
+  && (current.workspaceTargetRevision ?? 0) === (captured.workspaceTargetRevision ?? 0)
+  && current.workspaceTargetPending !== true
+  && current.workspaceTargetError !== true
+
+const isCurrentDraftTarget = (draft: NewSessionDraftState): boolean =>
+  (() => {
+    const current = useSessionUIStore.getState().newSessionDraft
+    // A navigation that replaces the active composer leaves its already
+    // submitted immutable snapshot valid. Retargeting the same draft invalidates it.
+    return !current.open || current.draftId !== draft.draftId || isDraftTargetSnapshotCurrent(draft, current)
+  })()
+
 let nextDraftId = 1
 const pendingChatDirectoryByDraft = new Map<string, Promise<string | null>>()
 
@@ -834,7 +865,11 @@ const runtimeMemoryKey = (value?: string | null): string => {
   return key || "default"
 }
 
-const cloneDraft = (draft: NewSessionDraftState): NewSessionDraftState => ({ ...draft })
+const cloneDraft = (draft: NewSessionDraftState): NewSessionDraftState => ({
+  ...draft,
+  workspaceTargetPending: false,
+  workspaceTargetPreparationId: null,
+})
 
 const writeRuntimeSessionMemory = (key: string, patch: Partial<RuntimeSessionMemory>): void => {
   const current = runtimeSessionMemory.get(key)
@@ -1005,21 +1040,45 @@ const createSessionWithDraftLifecycle = async (
   metadata?: Metadata,
   selectionTransition?: "submitted-draft",
   selection?: SessionCreateSelection,
+  draftSnapshot?: NewSessionDraftState,
 ): Promise<Session | null> => {
   const store = useSessionUIStore.getState()
-  const draft = store.newSessionDraft
+  const draft = draftSnapshot ?? store.newSessionDraft
+  const draftRuntimeKey = getRuntimeKey()
+  const draftTargetGuard = draft.open && Number.isInteger(draft.draftId)
+    ? {
+      draftId: draft.draftId,
+      revision: draft.workspaceTargetRevision ?? 0,
+      runtimeKey: draftRuntimeKey,
+    }
+    : undefined
+  if (draft.open && !isCurrentDraftTarget(draft)) return null
   const targetFolderId = draft.targetFolderId
 
   try {
-    const resolved = draft.workspaceScope ? { status: 'ok' as const, directory: draft.workspaceScope.primaryDirectory }
-      : await resolveCreatableDraftDirectory(draft, directoryOverride)
+    const currentDraft = useSessionUIStore.getState().newSessionDraft
+    const snapshotWasReplaced = draftSnapshot && (!currentDraft.open || currentDraft.draftId !== draft.draftId)
+    const resolved = draft.workspaceScope
+      ? { status: 'ok' as const, directory: draft.workspaceScope.primaryDirectory }
+      : snapshotWasReplaced
+        ? { status: 'ok' as const, directory: directoryOverride ?? draft.directoryOverride }
+        : await resolveCreatableDraftDirectory(draft, directoryOverride)
     if (resolved.status === "aborted") return null
     const directory = resolved.directory
+    if (draft.open && !isCurrentDraftTarget(draft)) return null
     const session = await createSessionAction(title, directory, metadata, selectionTransition,
-      { ...draft.workspaceDefaults, ...selection, workspaceScope: selection?.workspaceScope ?? draft.workspaceScope })
+      { ...draft.workspaceDefaults, ...selection, workspaceScope: selection?.workspaceScope ?? draft.workspaceScope },
+      "open",
+      draftTargetGuard)
     if (!session) return null
 
-    useSessionUIStore.getState().closeNewSessionDraft()
+    const currentDraftAfterCreate = useSessionUIStore.getState().newSessionDraft
+    if (draftTargetGuard && getRuntimeKey() === draftTargetGuard.runtimeKey
+      && currentDraftAfterCreate.open
+      && currentDraftAfterCreate.draftId === draftTargetGuard.draftId
+      && (currentDraftAfterCreate.workspaceTargetRevision ?? 0) === draftTargetGuard.revision) {
+      useSessionUIStore.getState().closeNewSessionDraft()
+    }
 
     if (targetFolderId) {
       const currentStore = useSessionUIStore.getState()
@@ -1070,6 +1129,7 @@ export async function materializeOpenDraftSession(selection: {
   const store = useSessionUIStore.getState()
   const draft = draftOverride ?? store.newSessionDraft
   if (!draft?.open) return null
+  if (!isCurrentDraftTarget(draft)) return null
   const draftPermissionMode = draft.permissionMode
 
   const trimmedAgent = typeof selection.agent === "string" && selection.agent.trim().length > 0
@@ -1086,6 +1146,7 @@ export async function materializeOpenDraftSession(selection: {
     } finally {
       noteDraftSendWaiting(requestId, false)
     }
+    if (!isCurrentDraftTarget(draft)) return null
     store.resolvePendingDraftWorktreeTarget(requestId, draftDirectoryOverride)
   }
 
@@ -1093,6 +1154,7 @@ export async function materializeOpenDraftSession(selection: {
   if (isChatDraft) {
     draftDirectoryOverride = await store.prepareChatDraftDirectory()
     if (!draftDirectoryOverride) throw new Error("Failed to prepare chat directory")
+    if (!isCurrentDraftTarget(draft)) return null
     const currentDraft = useSessionUIStore.getState().newSessionDraft
     if (currentDraft.draftId === draft.draftId) {
       useSessionUIStore.setState({
@@ -1102,7 +1164,9 @@ export async function materializeOpenDraftSession(selection: {
   }
 
   await waitForWorktreeBootstrapIfConfigured(draftDirectoryOverride, draftProjectId)
+  if (!isCurrentDraftTarget(draft)) return null
   draftDirectoryOverride = await resolveDraftStartDirectory(draftDirectoryOverride, draftProjectId)
+  if (!isCurrentDraftTarget(draft)) return null
 
   // The draft already knows what the first turn runs on, so the session is
   // created on that model and agent instead of being switched by the first
@@ -1117,6 +1181,7 @@ export async function materializeOpenDraftSession(selection: {
       agent: trimmedAgent,
       workspaceScope: draft.workspaceScope,
     },
+    draft,
   )
   if (!created?.id) {
     if (isChatDraft && draftDirectoryOverride) {
@@ -1124,6 +1189,7 @@ export async function materializeOpenDraftSession(selection: {
     }
     throw new Error("Failed to create session")
   }
+  if (!isCurrentDraftTarget(draft)) return null
 
   // The server response is authoritative. It may canonicalize a requested
   // worktree path (for example through a symlink or platform path casing).
@@ -1139,9 +1205,11 @@ export async function materializeOpenDraftSession(selection: {
 
   const draftSyntheticParts = draft.syntheticParts
   const configState = useConfigStore.getState()
-  void activateConfigForDirectory(createdDirectory).catch((error) => {
-    console.warn("Failed to activate directory after creating session:", error)
-  })
+  if (useSessionUIStore.getState().currentSessionId === created.id) {
+    void activateConfigForDirectory(createdDirectory).catch((error) => {
+      console.warn("Failed to activate directory after creating session:", error)
+    })
+  }
 
   const effectiveDraftAgent = trimmedAgent ?? configState.currentAgentName
   const variantOverride = resolveVariantToRecord(
@@ -1377,7 +1445,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const key = runtimeMemoryKey(apiBaseUrl)
     const memory = runtimeSessionMemory.get(key)
     const restoredSessionId = memory?.sessionId ?? activeSessionByRuntime.get(key) ?? null
-    const restoredDraft = memory?.draft ? cloneDraft(memory.draft) : { ...DEFAULT_DRAFT }
+    const restoredDraft = memory?.draft
+      ? { ...cloneDraft(memory.draft), workspaceTargetAttemptWorkspaceId: null }
+      : { ...DEFAULT_DRAFT }
     const restoredDirectory = memory?.directory ?? null
     const availableWorktreesByProject = memory?.availableWorktreesByProject
       ?? readPersistedWorktreeTopology(key)
@@ -1624,6 +1694,13 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       bootstrapPendingDirectory: null,
       workspaceScope: scope,
       workspaceDefaults: workspace ? resolveWorkspaceDefaults(workspace, {}) : undefined,
+      unavailableWorkspaceAgent: null,
+      workspaceTargetPending: false,
+      workspaceTargetError: false,
+      workspaceTargetErrorReason: undefined,
+      workspaceTargetPreparationId: null,
+      workspaceTargetAttemptWorkspaceId: null,
+      workspaceTargetRevision: (previousDraft.workspaceTargetRevision ?? 0) + 1,
     }
     if (scope && previousDraft.preparedChatDirectory) {
       void deleteChatDirectory(previousDraft.preparedChatDirectory).catch(() => undefined)
@@ -1635,6 +1712,75 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       useDirectoryStore.getState().setDirectory(directory)
     }
     writeRuntimeSessionMemory(runtimeMemoryKey(), { sessionId: null, directory, draft: nextDraft })
+  },
+
+  beginGeneralWorkspaceTargetPreparation: (draftId, preparationId, workspaceId) => {
+    const draft = get().newSessionDraft
+    if (!draft.open || draft.draftId !== draftId || draft.pendingWorktreeRequestId || draft.bootstrapPendingDirectory) return false
+    set({ newSessionDraft: {
+      ...draft,
+      workspaceTargetPending: true,
+      workspaceTargetError: false,
+      workspaceTargetErrorReason: undefined,
+      workspaceTargetPreparationId: preparationId,
+      workspaceTargetAttemptWorkspaceId: workspaceId,
+      workspaceTargetRevision: (draft.workspaceTargetRevision ?? 0) + 1,
+    } })
+    return true
+  },
+
+  failGeneralWorkspaceTargetPreparation: (draftId, preparationId, runtimeKey, reason = 'runtime-unavailable') => {
+    const draft = get().newSessionDraft
+    if (getRuntimeKey() !== runtimeKey || !draft.open || draft.draftId !== draftId
+      || draft.workspaceTargetPreparationId !== preparationId) return
+    set({ newSessionDraft: {
+      ...draft,
+      workspaceTargetPending: false,
+      workspaceTargetError: true,
+      workspaceTargetErrorReason: reason,
+      workspaceTargetPreparationId: null,
+      workspaceTargetRevision: (draft.workspaceTargetRevision ?? 0) + 1,
+    } })
+  },
+
+  commitGeneralWorkspaceTargetPreparation: (draftId, preparationId, runtimeKey, scope, defaults, unavailableAgent) => {
+    const previousDraft = get().newSessionDraft
+    const workspaceState = useWorkspacesStore.getState()
+    if (!previousDraft.open || previousDraft.draftId !== draftId
+      || previousDraft.workspaceTargetPreparationId !== preparationId
+      || getRuntimeKey() !== runtimeKey
+      || workspaceState.runtimeKey !== runtimeKey
+      || workspaceState.status !== 'ready'
+      || scope.version !== 2
+      || !workspaceState.catalog.workspaces.some((workspace) => workspace.id === scope.workspaceId
+        && JSON.stringify(workspace.folders) === JSON.stringify(scope.folders))) return false
+    const parsedScope = workspaceSessionScopeSchema.parse(scope)
+    if (parsedScope.version !== 2) return false
+    const nextDraft: NewSessionDraftState = {
+      ...previousDraft,
+      target: 'project',
+      selectedProjectId: null,
+      directoryOverride: parsedScope.primaryDirectory,
+      preparedChatDirectory: null,
+      preserveDirectoryOverride: true,
+      workspaceScope: parsedScope,
+      workspaceDefaults: structuredClone(defaults),
+      unavailableWorkspaceAgent: unavailableAgent,
+      workspaceTargetPending: false,
+      workspaceTargetError: false,
+      workspaceTargetErrorReason: undefined,
+      workspaceTargetPreparationId: null,
+      workspaceTargetAttemptWorkspaceId: null,
+      workspaceTargetRevision: (previousDraft.workspaceTargetRevision ?? 0) + 1,
+    }
+    if (previousDraft.preparedChatDirectory) {
+      void deleteChatDirectory(previousDraft.preparedChatDirectory).catch(() => undefined)
+    }
+    set({ newSessionDraft: nextDraft })
+    applyDraftTargetSelectionDefaults(nextDraft, get().availableWorktreesByProject)
+    useDirectoryStore.getState().setDirectory(parsedScope.primaryDirectory)
+    writeRuntimeSessionMemory(runtimeMemoryKey(), { sessionId: null, directory: parsedScope.primaryDirectory, draft: nextDraft })
+    return true
   },
 
   prepareChatDraftDirectory: async () => {
@@ -1729,6 +1875,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           preparedChatDirectory: target.projectId === CHAT_DRAFT_PROJECT_ID ? s.newSessionDraft.preparedChatDirectory : null,
           selectedProjectId: target.projectId ?? target.selectedProjectId ?? s.newSessionDraft.selectedProjectId,
           directoryOverride: target.projectId === CHAT_DRAFT_PROJECT_ID ? null : target.directoryOverride ?? s.newSessionDraft.directoryOverride,
+          workspaceTargetPending: false,
+          workspaceTargetError: false,
+          workspaceTargetErrorReason: undefined,
+          workspaceTargetPreparationId: null,
+          workspaceTargetAttemptWorkspaceId: null,
+          workspaceTargetRevision: (s.newSessionDraft.workspaceTargetRevision ?? 0) + 1,
         },
       }
     })
@@ -1886,11 +2038,15 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   ) => {
     const capturedTarget = options?.target
     const capturedRuntimeKey = capturedTarget?.runtimeKey ?? getRuntimeKey()
-    const capturedSessionId = capturedTarget?.sessionId ?? options?.sessionId ?? get().currentSessionId
+    const capturedDraft = options?.draftSnapshot ?? get().newSessionDraft
+    const usesDraftTarget = !capturedTarget && !options?.sessionId && capturedDraft.open
+    const capturedSessionId = capturedTarget?.sessionId ?? options?.sessionId ?? (usesDraftTarget ? null : get().currentSessionId)
     const capturedSession = capturedSessionId ? useGlobalSessionsStore.getState().entityById.get(capturedSessionId) : undefined
-    const capturedScope = capturedSessionId
-      ? readWorkspaceScope(capturedSession?.metadata) ?? openSessionsStore.getState().sessions.find((entry) => entry.sessionId === capturedSessionId)?.scope
-      : (options?.draftSnapshot ?? get().newSessionDraft).workspaceScope
+    const capturedScope = usesDraftTarget
+      ? capturedDraft.workspaceScope
+      : capturedSessionId
+        ? readWorkspaceScope(capturedSession?.metadata) ?? openSessionsStore.getState().sessions.find((entry) => entry.sessionId === capturedSessionId)?.scope
+        : undefined
     const workspaceContext = capturedScope ? buildWorkspaceContext(capturedScope,
       useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === capturedScope.workspaceId)) : undefined
     if (capturedTarget && capturedTarget.runtimeKey !== getRuntimeKey()) {
@@ -1900,7 +2056,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // of session creation, commands and shell, all of which need OpenCode.
     // Held sends go out one after another, in the order they were made.
     return runAfterOpenCodeStartup(async () => {
-      const draft = options?.draftSnapshot ?? get().newSessionDraft
+      const draft = capturedDraft
       const trimmedAgent = typeof agent === "string" && agent.trim().length > 0 ? agent.trim() : undefined
 
       const queuedGoal = options?.queuedGoal
@@ -2008,6 +2164,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           delivery: options?.delivery,
           skills: options?.skills,
           knowledgeSync: draftKnowledgeSync,
+          workspaceContext,
           additionalParts: draftParts?.map((p) => ({
             text: p.text,
             synthetic: p.synthetic,
@@ -2019,6 +2176,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
               filename: a.filename,
             })),
           })),
+        })
+        options?.onDelivered?.({
+          sessionId: createdDraftSession.sessionId,
+          directory: createdDraftSession.directory,
         })
         return
       }
@@ -2135,6 +2296,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           })),
         })),
       })
+      if (targetSessionId) {
+        options?.onDelivered?.({
+          sessionId: targetSessionId,
+          directory: currentSessionDirectory ?? null,
+        })
+      }
       // Keep restore failures outside the send promise and its retry path.
       void resumeAfterSend?.().catch(console.warn)
     })

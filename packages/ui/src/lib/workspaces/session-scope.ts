@@ -8,11 +8,21 @@ export type ScopeResult<T> = { kind: 'valid'; value: T } | { kind: 'invalid'; re
 export type WorkspaceSessionScope = Readonly<{
   version: 1; workspaceId: string; workspaceName: string; description: string;
   primaryDirectory: string; folders: readonly WorkspaceFolder[];
+}> | Readonly<{
+  version: 2; mode: 'general'; workspaceId: string; workspaceName: string; description: string;
+  primaryDirectory: string; folders: readonly WorkspaceFolder[];
 }>;
-export const workspaceSessionScopeSchema = z.object({
+const selectedWorkspaceFoldersSchema = workspaceFoldersSchema.refine((folders) => folders.length > 0);
+const folderWorkspaceScopeSchema = z.object({
   version: z.literal(1), workspaceId: z.string().min(1), workspaceName: z.string().min(1), description: z.string(),
-  primaryDirectory: absoluteDirectorySchema, folders: workspaceFoldersSchema.refine((folders) => folders.length > 0),
+  primaryDirectory: absoluteDirectorySchema, folders: selectedWorkspaceFoldersSchema,
 }).refine((scope) => scope.folders.some((folder) => folder.path === scope.primaryDirectory), 'Primary directory must be selected');
+const generalWorkspaceScopeSchema = z.object({
+  version: z.literal(2), mode: z.literal('general'), workspaceId: z.string().min(1),
+  workspaceName: z.string().min(1), description: z.string(), primaryDirectory: absoluteDirectorySchema,
+  folders: selectedWorkspaceFoldersSchema,
+}).refine((scope) => scope.folders.every((folder) => folder.path !== scope.primaryDirectory), 'General directory must be separate from linked folders');
+export const workspaceSessionScopeSchema = z.union([folderWorkspaceScopeSchema, generalWorkspaceScopeSchema]);
 
 export function selectWorkspaceFolders(workspace: Workspace, selection: FolderSelection): ScopeResult<readonly WorkspaceFolder[]> {
   const ids = selection.kind === 'workspace' ? workspace.folders.map((folder) => folder.id)
@@ -29,6 +39,19 @@ export function snapshotWorkspaceScope(workspace: Workspace, selection: FolderSe
   if (result.kind === 'invalid') return result;
   return { kind: 'valid', value: workspaceSessionScopeSchema.parse({ version: 1, workspaceId: workspace.id,
     workspaceName: workspace.name, description: workspace.description, primaryDirectory: result.value[0].path, folders: result.value }) };
+}
+
+export function snapshotGeneralWorkspaceScope(workspace: Workspace, primaryDirectory: string): ScopeResult<WorkspaceSessionScope> {
+  const selected = selectWorkspaceFolders(workspace, { kind: 'workspace' });
+  if (selected.kind === 'invalid') return selected;
+  const parsedDirectory = absoluteDirectorySchema.safeParse(primaryDirectory);
+  if (!parsedDirectory.success || selected.value.some((folder) => folder.path === parsedDirectory.data)) {
+    return { kind: 'invalid', reason: 'unknown-folder' };
+  }
+  return { kind: 'valid', value: generalWorkspaceScopeSchema.parse({
+    version: 2, mode: 'general', workspaceId: workspace.id, workspaceName: workspace.name,
+    description: workspace.description, primaryDirectory: parsedDirectory.data, folders: selected.value,
+  }) };
 }
 
 export function resolveWorkspaceDefaults(workspace: Workspace, overrides: WorkspaceDefaults): WorkspaceDefaults {
@@ -58,8 +81,9 @@ export function buildWorkspaceContext(scope: WorkspaceSessionScope, workspace?: 
   return { text: [
     WORKSPACE_CONTEXT_PREFIX,
     `Workspace: ${scope.workspaceName}`,
-    `Primary directory and sole configuration context: ${scope.primaryDirectory}`,
-    'Use absolute paths for non-primary folders. Normal access permission requests still apply. Folder selection grants no permissions.',
+    ...(scope.version === 2
+      ? [`Neutral configuration directory: ${scope.primaryDirectory}`, 'In this general chat, no linked folder is primary. Normal access permission requests still apply. Folder selection grants no permissions.']
+      : [`Primary directory and sole configuration context: ${scope.primaryDirectory}`, 'Use absolute paths for non-primary folders. Normal access permission requests still apply. Folder selection grants no permissions.']),
     JSON.stringify({ description: linked?.description ?? scope.description, folders }),
   ].join('\n') };
 }

@@ -5,6 +5,7 @@ import { Window } from 'happy-dom';
 import { I18nProvider } from '@/lib/i18n';
 import type { Workspace, WorkspaceDefaults, WorkspacePatch } from '@/lib/workspaces/model';
 import type { FolderSelection } from '@/lib/workspaces/session-scope';
+import { GeneralWorkspaceUnavailableError } from '@/lib/workspaces/general-chat-preparation';
 import { WorkspaceOverview } from './WorkspaceOverview';
 
 export interface WorkspaceOverviewContract {
@@ -172,6 +173,28 @@ test('C2 sessions start in the whole workspace or in one folder, never with no f
     await ui.render({ ...f.props, workspace: { ...workspace, folders: [] } });
     expect(ui.button('New session').disabled).toBe(true);
     expect(f.creates).toHaveLength(2);
+  });
+});
+
+test('offers explicit folder-chat choices when general chat is unavailable', async () => {
+  await withOverview(async (ui) => {
+    const f = fixture();
+    f.props.onCreateSession = async (selection, defaults) => {
+      f.creates.push([selection, defaults]);
+      if (selection.kind === 'workspace') {
+        throw new GeneralWorkspaceUnavailableError('runtime-unavailable', 'General chat unavailable');
+      }
+    };
+    await ui.render(f.props);
+    await act(async () => ui.button('New session').click());
+
+    expect(ui.container.textContent).toContain('General chat unavailable');
+    expect(ui.container.textContent).toContain('Choose a folder to start a folder chat.');
+    await act(async () => ui.button('Start chat in app').click());
+    expect(f.creates).toEqual([
+      [{ kind: 'workspace' }, workspace.defaults],
+      [{ kind: 'folder', folderId: 'app' }, workspace.defaults],
+    ]);
   });
 });
 

@@ -701,13 +701,27 @@ and the send path reading the same grammar.
   when the selected value is unchanged.
 - `state/useDraftWorkspaceTarget.ts` loads the saved workspace catalog while a
   new-chat draft is open. The shared desktop popup and mobile sheet offer Chat
-  and saved workspaces; workspace selection snapshots all saved folders and
-  defaults synchronously onto the existing draft, preserving its identity and
-  content. Workspace-scoped drafts do not run project/worktree discovery or
+  and saved workspaces. Chat and explicit folder selection remain synchronous.
+  Selecting a workspace prepares a neutral-directory version 2 scope and its
+   directory-specific defaults before changing the existing draft, preserving
+   its identity and content. Preparation is fenced by draft, target revision,
+    runtime, catalog snapshot and selector request. A failed retarget blocks sends
+    until an explicit target choice; the attempted workspace remains selected for
+    its explicit folder recovery choices. Input is not consumed if its captured
+    draft target changes before submission, and materialization rechecks the
+    captured target revision and runtime after access validation. Pending preparation
+   identity is cleared from runtime draft memory while the selected scope and
+   defaults stay intact. Sends wait while preparation is pending, while the
+   target selectors remain usable.
+   A saved-agent fallback names the agent the composer will send and its Change
+   agent action opens the existing agent picker on desktop and mobile.
+  Workspace-scoped drafts do not run project/worktree discovery or
   expose those target controls. Failed catalog loads remain distinct from an
   empty catalog and can be retried. A folder picker beside the workspace picker
-  offers All folders or one saved folder; its selection updates the same draft
-  scope synchronously, with that folder as the primary directory.
+  offers All folders or one saved folder; All folders selects the general
+  workspace scope, while one saved folder updates the same draft synchronously
+  with that folder as the primary directory. General scopes show All folders
+  even when the workspace has only one linked folder.
 - `ChatInput.tsx` maps Ctrl+N/P to the active command, skill, snippet, or
   mention picker after its IME guard.
 

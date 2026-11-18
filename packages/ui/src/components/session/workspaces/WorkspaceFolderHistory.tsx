@@ -63,6 +63,10 @@ export function useWorkspaceFolderHistory(workspace: Workspace | undefined) {
         const directory = normalizePath(session.directory);
         if (directory && folders.has(directory)) paths.add(directory);
       } else if (scope?.workspaceId === workspace.id) {
+        if (scope.version === 2 && scope.mode === 'general') {
+          rows.set(session.id, { session, paths: [] });
+          continue;
+        }
         for (const folder of scope.folders) {
           const path = normalizePath(folder.path);
           if (path && folders.has(path)) paths.add(path);

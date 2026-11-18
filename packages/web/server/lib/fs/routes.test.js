@@ -2427,6 +2427,179 @@ describe('canonical managed roots with real filesystem aliases', () => {
     });
   }
 
+  it('protects the reserved workspace chat directory while preserving ordinary chat cleanup', async context => {
+    const { getRoute, canonicalChats } = await setup(context, { relocated: true });
+    const reserved = path.join(canonicalChats, `workspace-${'a'.repeat(64)}`);
+    await nativeFs.mkdir(reserved, { recursive: true });
+    const blocked = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: reserved } }, blocked);
+    expect(blocked.statusCode).toBe(400);
+    expect((await nativeFs.stat(reserved)).isDirectory()).toBe(true);
+
+    const reservedChild = path.join(reserved, 'session');
+    await nativeFs.mkdir(reservedChild);
+    const blockedChild = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: reservedChild } }, blockedChild);
+    expect(blockedChild.statusCode).toBe(400);
+    expect((await nativeFs.stat(reservedChild)).isDirectory()).toBe(true);
+
+    const scratch = path.join(canonicalChats, 'day/session-a');
+    await nativeFs.mkdir(scratch, { recursive: true });
+    const deleted = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: scratch } }, deleted);
+    expect(deleted.statusCode).toBe(200);
+    await expect(nativeFs.stat(scratch)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('refuses to recursively delete an ancestor of a managed Chats root', async () => {
+    const rm = vi.fn(async () => undefined);
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }),
+        realpath: async targetPath => targetPath,
+        rm,
+      },
+      spawn: vi.fn(),
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: value => value,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+      managedChatsRoot: '/repo/chats',
+    });
+
+    const blocked = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/repo' } }, blocked);
+    expect(blocked.statusCode).toBe(400);
+    expect(rm).not.toHaveBeenCalled();
+
+    const scratch = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/repo/scratch' } }, scratch);
+    expect(scratch.statusCode).toBe(200);
+    expect(rm).toHaveBeenCalledWith('/repo/scratch', { recursive: true, force: true });
+  });
+
+  it('protects canonical workspace-chat directories reached through an alias', async () => {
+    const rm = vi.fn(async () => undefined);
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }),
+        realpath: async targetPath => targetPath === '/alias/chat'
+          ? '/repo/chats/workspace-abc'
+          : targetPath,
+        rm,
+      },
+      spawn: vi.fn(),
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: value => value,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+      managedChatsRoot: '/repo/chats',
+    });
+
+    const blocked = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/alias/chat' } }, blocked);
+    expect(blocked.statusCode).toBe(400);
+    expect(rm).not.toHaveBeenCalled();
+  });
+
+  it('applies workspace containment to the canonical directory before recursive removal', async () => {
+    const rm = vi.fn(async () => undefined);
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }),
+        realpath: async targetPath => targetPath === '/repo/linked/subdir'
+          ? '/outside/subdir'
+          : targetPath,
+        rm,
+      },
+      spawn: vi.fn(),
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: value => value,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+      managedChatsRoot: '/repo/chats',
+    });
+
+    const denied = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/repo/linked/subdir' } }, denied);
+    expect(denied.statusCode).toBe(403);
+    expect(rm).not.toHaveBeenCalled();
+  });
+
+  it('unlinks a leaf symlink without canonicalizing its destination', async () => {
+    const rm = vi.fn(async () => undefined);
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        lstat: async () => ({ isDirectory: () => false, isSymbolicLink: () => true }),
+        realpath: async targetPath => targetPath,
+        rm,
+      },
+      spawn: vi.fn(),
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: value => value,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+      managedChatsRoot: '/repo/chats',
+    });
+
+    const deleted = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/repo/scratch/link' } }, deleted);
+    expect(deleted.statusCode).toBe(200);
+    expect(rm).toHaveBeenCalledWith('/repo/scratch/link', { recursive: true, force: true });
+  });
+
+  it('allows ordinary cleanup when the unrelated optional legacy chats root is inaccessible', async () => {
+    const rm = vi.fn(async () => undefined);
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }),
+        realpath: async targetPath => {
+          if (targetPath === '/home/user/.config/openchamber/chats') {
+            throw Object.assign(new Error('inaccessible'), { code: 'EACCES' });
+          }
+          return targetPath;
+        },
+        rm,
+      },
+      spawn: vi.fn(),
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: value => value,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+      managedChatsRoot: '/repo/chats',
+    });
+
+    const deleted = createMockResponse();
+    await getRoute('POST', '/api/fs/delete')({ body: { path: '/repo/scratch' } }, deleted);
+    expect(deleted.statusCode).toBe(200);
+    expect(rm).toHaveBeenCalledWith('/repo/scratch', { recursive: true, force: true });
+  });
+
   it('with no project, writes inside the canonical chats root and the old chats root, and nowhere else', async context => {
     const { getRoute, canonicalChats, config } = await setup(context, { relocated: true, project: false });
     const mkdir = getRoute('POST', '/api/fs/mkdir');

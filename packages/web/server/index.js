@@ -115,6 +115,8 @@ import {
 } from './lib/opencode/shared-open-sessions.js';
 import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
+import { registerWorkspaceGeneralChatRoutes } from './lib/workspaces/general-chat-routes.js';
+import { resolveWorkspaceChatDirectory } from './lib/workspaces/general-chat-directory.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
 import { createPushRuntime } from './lib/notifications/push-runtime.js';
@@ -2760,15 +2762,26 @@ async function main(options = {}) {
     terminalRebindWindowMs: TERMINAL_INPUT_WS_REBIND_WINDOW_MS,
     terminalMaxRebindsPerWindow: TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW,
     environmentRuntime,
-    registerBaseRoutes: (routeApp) => registerSharedOpenSessionsRoutes(routeApp, {
-      membership: createSharedOpenSessionsRuntime(createSharedOpenSessionsFileStore({
-        fsPromises,
-        filePath: OPEN_SESSIONS_FILE_PATH,
-        writeFileAtomic,
-      })),
-      tunnelAuthController,
-      uiAuthController,
-    }),
+    registerBaseRoutes: (routeApp) => {
+      registerWorkspaceGeneralChatRoutes(routeApp, {
+        authorize: (req, res) => isRequestAuthorized(req, res, { tunnelAuthController, uiAuthController }),
+        readSettings: readSettingsFromDisk,
+        resolveDirectory: (workspaceId, linkedPaths) => resolveWorkspaceChatDirectory({
+          chatsRoot: OPENCHAMBER_CHATS_DIR,
+          workspaceId,
+          linkedPaths,
+        }),
+      });
+      registerSharedOpenSessionsRoutes(routeApp, {
+        membership: createSharedOpenSessionsRuntime(createSharedOpenSessionsFileStore({
+          fsPromises,
+          filePath: OPEN_SESSIONS_FILE_PATH,
+          writeFileAtomic,
+        })),
+        tunnelAuthController,
+        uiAuthController,
+      });
+    },
     setupProxy,
     scheduleOpenCodeApiDetection,
     bootstrapOpenCodeAtStartup,

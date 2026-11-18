@@ -11,6 +11,8 @@ import { checkWorkspaceScopeAccess } from '@/lib/workspaces/runtime-policy';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useI18n } from '@/lib/i18n';
 import type { WorkspaceSettingsTarget } from './workspaceSettingsTargets';
+import { GeneralWorkspaceUnavailableError, prepareGeneralWorkspaceDraftForRuntime } from '@/lib/workspaces/general-chat-preparation';
+import { generateUuid } from '@/lib/uuid';
 
 export const WorkspaceSettingsView: React.FC<{
   workspaceId: string;
@@ -34,6 +36,28 @@ export const WorkspaceSettingsView: React.FC<{
   return <div data-settings-item="projects.workspace" className="h-full overflow-y-auto bg-background">
     <WorkspaceOverview workspace={workspace} models={models} agents={agents.map((agent) => ({ label: agent.displayName, value: agent.name }))}
       onCreateSession={async (selection, defaults) => {
+        if (selection.kind === 'workspace') {
+          const runtimeKey = getRuntimeKey();
+          const preparation = await prepareGeneralWorkspaceDraftForRuntime(workspace, defaults);
+           if (preparation.kind !== 'ready') throw new GeneralWorkspaceUnavailableError(
+             preparation.reason ?? 'runtime-unavailable',
+             t(preparation.reason === 'outside-editor-roots' ? 'workspaces.editorRoots'
+               : preparation.reason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported'
+                 : 'workspaces.scopeUnavailable'),
+           );
+          if (getRuntimeKey() !== runtimeKey || !useWorkspacesStore.getState().catalog.workspaces.some((entry) => entry.id === workspace.id)) throw new Error(t('workspaces.scopeUnavailable'));
+          useSessionUIStore.getState().openNewSessionDraft({
+            workspaceScope: preparation.scope,
+            workspaceDefaults: preparation.defaults,
+            unavailableWorkspaceAgent: preparation.unavailableSavedAgent,
+          });
+          if (onClose) onClose();
+          else useUIStore.getState().setSettingsDialogOpen(false);
+          useUIStore.getState().closeMainSurfaces();
+          useUIStore.getState().setSessionSwitcherOpen(false);
+          window.dispatchEvent(new CustomEvent('openchamber:navigate', { detail: { view: 'chat' } }));
+          return;
+        }
         const scope = snapshotWorkspaceScope(workspace, selection);
         if (scope.kind === 'invalid') throw new Error(t('workspaces.scopeUnavailable'));
         const runtimeKey = getRuntimeKey();
@@ -76,7 +100,7 @@ export const WorkspaceSettingsView: React.FC<{
       const latest = useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === workspace.id);
       if (!latest) throw new Error(t('workspaces.actionFailed'));
       const folders = [...latest.folders];
-      for (const path of paths) if (!folders.some((folder) => folder.path === path)) folders.push({ id: crypto.randomUUID(), path, role: '' });
+      for (const path of paths) if (!folders.some((folder) => folder.path === path)) folders.push({ id: generateUuid(), path, role: '' });
       const result = await useWorkspacesStore.getState().update(latest.id, { folders });
       if (result.kind !== 'saved') throw new Error(t('workspaces.actionFailed'));
     }} />}

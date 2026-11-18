@@ -356,6 +356,7 @@ type ModelControlsProps = {
     className?: string;
     mobilePanel?: MobileControlsPanel;
     onMobilePanelChange?: (panel: MobileControlsPanel) => void;
+    openAgentPickerRequest?: number;
     /** Offers "Run on several models" at the top of the desktop model picker. */
     onRunInParallel?: () => void;
 } & (
@@ -378,6 +379,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     mobilePanel,
     onMobilePanelChange,
     onRunInParallel,
+    openAgentPickerRequest,
     selection,
     sessionId: controlledSessionId,
     agentSelectable = false,
@@ -508,6 +510,9 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
 
     // Separate state for agent selector to avoid conflict with model selector
     const [isAgentSelectorOpen, setIsAgentSelectorOpen] = React.useState(false);
+    React.useEffect(() => {
+        if (openAgentPickerRequest !== undefined && canSelectAgent) setIsAgentSelectorOpen(true);
+    }, [canSelectAgent, openAgentPickerRequest]);
     const { favoriteModelsList, recentModelsList } = useModelLists();
     // Auto routing: the server resolves `openchamber/auto` into a real model per
     // send. Offered only while the server says it can honour it, in the main

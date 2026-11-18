@@ -12,6 +12,7 @@ import { useI18n } from '@/lib/i18n';
 import type { Workspace, WorkspaceDefaults, WorkspacePatch } from '@/lib/workspaces/model';
 import type { FolderSelection } from '@/lib/workspaces/session-scope';
 import { normalizePath } from '@/lib/pathNormalization';
+import { GeneralWorkspaceUnavailableError } from '@/lib/workspaces/general-chat-preparation';
 
 export interface WorkspaceOverviewProps {
   workspace: Workspace;
@@ -42,6 +43,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAction, setRetryAction] = useState<(() => Promise<void>) | null>(null);
+  const [folderFallbackNeeded, setFolderFallbackNeeded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (basis !== workspace) {
     const priorFolders = new Map(basis.folders.map((folder) => [folder.id, folder]));
@@ -70,6 +72,15 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
   }
   const saveDraft = () => perform(() => onUpdate({ name: draft.name, description: draft.description, folders: draft.folders, defaults: draft.defaults }), false);
   const retry = () => retryAction ? perform(retryAction) : saveDraft();
+  const createSession = (selection: FolderSelection) => perform(async () => {
+    setFolderFallbackNeeded(false);
+    try {
+      await onCreateSession(selection, workspace.defaults);
+    } catch (failure) {
+      setFolderFallbackNeeded(selection.kind === 'workspace' && failure instanceof GeneralWorkspaceUnavailableError);
+      throw failure;
+    }
+  });
   const modelIndex = models.findIndex(({ value }) => value.providerID === draft.defaults.model?.providerID && value.id === draft.defaults.model?.id);
   React.useEffect(() => {
     if (!scheduledTasksOpen && activeTab === 'scheduledTasks') setActiveTab('home');
@@ -80,7 +91,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
       <div className="flex items-center justify-between gap-4">
         <h1 dir="auto" className="oc-ui-start-align min-w-0 truncate typography-settings-page-title text-foreground" title={workspace.name}>{workspace.name}</h1>
         <div className="flex shrink-0 items-center gap-2">
-        <Button variant="outline" aria-label={t('sessions.sidebar.header.actions.newSession')} disabled={pending || workspace.folders.length === 0} onClick={() => void perform(() => onCreateSession({ kind: 'workspace' }, workspace.defaults))}><Icon name="add" className="size-4 @md:hidden" /><span className="sr-only @md:not-sr-only">{t('sessions.sidebar.header.actions.newSession')}</span></Button>
+         <Button variant="outline" aria-label={t('sessions.sidebar.header.actions.newSession')} disabled={pending || workspace.folders.length === 0} onClick={() => void createSession({ kind: 'workspace' })}><Icon name="add" className="size-4 @md:hidden" /><span className="sr-only @md:not-sr-only">{t('sessions.sidebar.header.actions.newSession')}</span></Button>
         <Button disabled={pending || !draft.name.trim()} onClick={() => void saveDraft()}>{t('projectEditDialog.actions.save')}</Button>
         {onDelete && <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -149,7 +160,7 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
               </h3>
               <div className="flex shrink-0 items-center gap-1">
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:min-h-11" disabled={pending || !onUnlinkFolder} aria-label={t('workspaces.unlinkFolder')} title={t('workspaces.unlinkKeepsFiles')} onClick={() => { if (onUnlinkFolder) void perform(() => onUnlinkFolder(folder.id)); }}>{t('workspaces.unlinkFolder')}</Button>
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" disabled={pending || !workspace.folders.some((entry) => entry.id === folder.id)} aria-label={t('sessions.sidebar.header.actions.newSession')} title={t('sessions.sidebar.header.actions.newSession')} onClick={() => void perform(() => onCreateSession({ kind: 'folder', folderId: folder.id }, workspace.defaults))}><Icon name="add" className="size-4" /></Button>
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" disabled={pending || !workspace.folders.some((entry) => entry.id === folder.id)} aria-label={t('sessions.sidebar.header.actions.newSession')} title={t('sessions.sidebar.header.actions.newSession')} onClick={() => void createSession({ kind: 'folder', folderId: folder.id })}><Icon name="add" className="size-4" /></Button>
               </div>
             </div>
             <Input aria-label={t('workspaces.folderDescription')} placeholder={t('workspaces.folderDescription')} dir="auto" value={folder.role} disabled={pending} onInput={(event) => { const role = event.currentTarget.value; setDraft({ ...draft, folders: draft.folders.map((entry) => entry.id === folder.id ? { ...entry, role } : entry) }); }} />
@@ -161,6 +172,13 @@ function WorkspaceEditor({ workspace, models, agents, onUpdate, onCreateSession,
         {onOpenSourceBoard && <Tabs.Panel value="sourceBoard" keepMounted className="data-[hidden]:hidden" />}
       </Tabs.Root>
       <div className="min-h-6 typography-meta text-[var(--status-error-text)]" role="alert">{error}</div>
+      {folderFallbackNeeded ? <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('workspaces.folderFallback')}>
+        <span className="typography-meta text-muted-foreground">{t('workspaces.folderFallback')}</span>
+        {workspace.folders.map((folder) => {
+          const name = normalizePath(folder.path)?.split('/').filter(Boolean).at(-1) || folder.path;
+          return <Button key={folder.id} variant="outline" size="sm" disabled={pending} onClick={() => void createSession({ kind: 'folder', folderId: folder.id })}>{t('workspaces.startChatInFolder', { folder: name })}</Button>;
+        })}
+      </div> : null}
       {error && <Button variant="link" size="sm" disabled={pending} onClick={() => void retry()}>{t('directoryExplorerDialog.browse.retry')}</Button>}
       {onDelete && <Dialog open={confirmDelete} onOpenChange={(open) => { if (!pending) { setConfirmDelete(open); setError(null); } }}>
         <DialogContent showCloseButton={!pending}>

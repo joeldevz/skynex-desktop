@@ -2,6 +2,8 @@ import { describe, expect, test, beforeEach, afterEach, mock } from "bun:test"
 import type { PermissionRequest } from "@/types/permission"
 import type { FormRequest } from "@/lib/opencode/model"
 import type { InputState } from "./input-store"
+import type { RuntimeAPIs } from "@/lib/api/types"
+import type { NewSessionDraftState } from "./session-ui-store"
 
 // Records the client calls the actions make. The actions talk to
 // `opencodeClient` only: OpenCode's own SDK never reaches this layer.
@@ -55,6 +57,14 @@ const deletedCleanupIdentities: Array<{ runtimeKey: string; directory: string; s
 const movedSessionDirectories: Array<{ sessionID: string; directory: string }> = []
 const globalArchivedSessions: Session[] = []
 let runtimeKey = "default-runtime"
+type CapturedWorkspaceTarget = Pick<NewSessionDraftState,
+  "open" | "draftId" | "workspaceTargetRevision" | "workspaceTargetPending" | "workspaceTargetError"
+>
+let capturedWorkspaceDraft: CapturedWorkspaceTarget = {
+  open: false,
+  draftId: 0,
+  workspaceTargetRevision: 0,
+}
 const AMBIGUOUS_TRANSPORT_FAILURE = Symbol("ambiguous-transport-failure")
 
 const notFound = (kind: string) => Object.assign(new Error(`${kind}NotFoundError`), { status: 404 })
@@ -63,6 +73,7 @@ mock.module("@/lib/opencode/client", () => ({
   ascendingId: (prefix: string) => `${prefix}_${(idCounter += 1).toString(16).padStart(12, "0")}`,
   opencodeClient: {
     getDirectory: () => "/test/project",
+    getSdkClient: () => null,
     getActiveSessionStatuses: mock((directory?: string | null) => readActiveStatusSnapshot(directory)),
     getSession: mock(async (sessionId: string, directory?: string | null): Promise<Session> => {
       replyCalls.push({ method: "session.get", params: { sessionID: sessionId, directory } })
@@ -182,6 +193,8 @@ mock.module("./session-ui-store", () => ({
   },
   useSessionUIStore: {
     getState: () => ({
+      newSessionDraft: capturedWorkspaceDraft,
+      markSessionAsOpenChamberCreated: () => {},
       getDirectoryForSession: (sessionId: string) => {
         if (sessionId === "session-a") return "/test/project"
         if (sessionId === "session-b") return "/other/project"
@@ -196,6 +209,7 @@ mock.module("./session-ui-store", () => ({
         movedSessionDirectories.push({ sessionID, directory })
       },
     }),
+    setState: () => {},
   },
 }))
 
@@ -314,6 +328,7 @@ mock.module("./session-message-loader", () => ({
     invalidateSession: () => {},
     ensure: async () => {},
     refreshTail: async () => {},
+    initializeCreatedSession: () => {},
     getSnapshot: () => ({ status: "ready" as const }),
   }),
 }))
@@ -541,6 +556,143 @@ describe("moveSessionToDirectory", () => {
     expect(destination.getState().sessionTotal).toBe(1)
     expect(destination.getState().message["session-a"]?.[0]?.id).toBe("message-a")
     expect((globalUpsertedSessions.at(-1) as Session).title).toBe("Renamed")
+  })
+})
+
+describe("workspace draft session creation", () => {
+  type WorkspaceDirectoryList = Awaited<ReturnType<RuntimeAPIs["files"]["listDirectory"]>>
+
+  beforeEach(() => {
+    replyCalls.length = 0
+    selectedSessions.length = 0
+  })
+
+  test("does not request a session when the captured workspace target changes during access validation", async () => {
+    capturedWorkspaceDraft = {
+      open: true,
+      draftId: 17,
+      workspaceTargetRevision: 4,
+    }
+    let resolveFolderAccess: (result: WorkspaceDirectoryList) => void = () => {
+      throw new Error("Folder access did not start")
+    }
+    let signalAccessStarted: (() => void) | null = null
+    const accessStarted = new Promise<void>((resolve) => { signalAccessStarted = resolve })
+    const { registerRuntimeAPIs } = await import("@/contexts/runtimeAPIRegistry")
+    // SAFETY: access validation reads only these two APIs from this test fixture.
+    const runtimeAPIs = {
+      runtime: { platform: "web", isDesktop: false, isVSCode: false },
+      files: {
+        listDirectory: (_path: string) => new Promise<WorkspaceDirectoryList>((resolve) => {
+          resolveFolderAccess = resolve
+          signalAccessStarted?.()
+        }),
+      },
+    } as RuntimeAPIs
+    registerRuntimeAPIs(runtimeAPIs)
+    const { createSession } = await import("./session-actions")
+    const createPromise = createSession(
+      undefined,
+      "/managed/chats/workspace-a",
+      undefined,
+      "submitted-draft",
+      {
+        workspaceScope: {
+          version: 2,
+          mode: "general",
+          workspaceId: "workspace-a",
+          workspaceName: "Workspace A",
+          description: "",
+          primaryDirectory: "/managed/chats/workspace-a",
+          folders: [{ id: "folder-a", path: "/repo/a", role: "" }],
+        },
+      },
+      "preserve",
+      { draftId: 17, revision: 4, runtimeKey: "default-runtime" },
+    )
+
+    const accessWasStarted = await Promise.race([
+      accessStarted.then(() => true),
+      createPromise.then(() => false),
+    ])
+    expect(accessWasStarted).toBe(true)
+    capturedWorkspaceDraft = { ...capturedWorkspaceDraft, workspaceTargetRevision: 5 }
+    resolveFolderAccess({ directory: "/repo/a", entries: [] })
+
+    expect(await createPromise).toBeNull()
+    expect(replyCalls.some((call) => call.method === "session.create")).toBe(false)
+    registerRuntimeAPIs(null)
+    capturedWorkspaceDraft = { open: false, draftId: 0, workspaceTargetRevision: 0 }
+  })
+
+  test("does not navigate to a submitted workspace session after another draft replaces it during membership save", async () => {
+    capturedWorkspaceDraft = {
+      open: true,
+      draftId: 17,
+      workspaceTargetRevision: 4,
+    }
+    const { registerRuntimeAPIs } = await import("@/contexts/runtimeAPIRegistry")
+    // SAFETY: access validation reads only these two APIs from this test fixture.
+    const runtimeAPIs = {
+      runtime: { platform: "web", isDesktop: false, isVSCode: false },
+      files: {
+        listDirectory: async (path: string): Promise<WorkspaceDirectoryList> => ({ directory: path, entries: [] }),
+      },
+    } as RuntimeAPIs
+    registerRuntimeAPIs(runtimeAPIs)
+
+    const { openSessionsStore } = await import("@/stores/useOpenSessionsStore")
+    const { setActionRefs } = await import("./session-actions")
+    const childStore = createStore({})
+    const childStores = createChildStores([["/managed/chats/workspace-a", childStore]])
+    setActionRefs(childStores, () => "/managed/chats/workspace-a")
+    const originalOpenSession = openSessionsStore.getState().openSession
+    let resolveMembership: (() => void) | undefined
+    let signalMembershipStarted: (() => void) | undefined
+    const membershipStarted = new Promise<void>((resolve) => { signalMembershipStarted = resolve })
+    const membershipPending = new Promise<void>((resolve) => { resolveMembership = resolve })
+    openSessionsStore.setState({
+      openSession: async () => {
+        signalMembershipStarted?.()
+        await membershipPending
+        return { kind: "saved" }
+      },
+    })
+
+    try {
+      const { createSession } = await import("./session-actions")
+      const createPromise = createSession(
+        undefined,
+        "/managed/chats/workspace-a",
+        undefined,
+        "submitted-draft",
+        {
+          workspaceScope: {
+            version: 2,
+            mode: "general",
+            workspaceId: "workspace-a",
+            workspaceName: "Workspace A",
+            description: "",
+            primaryDirectory: "/managed/chats/workspace-a",
+            folders: [{ id: "folder-a", path: "/repo/a", role: "" }],
+          },
+        },
+        "open",
+        { draftId: 17, revision: 4, runtimeKey: "default-runtime" },
+      )
+      await membershipStarted
+      capturedWorkspaceDraft = { open: true, draftId: 18, workspaceTargetRevision: 0 }
+      resolveMembership?.()
+
+      const created = await createPromise
+
+      expect(created?.id).toBe("created")
+      expect(selectedSessions).toEqual([])
+    } finally {
+      openSessionsStore.setState({ openSession: originalOpenSession })
+      registerRuntimeAPIs(null)
+      capturedWorkspaceDraft = { open: false, draftId: 0, workspaceTargetRevision: 0 }
+    }
   })
 })
 

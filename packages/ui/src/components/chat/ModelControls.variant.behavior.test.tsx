@@ -807,6 +807,24 @@ describe('ModelControls effort restore', () => {
     }
   });
 
+  test('opens the existing agent picker for an external request', async () => {
+    useUIStore.setState({ isMobile: false });
+    useSessionUIStore.setState({ currentSessionId: null });
+    useConfigStore.setState({
+      agents: [agent, planAgent],
+      agentsLoaded: true,
+      currentAgentName: AGENT,
+      providersLoaded: true,
+    });
+    const { dom, cleanup } = await renderModelControls({ openAgentPickerRequest: 1 });
+    try {
+      expect(dom.container.querySelector('[data-menu-open="true"]')).not.toBeNull();
+      expect(dom.container.querySelector('input[placeholder="Search agents"]')).not.toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
   test('history without an effort records no choice instead of an explicit Default', async () => {
     latestUserChoice = { id: 'msg-2', agent: AGENT, providerID: PROVIDER_ID, modelID: MODEL_ID };
 

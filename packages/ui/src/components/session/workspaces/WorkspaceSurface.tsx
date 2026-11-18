@@ -14,6 +14,8 @@ import { useI18n } from '@/lib/i18n';
 import { useMobileAppActions } from '@/apps/mobileAppContext';
 import { useSourceBoardStore } from '@/stores/useSourceBoardStore';
 import { isVSCodeRuntime } from '@/lib/desktop';
+import { GeneralWorkspaceUnavailableError, prepareGeneralWorkspaceDraftForRuntime } from '@/lib/workspaces/general-chat-preparation';
+import { generateUuid } from '@/lib/uuid';
 
 export function WorkspaceSurface() {
   const { t } = useI18n();
@@ -64,6 +66,26 @@ export function WorkspaceSurface() {
         if (result.kind !== 'saved') throw new Error(t('workspaces.deleteFailed'));
       }}
       onCreateSession={async (selection, defaults) => {
+        if (selection.kind === 'workspace') {
+          const runtimeKey = getRuntimeKey();
+          const preparation = await prepareGeneralWorkspaceDraftForRuntime(workspace, defaults);
+           if (preparation.kind !== 'ready') throw new GeneralWorkspaceUnavailableError(
+             preparation.reason ?? 'runtime-unavailable',
+             t(preparation.reason === 'outside-editor-roots' ? 'workspaces.editorRoots'
+               : preparation.reason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported'
+                 : 'workspaces.scopeUnavailable'),
+           );
+          if (getRuntimeKey() !== runtimeKey || useWorkspacesStore.getState().selectedWorkspaceId !== workspace.id) throw new Error(t('workspaces.scopeUnavailable'));
+          useSessionUIStore.getState().openNewSessionDraft({
+            workspaceScope: preparation.scope,
+            workspaceDefaults: preparation.defaults,
+            unavailableWorkspaceAgent: preparation.unavailableSavedAgent,
+          });
+          useUIStore.getState().closeMainSurfaces();
+          useUIStore.getState().setSessionSwitcherOpen(false);
+          window.dispatchEvent(new CustomEvent('openchamber:navigate', { detail: { view: 'chat' } }));
+          return;
+        }
         const scope = snapshotWorkspaceScope(workspace, selection);
         if (scope.kind === 'invalid') throw new Error(t('workspaces.scopeUnavailable'));
         const runtimeKey = getRuntimeKey();
@@ -86,7 +108,7 @@ export function WorkspaceSurface() {
       const latest = useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === workspace.id);
       if (!latest) throw new Error(t('workspaces.actionFailed'));
       const folders = [...latest.folders];
-      for (const path of paths) if (!folders.some((folder) => folder.path === path)) folders.push({ id: crypto.randomUUID(), path, role: '' });
+      for (const path of paths) if (!folders.some((folder) => folder.path === path)) folders.push({ id: generateUuid(), path, role: '' });
       const result = await useWorkspacesStore.getState().update(latest.id, { folders });
       if (result.kind !== 'saved') throw new Error(t('workspaces.actionFailed'));
     }} />

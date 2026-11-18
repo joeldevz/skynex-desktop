@@ -515,6 +515,37 @@ describe("issue 2039 draft auto-accept", () => {
     expect(useSessionUIStore.getState().currentSessionId).toBe("ses_issue_2039")
   })
 
+  test("materializes a general workspace draft once when its first send selects the created session", async () => {
+    useSessionUIStore.getState().openNewSessionDraft()
+    const draft = useSessionUIStore.getState().newSessionDraft
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        ...draft,
+        workspaceScope: {
+          version: 2,
+          mode: "general",
+          workspaceId: "workspace-a",
+          workspaceName: "Workspace A",
+          description: "",
+          primaryDirectory: "/managed/chats/workspace-a",
+          folders: [{ id: "folder-a", path: "/repo/a", role: "" }],
+        },
+        workspaceTargetRevision: 1,
+      },
+    })
+
+    const result = await materializeOpenDraftSession({
+      providerID: "provider",
+      modelID: "model",
+    })
+
+    expect(result?.sessionId).toBe("ses_issue_2039")
+    expect(createSessionCalls).toHaveLength(1)
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_issue_2039")
+    expect(useSessionUIStore.getState().newSessionDraft.open).toBe(false)
+    expect(useSessionUIStore.getState().materializedDraftSessionId).toBe("ses_issue_2039")
+  })
+
   test("writes the Settings default onto a new space session, which no server does for it", async () => {
     useUIStore.setState({ permissionDefaultMode: "auto" })
     createdSessionDirectory = "/spaces/0123456789ab/project"

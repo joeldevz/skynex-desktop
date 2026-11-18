@@ -4,7 +4,7 @@ import { opencodeClient } from '@/lib/opencode/client';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useSessionWorktreeStore } from './session-worktree-store';
-import { expandSlashCommandGoalObjective, resolveSendSelection, routeMessage, useSessionUIStore } from './session-ui-store';
+import { expandSlashCommandGoalObjective, isDraftTargetSnapshotCurrent, resolveSendSelection, routeMessage, useSessionUIStore } from './session-ui-store';
 import { ChildStoreManager } from './child-store';
 import { setSyncRefs } from './sync-refs';
 import { setActionRefs, setOptimisticRefs } from './session-actions';
@@ -549,6 +549,366 @@ describe('working directory across a runtime switch', () => {
     useDirectoryStore.setState(UNKNOWN);
     switchRuntime('host:switch-j', 'host:switch-j');
     expect(useDirectoryStore.getState()).toMatchObject(UNKNOWN);
+  });
+});
+
+describe('workspace draft target lifecycle', () => {
+  test('sends the first workspace prompt with its manifest and reuses the saved scope after reopen', async () => {
+    const scope = {
+      version: 2,
+      mode: 'general',
+      workspaceId: 'workspace-first-turn',
+      workspaceName: 'Workspace first turn',
+      description: '',
+      primaryDirectory: '/managed/chats/workspace-first-turn',
+      folders: [
+        { id: 'source', path: '/repo/source', role: 'Source' },
+        { id: 'reference', path: '/repo/reference', role: 'Reference' },
+      ],
+    };
+    const otherScope = {
+      ...scope,
+      workspaceId: 'workspace-other',
+      workspaceName: 'Workspace other',
+      primaryDirectory: '/managed/chats/workspace-other',
+      folders: [
+        { id: 'other-source', path: '/repo/other-source', role: 'Other source' },
+        { id: 'other-reference', path: '/repo/other-reference', role: 'Other reference' },
+      ],
+    };
+    const originalCreateSession = opencodeClient.createSession;
+    const originalSendMessage = opencodeClient.sendMessage;
+    const originalOpenSession = (await import('@/stores/useOpenSessionsStore')).openSessionsStore.getState().openSession;
+    const originalActivateDirectory = useConfigStore.getState().activateDirectory;
+    const originalGlobalSessions = useGlobalSessionsStore.getState();
+    const { registerRuntimeAPIs } = await import('@/contexts/runtimeAPIRegistry');
+    const { getRuntimeApiBaseUrl, switchRuntimeEndpoint } = await import('@/lib/runtime-switch');
+    const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
+    const sends = [];
+    const creates = [];
+    const directoryActivations = [];
+    let deliveryReceipt = null;
+    let resolveMembership;
+    let signalMembershipStarted;
+    const membershipStarted = new Promise((resolve) => { signalMembershipStarted = resolve; });
+    const membershipPending = new Promise((resolve) => { resolveMembership = resolve; });
+    const childStore = {
+      getState: () => ({ session: [], message: {}, part: {}, session_status: {} }),
+      setState: () => {},
+    };
+    const childStores = {
+      children: new Map(),
+      ensureChild: () => childStore,
+      getChild: () => childStore,
+    };
+    const originalRuntimeUrl = getRuntimeApiBaseUrl();
+    switchRuntimeEndpoint({ apiBaseUrl: 'http://workspace-first-turn.test' });
+    registerRuntimeAPIs({
+      runtime: { platform: 'web', isDesktop: false, isVSCode: false },
+      files: { listDirectory: async (path) => ({ directory: path, entries: [] }) },
+    });
+    setActionRefs(childStores, () => scope.primaryDirectory);
+    setOptimisticRefs(() => {}, () => {});
+    useConfigStore.setState({
+      isConnected: true,
+      activateDirectory: async (directory) => { directoryActivations.push(directory); },
+    });
+    openSessionsStore.setState({
+      openSession: async () => {
+        signalMembershipStarted();
+        await membershipPending;
+        return { kind: 'saved' };
+      },
+    });
+    opencodeClient.createSession = async (params, directory) => {
+      creates.push({ params, directory });
+      return {
+        id: 'session-first-turn',
+        directory,
+        title: 'First turn',
+        metadata: params.metadata,
+        time: { created: Date.now(), updated: Date.now() },
+      };
+    };
+    opencodeClient.sendMessage = async (params) => {
+      sends.push(params);
+      return 'message-first-turn';
+    };
+    const draft = {
+      draftId: 801,
+      open: true,
+      target: 'project',
+      directoryOverride: scope.primaryDirectory,
+      parentID: null,
+      workspaceScope: scope,
+      workspaceTargetRevision: 0,
+    };
+    useSessionUIStore.setState({
+      currentSessionId: 'session-other',
+      currentSessionDirectory: otherScope.primaryDirectory,
+      newSessionDraft: draft,
+    });
+    useGlobalSessionsStore.getState().upsertSession({
+      id: 'session-other',
+      directory: otherScope.primaryDirectory,
+      title: 'Other workspace session',
+      time: { created: 1, updated: 1 },
+      metadata: { openchamber: { workspaceScope: otherScope } },
+    });
+
+    try {
+      const firstSend = useSessionUIStore.getState().sendMessage(
+        'first workspace prompt',
+        'provider-a',
+        'model-a',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'normal',
+        {
+          draftSnapshot: draft,
+          onDelivered: (receipt) => { deliveryReceipt = receipt; },
+        },
+      );
+      await membershipStarted;
+      useSessionUIStore.setState({
+        currentSessionId: 'newer-session',
+        currentSessionDirectory: '/newer/session',
+        newSessionDraft: {
+          draftId: 803,
+          open: true,
+          target: 'chat',
+          directoryOverride: null,
+          parentID: null,
+        },
+      });
+      resolveMembership();
+      await firstSend;
+
+      expect(creates).toHaveLength(1);
+      expect(creates[0].params.metadata.openchamber.workspaceScope).toEqual(scope);
+      expect(sends).toHaveLength(1);
+      expect(sends[0].text).toBe('first workspace prompt');
+      expect(sends[0].context).toHaveLength(1);
+      expect(sends[0].context[0].text).toContain('/repo/source');
+      expect(sends[0].context[0].text).toContain('"role":"Source"');
+      expect(sends[0].context[0].text).toContain('/repo/reference');
+      expect(sends[0].context[0].text).toContain('"role":"Reference"');
+      expect(sends[0].context[0].text).not.toContain('/repo/other-source');
+      expect(sends[0].context[0].text).not.toContain('/repo/other-reference');
+      expect(sends[0].context[0].text).not.toContain('"role":"Other source"');
+      expect(sends[0].context[0].text).not.toContain('"role":"Other reference"');
+      expect(deliveryReceipt).toEqual({
+        sessionId: 'session-first-turn',
+        directory: scope.primaryDirectory,
+      });
+      expect(useSessionUIStore.getState().currentSessionId).toBe('newer-session');
+      expect(directoryActivations).not.toContain(scope.primaryDirectory);
+
+      useSessionUIStore.setState({
+        currentSessionId: null,
+        currentSessionDirectory: null,
+        newSessionDraft: { draftId: 804, open: false, directoryOverride: null, parentID: null, target: 'chat' },
+      });
+      useSessionUIStore.getState().setCurrentSession('session-first-turn', scope.primaryDirectory);
+      await useSessionUIStore.getState().sendMessage(
+        'reopened workspace prompt',
+        'provider-a',
+        'model-a',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'normal',
+      );
+
+      expect(sends).toHaveLength(2);
+      expect(sends[1].text).toBe('reopened workspace prompt');
+      expect(sends[1].context[0].text).toContain('/repo/source');
+      expect(sends[1].context[0].text).toContain('/repo/reference');
+    } finally {
+      opencodeClient.createSession = originalCreateSession;
+      opencodeClient.sendMessage = originalSendMessage;
+      openSessionsStore.setState({ openSession: originalOpenSession });
+      useConfigStore.setState({ activateDirectory: originalActivateDirectory });
+      registerRuntimeAPIs(null);
+      switchRuntimeEndpoint({ apiBaseUrl: originalRuntimeUrl });
+      useGlobalSessionsStore.setState(originalGlobalSessions, true);
+      useSessionUIStore.setState({
+        currentSessionId: null,
+        currentSessionDirectory: null,
+        newSessionDraft: { draftId: 0, open: false, directoryOverride: null, parentID: null, target: 'chat' },
+      });
+    }
+  });
+
+  test('a workspace selection started on a draft while startup was pending prevents its send', async () => {
+    const originalConfig = useConfigStore.getState();
+    const originalCreateSession = opencodeClient.createSession;
+    const { useOpenCodeStartupStore } = await import('./opencode-startup-gate');
+    const createCalls = [];
+    const draft = {
+      draftId: 802,
+      open: true,
+      target: 'chat',
+      directoryOverride: null,
+      parentID: null,
+    };
+    opencodeClient.createSession = async (...args) => {
+      createCalls.push(args);
+      return { id: 'unexpected-session', time: { created: 1, updated: 1 } };
+    };
+    useConfigStore.setState({ isConnected: false, hasEverConnected: false });
+    useSessionUIStore.setState({ currentSessionId: null, newSessionDraft: draft });
+    const send = useSessionUIStore.getState().sendMessage(
+      'held first prompt',
+      'provider-a',
+      'model-a',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'normal',
+      { draftSnapshot: draft },
+    );
+
+    expect(useOpenCodeStartupStore.getState().waitingSends).toBe(1);
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        ...draft,
+        workspaceTargetRevision: 1,
+        workspaceTargetPending: true,
+      },
+    });
+    useConfigStore.setState({ isConnected: true });
+
+    await expect(send).rejects.toThrow('Failed to create session');
+    expect(createCalls).toHaveLength(0);
+    expect(useSessionUIStore.getState().newSessionDraft.open).toBe(true);
+    expect(useSessionUIStore.getState().newSessionDraft.workspaceTargetPending).toBe(true);
+    opencodeClient.createSession = originalCreateSession;
+    useConfigStore.setState(originalConfig);
+  });
+
+  test('rejects a send snapshot after the target changes while asynchronous work is pending', async () => {
+    let resolveWork;
+    const pendingWork = new Promise((resolve) => { resolveWork = resolve; });
+    const captured = {
+      open: true,
+      draftId: 14,
+      target: 'project',
+    };
+    const current = { ...captured };
+    const completion = pendingWork.then(() => isDraftTargetSnapshotCurrent(captured, current));
+
+    current.workspaceTargetRevision = 1;
+    resolveWork();
+
+    expect(await completion).toBe(false);
+  });
+
+  test('keeps a failed retarget blocked until the user chooses a target', () => {
+    const captured = {
+      open: true,
+      draftId: 16,
+      target: 'chat',
+      workspaceTargetRevision: 5,
+      workspaceTargetPreparationId: 'preparation-b',
+      workspaceTargetPending: true,
+    };
+    useSessionUIStore.setState({ newSessionDraft: captured });
+    useSessionUIStore.getState().failGeneralWorkspaceTargetPreparation(
+      captured.draftId,
+      'preparation-b',
+      getRuntimeKey(),
+      'folder-unavailable',
+    );
+
+    const failed = useSessionUIStore.getState().newSessionDraft;
+    expect(failed.workspaceTargetError).toBe(true);
+    expect(isDraftTargetSnapshotCurrent(captured, failed)).toBe(false);
+  });
+
+  test('keeps the attempted workspace as the folder fallback and replaces it on another workspace attempt', () => {
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        open: true,
+        draftId: 18,
+        target: 'chat',
+        directoryOverride: null,
+        parentID: null,
+        workspaceTargetRevision: 0,
+      },
+    });
+    const actions = useSessionUIStore.getState();
+    expect(actions.beginGeneralWorkspaceTargetPreparation(18, 'preparation-a', 'workspace-a')).toBe(true);
+    actions.failGeneralWorkspaceTargetPreparation(18, 'preparation-a', getRuntimeKey(), 'folder-unavailable');
+    expect(useSessionUIStore.getState().newSessionDraft.workspaceTargetAttemptWorkspaceId).toBe('workspace-a');
+
+    expect(useSessionUIStore.getState().beginGeneralWorkspaceTargetPreparation(18, 'preparation-b', 'workspace-b')).toBe(true);
+    expect(useSessionUIStore.getState().newSessionDraft.workspaceTargetAttemptWorkspaceId).toBe('workspace-b');
+    useSessionUIStore.getState().failGeneralWorkspaceTargetPreparation(18, 'preparation-b', getRuntimeKey(), 'folder-unavailable');
+  });
+
+  test('runtime restoration clears pending preparation state and keeps the chosen target payload', () => {
+    const scope = {
+      version: 2,
+      mode: 'general',
+      workspaceId: 'workspace-a',
+      workspaceName: 'Workspace A',
+      description: '',
+      primaryDirectory: '/managed/chats/workspace-a',
+      folders: [{ id: 'source', path: '/repo/source', role: 'Source' }],
+    };
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      newSessionDraft: {
+        draftId: 15,
+        open: true,
+        target: 'project',
+        directoryOverride: scope.primaryDirectory,
+        parentID: null,
+        workspaceScope: scope,
+        workspaceDefaults: { agent: 'build' },
+        workspaceTargetPending: true,
+        workspaceTargetPreparationId: 'preparation-a',
+        workspaceTargetRevision: 2,
+      },
+    });
+
+    useSessionUIStore.getState().prepareForRuntimeSwitch();
+    useSessionUIStore.getState().restoreForRuntimeSwitch();
+
+    expect(useSessionUIStore.getState().newSessionDraft).toMatchObject({
+      workspaceScope: scope,
+      workspaceDefaults: { agent: 'build' },
+      workspaceTargetPending: false,
+      workspaceTargetPreparationId: null,
+    });
+  });
+
+  test('runtime restoration clears a failed workspace attempt owner', () => {
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      newSessionDraft: {
+        draftId: 19,
+        open: true,
+        target: 'chat',
+        directoryOverride: null,
+        parentID: null,
+        workspaceTargetError: true,
+        workspaceTargetAttemptWorkspaceId: 'workspace-a',
+      },
+    });
+
+    useSessionUIStore.getState().prepareForRuntimeSwitch();
+    useSessionUIStore.getState().restoreForRuntimeSwitch();
+
+    expect(useSessionUIStore.getState().newSessionDraft.workspaceTargetAttemptWorkspaceId).toBe(null);
   });
 });
 

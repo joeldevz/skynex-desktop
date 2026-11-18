@@ -627,6 +627,51 @@ export const registerFsRoutes = (app, dependencies) => {
   const managedRoots = [path.resolve(openchamberUserConfigRoot), chatsRoot];
   // A relocated chats root keeps the chats created under the config root valid.
   const chatsRoots = [...new Set([chatsRoot, path.join(openchamberUserConfigRoot, 'chats')])];
+  const canonicalCleanupTarget = async (targetPath) => {
+    const resolvedTarget = path.resolve(targetPath);
+    try {
+      const stat = await fsPromises.lstat(resolvedTarget);
+      if (stat.isDirectory()) {
+        return { targetPath: resolvedTarget, canonicalIdentity: await fsPromises.realpath(resolvedTarget) };
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    const parent = path.dirname(resolvedTarget);
+    const canonicalParent = await fsPromises.realpath(parent).catch((error) => {
+      if (error?.code === 'ENOENT') return parent;
+      throw error;
+    });
+    return {
+      targetPath: resolvedTarget,
+      canonicalIdentity: path.join(canonicalParent, path.basename(resolvedTarget)),
+    };
+  };
+
+  const isWorkspaceChatDirectory = async (targetPath) => {
+    const resolvedTarget = path.resolve(targetPath);
+    for (const root of chatsRoots) {
+      let canonicalRoot;
+      try {
+        canonicalRoot = await fsPromises.realpath(root);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') {
+          const lexicalRoot = path.resolve(root);
+          if (isPathWithinRoot(resolvedTarget, lexicalRoot, path, os)
+            || isPathWithinRoot(lexicalRoot, resolvedTarget, path, os)) return true;
+          continue;
+        }
+        canonicalRoot = path.resolve(root);
+      }
+      if (isPathWithinRoot(resolvedTarget, canonicalRoot, path, os)) {
+        const relative = path.relative(canonicalRoot, resolvedTarget);
+        const [directoryName] = relative.split(path.sep);
+        if (relative === '' || /^workspace-[a-f0-9]{64}$/.test(directoryName)) return true;
+      }
+      if (isPathWithinRoot(canonicalRoot, resolvedTarget, path, os)) return true;
+    }
+    return false;
+  };
   const previewGrants = createPreviewGrants({ crypto });
   const realpathCache = createRealpathCache({
     realpath: fsPromises.realpath.bind(fsPromises),
@@ -1642,7 +1687,18 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(400).json({ error: resolved.error });
       }
 
-      await fsPromises.rm(resolved.resolved, { recursive: true, force: true });
+      const cleanupTarget = await canonicalCleanupTarget(resolved.resolved);
+      const canonicalBase = await fsPromises.realpath(resolved.base).catch((error) => {
+        if (error?.code === 'ENOENT') return path.resolve(resolved.base);
+        throw error;
+      });
+      if (!isPathWithinRoot(cleanupTarget.canonicalIdentity, canonicalBase, path, os)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (await isWorkspaceChatDirectory(cleanupTarget.canonicalIdentity)) {
+        return res.status(400).json({ error: 'Managed workspace chat directories cannot be deleted here' });
+      }
+      await fsPromises.rm(cleanupTarget.targetPath, { recursive: true, force: true });
       return res.json({ success: true, path: resolved.resolved });
     } catch (error) {
       const err = error;

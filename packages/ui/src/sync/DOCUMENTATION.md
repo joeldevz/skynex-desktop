@@ -4,7 +4,7 @@
 
 Workspace session creation accepts `SessionCreateSelection.workspaceScope`. It validates runtime folder support, writes the immutable namespaced binding at creation, and then requests durable explicit membership. A membership failure leaves the created conversation available through `SessionUIState.openSessionFailure`; retry that reference through `openSessionsStore.openSession`, without creating another conversation.
 
-`setCurrentSession` requests explicit membership by default. Its fourth argument, `restore`, selects an existing working-set entry without opening it again. `openWorkspaceDraft` snapshots all workspace folders, one folder, or an explicit selection and captures workspace defaults before ordinary composer overrides. Normal prompt and command routing attach the captured folder manifest; queued messages store their manifest as existing synthetic context.
+`setCurrentSession` requests explicit membership by default. Its fourth argument, `restore`, selects an existing working-set entry without opening it again. `openWorkspaceDraft` snapshots all workspace folders, one folder, or an explicit selection and captures workspace defaults before ordinary composer overrides. Normal prompt and command routing attach the captured folder manifest on the first send and later sends; queued messages store their manifest as existing synthetic context. A successful send reports its receiving session and directory to the composer, so linked references follow the submitted draft if selection changes while the send is in flight.
 
 `last-session-restore` captures the viewed reference before migration and selects it only if the durable working set still contains it. An explicitly empty working set does not reopen history. Runtime reset activates the new membership namespace after restoring its viewed pointer. Completion and folder unlinking retain membership.
 
@@ -15,6 +15,18 @@ only that saved folder as the primary directory. Both retain workspace defaults
 without replacing draft IDs or content. Workspace selection never writes a
 workspace ID into project state; session creation continues through the normal
 workspace-scope access check.
+
+General workspace retarget preparation is guarded by the draft ID and target
+revision at send and materialization. The first-session request rechecks that
+captured draft and runtime after the startup wait, before creation, after folder
+access validation and after the open
+session membership request, before navigating. A superseding draft stays open
+when membership completes for an older submitted draft; that completed session
+still returns to the send path. A failed preparation blocks the previous target
+until the user explicitly chooses a target, while the attempted workspace ID
+keeps its folders available as explicit recovery choices. Pending preparation
+identity is transient and is cleared when runtime draft memory is restored; the
+selected workspace scope and defaults remain available for retry.
 
 ### Why restore uses durable membership
 
@@ -1040,6 +1052,8 @@ VS Code intentionally has no managed Chats mode. It neither reads nor writes the
 A session's own directory is not a target choice. "New session in the current directory" forwards the current session's directory even when that session is a managed chat, and a chat scratch directory names no project, so those overrides resolve to a chat draft. Treating one as an explicit project target is how a plus pressed inside a chat opened a project draft.
 
 A live directory that names no registered project is not a target choice either: an implicit, user-initiated open stays on the managed Chat target for that draft and leaves the recorded project target untouched. Delayed stale-directory recovery repairs only project drafts, so it cannot replace that Chat target or its remembered project target.
+
+Changing a composer workspace target to All folders prepares the runtime-resolved neutral directory, linked-folder access and directory-specific config before committing a version 2 scope. The draft id, content and attachments remain unchanged. A preparation request id plus runtime and catalog snapshot checks reject obsolete completions. Pending preparation blocks sends, but target pickers remain active; Chat and explicit-folder choices synchronously supersede it. Failure retains the previous target and exposes an error.
 
 When creating a draft in `handleDirectoryEvent`, **only clone the state fields the event will mutate**. Never spread all fields eagerly.
 
