@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       mode:
-        description: 'Publish normally or benchmark either build path without publishing'
+        description: 'Publish normally or run a read-only build benchmark'
         required: false
         default: publish
         type: choice
@@ -17,6 +17,8 @@ on:
           - benchmark-baseline
           - benchmark-shared
           - benchmark-fast
+          - benchmark-linux-serial
+          - benchmark-linux-parallel
 
 permissions:
   contents: read
@@ -41,6 +43,61 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  benchmark-linux-packaging:
+    if: inputs.mode == 'benchmark-linux-serial' || inputs.mode == 'benchmark-linux-parallel'
+    needs: prepare-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install rpmbuild
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build unpacked app
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          OPENCHAMBER_TARGET_ARCH: x64
+        working-directory: packages/electron
+        run: |
+          set -euo pipefail
+          started=$(date +%s%N)
+          node -e "const fs=require('node:fs');const p='package.json';const v=JSON.parse(fs.readFileSync(p));v.version=process.env.VERSION;fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n')"
+          bun run build:web-assets
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run prepare:ripgrep
+          bun run bundle:main
+          bun run rebuild:native
+          mkdir -p dist/benchmark-unpacked
+          unpacked_started=$(date +%s%N)
+          node ./scripts/package.mjs --dir --linux --x64 --publish=never --config.directories.output=dist/benchmark-unpacked
+          printf '%s\n' "$started" > dist/benchmark-started
+          printf 'benchmark=linux-unpacked phase=electron-unpacked-build seconds=%s\n' "$(( ($(date +%s%N) - unpacked_started) / 1000000000 ))"
+      - name: Run isolated serial or parallel packaging comparison
+        working-directory: packages/electron
+        env:
+          BENCHMARK_MODE: ${{ inputs.mode }}
+        run: node ./scripts/linux-packaging-benchmark.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.mode }}-packages
+          path: |
+            packages/electron/dist/benchmark-results/*/artifacts/*.AppImage
+            packages/electron/dist/benchmark-results/*/artifacts/*.deb
+            packages/electron/dist/benchmark-results/*/artifacts/*.rpm
+            packages/electron/dist/benchmark-results/*/artifacts/latest-linux.yml
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
 
   shared-web-assets:
     if: inputs.mode == 'benchmark-shared'

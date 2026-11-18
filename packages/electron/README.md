@@ -208,6 +208,25 @@ the next run before reporting warm-cache timings. The install hook
 validates the staged SDK in shared mode and still runs the other install hooks.
 All benchmark modes export artifacts without creating or modifying a release.
 
+`benchmark-linux-serial` and `benchmark-linux-parallel` compare Linux x64
+packaging on one Ubuntu 24.04 runner. Both build one unpacked Electron app,
+then package AppImage, DEB, and RPM from target-specific copies. The copies use
+`cp -a --reflink=auto` and are timed; hard links are not used. Packaging runs
+sequentially in serial mode and concurrently in parallel mode. Each target
+writes to its own output directory and verifies its emitted update manifest
+and the staged updater markers. The AppImage also runs the Linux AppImage
+verifier. Packages are uploaded only as short-lived workflow artifacts.
+
+The comparison checks each output's individual manifest. It does not assemble
+the release's combined `latest-linux.yml`, which lists all three formats. The
+unpacked app is copied per target so electron-builder's AppImage and FPM
+marker writes cannot affect another target.
+The logs report the Electron unpacked build, each clone and target build, and
+the interval from web asset preparation through package verification. Use
+GitHub job timestamps for the total including setup and artifact upload.
+Treat the first comparison as cold: builder tool downloads can affect both
+modes and are included in their elapsed time.
+
 Compare benchmark modes at the same commit and matrix. Workflow step durations
 cover dependency installation and asset build or staging. Linux packaging logs
 also report elapsed seconds for CLI preparation, ripgrep preparation, main

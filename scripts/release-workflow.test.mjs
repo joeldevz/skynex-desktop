@@ -68,7 +68,10 @@ test('desktop benchmark stages one shared payload and keeps all packaging target
   const publishOnly = "inputs.mode == 'publish'";
   assert.equal(input.type, 'choice');
   assert.equal(input.default, 'publish');
-  assert.deepEqual(input.options, ['publish', 'benchmark-baseline', 'benchmark-shared', 'benchmark-fast']);
+  assert.deepEqual(input.options, [
+    'publish', 'benchmark-baseline', 'benchmark-shared', 'benchmark-fast',
+    'benchmark-linux-serial', 'benchmark-linux-parallel',
+  ]);
   assert.equal(desktopWorkflow.jobs['shared-web-assets'].if, sharedOnly);
   assert.ok(desktopWorkflow.jobs['shared-web-assets'].steps.some(({ uses }) => uses?.startsWith('actions/upload-artifact@')));
   assert.ok(desktopWorkflow.jobs['shared-web-assets'].steps.every(({ uses }) => !uses || /@[0-9a-f]{40}$/.test(uses)));
@@ -104,6 +107,28 @@ test('desktop benchmark stages one shared payload and keeps all packaging target
   const inventory = desktopWorkflow.jobs.publish.steps.find(({ name }) => name === 'Verify complete release asset inventory');
   assert.ok(inventory.run.includes('`Skynex-${version}-win-arm64.exe.blockmap`'));
   assert.ok(inventory.run.includes("['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']"));
+});
+
+test('Linux packaging benchmarks are read-only, x64-only, and isolate target inputs', () => {
+  const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
+  const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
+  const job = desktopWorkflow.jobs['benchmark-linux-packaging'];
+  assert.equal(job['runs-on'], 'ubuntu-24.04');
+  assert.equal(job.permissions.contents, 'read');
+  assert.match(job.if, /benchmark-linux-serial/);
+  assert.match(job.if, /benchmark-linux-parallel/);
+  assert.equal(job.needs, 'prepare-release');
+  assert.ok(job.steps.some(({ run }) => run?.includes('--dir --linux --x64')));
+  const benchmark = job.steps.find(({ name }) => name === 'Run isolated serial or parallel packaging comparison');
+  assert.equal(benchmark.env.BENCHMARK_MODE, '${{ inputs.mode }}');
+  const helperPath = fileURLToPath(new URL('../packages/electron/scripts/linux-packaging-benchmark.mjs', import.meta.url));
+  const helper = fs.readFileSync(helperPath, 'utf8');
+  assert.ok(helper.includes("'cp', ['-a', '--reflink=auto'"));
+  assert.ok(helper.includes("'--prepackaged', clone"));
+  assert.ok(helper.includes('Promise.allSettled(targets.map'));
+  assert.ok(job.steps.every(({ uses }) => !uses?.startsWith('softprops/action-gh-release@')));
+  assert.ok(helper.includes('verify-update-manifest.mjs'));
+  assert.ok(helper.includes('verify-linux-appimage.mjs'));
 });
 
 test('fast benchmark keeps per-job builds and native checks while limiting optimizations', () => {
