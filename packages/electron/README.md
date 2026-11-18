@@ -200,13 +200,18 @@ IPC results if its endpoint changes while the read is pending.
 The `Desktop release` workflow defaults to `publish`, with per-job SDK and web
 builds. `benchmark-baseline` keeps those builds; `benchmark-shared` builds the
 SDK and web assets once on Linux and stages them before dependency installation
-in each matrix job. The install hook validates the staged SDK in shared mode
-and still runs the other install hooks. Both benchmark modes export artifacts without
-creating or modifying a release.
+in each matrix job. `benchmark-fast` keeps per-job builds and native checks,
+uses a branch-scoped Windows Bun download cache with copy-backed installs,
+sets gzip (`gz`) for Linux `.deb` packages, and sets CLI archive gzip level 6.
+Prime the Windows cache with one fast run and verify exact cache hits in
+the next run before reporting warm-cache timings. The install hook
+validates the staged SDK in shared mode and still runs the other install hooks.
+All benchmark modes export artifacts without creating or modifying a release.
 
-Compare both benchmark modes at the same
-commit and matrix. Each workflow step reports its own duration, including
-dependency installation, asset build or staging, and packaging. The benchmark
+Compare benchmark modes at the same commit and matrix. Workflow step durations
+cover dependency installation and asset build or staging. Linux packaging logs
+also report elapsed seconds for CLI preparation, ripgrep preparation, main
+bundling, native rebuilds, package generation, and verification. The fast mode
 keeps native dependency installation, rebuilds, CLI checks, Linux manifest
 checks, and release-inventory source unchanged.
 

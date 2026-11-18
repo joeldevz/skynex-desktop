@@ -68,7 +68,7 @@ test('desktop benchmark stages one shared payload and keeps all packaging target
   const publishOnly = "inputs.mode == 'publish'";
   assert.equal(input.type, 'choice');
   assert.equal(input.default, 'publish');
-  assert.deepEqual(input.options, ['publish', 'benchmark-baseline', 'benchmark-shared']);
+  assert.deepEqual(input.options, ['publish', 'benchmark-baseline', 'benchmark-shared', 'benchmark-fast']);
   assert.equal(desktopWorkflow.jobs['shared-web-assets'].if, sharedOnly);
   assert.ok(desktopWorkflow.jobs['shared-web-assets'].steps.some(({ uses }) => uses?.startsWith('actions/upload-artifact@')));
   assert.ok(desktopWorkflow.jobs['shared-web-assets'].steps.every(({ uses }) => !uses || /@[0-9a-f]{40}$/.test(uses)));
@@ -104,6 +104,63 @@ test('desktop benchmark stages one shared payload and keeps all packaging target
   const inventory = desktopWorkflow.jobs.publish.steps.find(({ name }) => name === 'Verify complete release asset inventory');
   assert.ok(inventory.run.includes('`Skynex-${version}-win-arm64.exe.blockmap`'));
   assert.ok(inventory.run.includes("['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']"));
+});
+
+test('fast benchmark keeps per-job builds and native checks while limiting optimizations', () => {
+  const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
+  const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
+  const fastOnly = "inputs.mode == 'benchmark-fast'";
+
+  assert.equal(desktopWorkflow.jobs['shared-web-assets'].if, "inputs.mode == 'benchmark-shared'");
+  for (const name of ['build-windows', 'build-linux', 'build-cli-runtime']) {
+    const job = desktopWorkflow.jobs[name];
+    assert.match(job.if, /inputs\.mode == 'benchmark-fast'/);
+    assert.ok(!job.steps.some(({ name: stepName }) => stepName === 'Build shared SDK and web assets'));
+    assert.ok(job.steps.some(({ uses, if: condition }) => uses?.startsWith('actions/download-artifact@')
+      && condition === "inputs.mode == 'benchmark-shared'"));
+  }
+
+  for (const jobName of ['build-windows', 'build-cli-runtime']) {
+    const job = desktopWorkflow.jobs[jobName];
+    const cache = job.steps.find(({ uses, if: condition }) => uses?.startsWith('actions/cache@')
+      && condition?.includes(fastOnly));
+    assert.ok(cache);
+    assert.ok(cache.with.path.includes('bun-install-cache'));
+    assert.ok(!cache.with.path.includes('node_modules'));
+    assert.match(cache.with.key, /^benchmark-fast-bun-copy-v1-/);
+    assert.equal(cache.with['restore-keys'], undefined);
+    assert.match(cache.with.key, /matrix\.arch/);
+    assert.match(cache.with.key, /steps\.bun_version\.outputs\.version/);
+    assert.match(cache.with.key, /hashFiles\('bun\.lock'\)/);
+    assert.match(cache.with.key, /runner\.temp|matrix\.runner|windows-2022/);
+    assert.ok(job.steps.some(({ name, env, run, if: condition }) => name === 'Install dependencies with download cache'
+      && condition?.includes(fastOnly) && env.BUN_INSTALL_CACHE_DIR?.includes('bun-install-cache')
+      && run === 'bun install --frozen-lockfile --backend=copyfile'));
+  }
+  assert.notEqual(
+    desktopWorkflow.jobs['build-windows'].steps.find(({ uses, if: condition }) => uses?.startsWith('actions/cache@') && condition?.includes(fastOnly)).with.key,
+    desktopWorkflow.jobs['build-cli-runtime'].steps.find(({ uses, if: condition }) => uses?.startsWith('actions/cache@') && condition?.includes(fastOnly)).with.key,
+  );
+
+  const linux = desktopWorkflow.jobs['build-linux'];
+  assert.ok(linux.steps.every(({ env }) => !env?.BUN_INSTALL_CACHE_DIR));
+  const linuxBuild = linux.steps.find(({ name }) => name === 'Prepare native runtime and package Linux outputs');
+  assert.ok(linuxBuild.run.includes('run_phase native-rebuild'));
+  assert.ok(linuxBuild.run.includes('run_phase linux-packages'));
+  assert.ok(linuxBuild.run.includes('--config.deb.compression=gz'));
+  assert.ok(!linuxBuild.run.includes('--config.rpm.compression'));
+  assert.ok(linuxBuild.run.includes('package_args=(--linux --${{ matrix.arch }} --publish=never)'));
+  assert.ok(linuxBuild.run.includes('run_phase appimage-verification'));
+  assert.ok(linux.steps.some(({ name }) => name === 'Validate Linux update manifest'));
+
+  const cli = desktopWorkflow.jobs['build-cli-runtime'];
+  const cliPackage = cli.steps.find(({ name }) => name === 'Package and smoke-test standalone CLI');
+  assert.equal(cliPackage.env.SKYNEX_CLI_GZIP_LEVEL, "${{ inputs.mode == 'benchmark-fast' && '6' || '' }}");
+  for (const fragment of ['--version', '--help', 'node-pty', '@vscode/ripgrep', 'LICENSE', 'README.md']) {
+    assert.ok(cliPackage.run.includes(fragment));
+  }
+  assert.equal(desktopWorkflow.jobs['create-release'].if, "inputs.mode == 'publish'");
+  assert.equal(desktopWorkflow.jobs.publish.if, "inputs.mode == 'publish'");
 });
 
 test('prebuilt web asset staging replaces package dist outputs and fails closed', () => {

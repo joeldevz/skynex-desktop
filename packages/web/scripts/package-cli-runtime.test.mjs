@@ -179,6 +179,22 @@ test('packages the complete production closure and dereferences the workspace SD
   });
 });
 
+test('benchmark compression preserves tar members and verifies the compressed archive', async () => {
+  await withFixture(async (fixture) => {
+    const baseline = await packageFixture(fixture, { gzipLevel: '9' });
+    const fast = await packageFixture(fixture, {
+      outputDir: path.join(path.dirname(fixture.outputDir), 'fast-output'),
+      gzipLevel: '6',
+    });
+    const baselineBytes = await readFile(baseline.archivePath);
+    const fastBytes = await readFile(fast.archivePath);
+    assert.deepEqual(readTarMembers(gunzipSync(fastBytes)), readTarMembers(gunzipSync(baselineBytes)));
+    const checksum = createHash('sha256').update(fastBytes).digest('hex');
+    assert.equal(await readFile(fast.checksumPath, 'utf8'), `${checksum}  ${path.basename(fast.archivePath)}\n`);
+    await assert.rejects(packageFixture(fixture, { gzipLevel: '0' }), /CLI gzip level must be 6 or 9/);
+  });
+});
+
 test('preserves conflicting nested dependency versions and terminates cyclic dependency traversal', async () => {
   await withFixture(async (fixture) => {
     const result = await packageFixture(fixture);

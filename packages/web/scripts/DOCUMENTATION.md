@@ -17,6 +17,10 @@
 
 Skynex CLI and Neurox have their own installation and update workflows. Application installation leaves their files, configuration, and data under user control.
 
+### Why the benchmark can select gzip level 6
+
+`SKYNEX_CLI_GZIP_LEVEL=6` trades a slightly larger archive for less compression time in the release benchmark. Normal packaging keeps level 9. Both paths use the same tar format and calculate the checksum from the final archive.
+
 ### Why rollback stays within the application install
 
 The standalone installer owns the managed application directory and its launchers. Restoring broader user directories could overwrite unrelated tools or data, so rollback touches only application files it owns.

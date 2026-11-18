@@ -16,6 +16,7 @@ on:
           - publish
           - benchmark-baseline
           - benchmark-shared
+          - benchmark-fast
 
 permissions:
   contents: read
@@ -106,6 +107,7 @@ jobs:
       needs.prepare-release.result == 'success' &&
       (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
        inputs.mode == 'benchmark-baseline' ||
+       inputs.mode == 'benchmark-fast' ||
        inputs.mode == 'publish' && needs.create-release.result == 'success')
     runs-on: windows-2022
     permissions:
@@ -123,6 +125,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Get Bun version
+        if: inputs.mode == 'benchmark-fast'
+        id: bun_version
+        shell: bash
+        run: echo "version=$(bun --version)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
@@ -138,9 +145,20 @@ jobs:
           OPENCHAMBER_PREBUILT_WEB_ASSETS: ${{ github.workspace }}/artifacts/shared-web-assets
         run: node packages/electron/scripts/build-web-assets.mjs --dist-only
       - name: Install dependencies
+        if: inputs.mode != 'benchmark-fast'
         env:
           OPENCHAMBER_PREBUILT_SDK: ${{ inputs.mode == 'benchmark-shared' && '1' || '' }}
         run: bun install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.mode == 'benchmark-fast'
+        with:
+          path: ${{ runner.temp }}/bun-install-cache
+          key: benchmark-fast-bun-copy-v1-${{ runner.os }}-desktop-${{ matrix.arch }}-windows-2022-${{ steps.bun_version.outputs.version }}-${{ hashFiles('bun.lock') }}
+      - name: Install dependencies with download cache
+        if: inputs.mode == 'benchmark-fast'
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-install-cache
+        run: bun install --frozen-lockfile --backend=copyfile
       - name: Set packaged app version
         env:
           VERSION: ${{ needs.prepare-release.outputs.version }}
@@ -208,8 +226,9 @@ jobs:
       !cancelled() &&
       needs.prepare-release.result == 'success' &&
       (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
-       inputs.mode == 'benchmark-baseline' ||
-       inputs.mode == 'publish' && needs.create-release.result == 'success')
+           inputs.mode == 'benchmark-baseline' ||
+           inputs.mode == 'benchmark-fast' ||
+           inputs.mode == 'publish' && needs.create-release.result == 'success')
     permissions:
       contents: read
     strategy:
@@ -288,16 +307,30 @@ jobs:
         working-directory: packages/electron
         env:
           OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+          BENCHMARK_MODE: ${{ inputs.mode }}
+          DEBUG: ${{ (inputs.mode == 'benchmark-fast' || inputs.mode == 'benchmark-baseline') && 'electron-builder' || '' }}
         run: |
           set -euo pipefail
-          bun run prepare:opencode-cli
-          bun run verify:opencode-cli
-          bun run prepare:ripgrep
-          bun run bundle:main
-          bun run rebuild:native
-          node ./scripts/package.mjs --linux --${{ matrix.arch }} --publish=never
-          bun run verify:opencode-cli:packaged
-          bun run verify:linux-appimage
+          run_phase() {
+            local name=$1
+            shift
+            local start=$SECONDS
+            "$@"
+            printf 'phase=%s seconds=%s\n' "$name" "$((SECONDS - start))"
+          }
+          run_phase opencode-cli bun run prepare:opencode-cli
+          run_phase opencode-cli-verification bun run verify:opencode-cli
+          run_phase ripgrep bun run prepare:ripgrep
+          run_phase main-bundle bun run bundle:main
+          run_phase native-rebuild bun run rebuild:native
+          if [[ "$BENCHMARK_MODE" == benchmark-fast ]]; then
+            package_args=(--linux --${{ matrix.arch }} --publish=never --config.deb.compression=gz)
+          else
+            package_args=(--linux --${{ matrix.arch }} --publish=never)
+          fi
+          run_phase linux-packages node ./scripts/package.mjs "${package_args[@]}"
+          run_phase packaged-cli-verification bun run verify:opencode-cli:packaged
+          run_phase appimage-verification bun run verify:linux-appimage
       - name: Validate Linux update manifest
         working-directory: packages/electron
         env:
@@ -330,6 +363,7 @@ jobs:
       needs.prepare-release.result == 'success' &&
       (inputs.mode == 'benchmark-shared' && needs.shared-web-assets.result == 'success' ||
        inputs.mode == 'benchmark-baseline' ||
+       inputs.mode == 'benchmark-fast' ||
        inputs.mode == 'publish' && needs.create-release.result == 'success')
     permissions:
       contents: read
@@ -355,6 +389,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Get Bun version
+        if: inputs.mode == 'benchmark-fast' && matrix.platform == 'win32'
+        id: bun_version
+        shell: bash
+        run: echo "version=$(bun --version)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.14.0'
@@ -377,9 +416,20 @@ jobs:
           OPENCHAMBER_PREBUILT_WEB_ASSETS: ${{ github.workspace }}/artifacts/shared-web-assets
         run: node packages/electron/scripts/build-web-assets.mjs --dist-only
       - name: Install dependencies
+        if: inputs.mode != 'benchmark-fast' || matrix.platform != 'win32'
         env:
           OPENCHAMBER_PREBUILT_SDK: ${{ inputs.mode == 'benchmark-shared' && '1' || '' }}
         run: bun install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.mode == 'benchmark-fast' && matrix.platform == 'win32'
+        with:
+          path: ${{ runner.temp }}/bun-install-cache
+          key: benchmark-fast-bun-copy-v1-${{ runner.os }}-cli-${{ matrix.arch }}-${{ matrix.runner }}-${{ steps.bun_version.outputs.version }}-${{ hashFiles('bun.lock') }}
+      - name: Install dependencies with download cache
+        if: inputs.mode == 'benchmark-fast' && matrix.platform == 'win32'
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-install-cache
+        run: bun install --frozen-lockfile --backend=copyfile
       - name: Build runtime assets
         if: inputs.mode != 'benchmark-shared'
         run: |
@@ -394,6 +444,7 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
           ARCHIVE_ARCH: ${{ matrix.arch }}
           ARCHIVE_PLATFORM: ${{ matrix.platform }}
+          SKYNEX_CLI_GZIP_LEVEL: ${{ inputs.mode == 'benchmark-fast' && '6' || '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -426,7 +477,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: matrix.platform == 'linux' && matrix.arch == 'x64' && (inputs.mode == 'benchmark-baseline' || inputs.mode == 'benchmark-shared')
+        if: matrix.platform == 'linux' && matrix.arch == 'x64' && (inputs.mode == 'benchmark-baseline' || inputs.mode == 'benchmark-shared' || inputs.mode == 'benchmark-fast')
         with:
           name: cli-install-script
           path: scripts/install.sh

@@ -192,7 +192,7 @@ function writeString(buffer, offset, length, value) {
   bytes.copy(buffer, offset);
 }
 
-async function createTar(stageRoot) {
+async function createTar(stageRoot, gzipLevel) {
   const blocks = [];
   async function visit(source, archivePath) {
     const info = await lstat(source);
@@ -231,7 +231,7 @@ async function createTar(stageRoot) {
   }
   await visit(path.join(stageRoot, APP_DIR), APP_DIR);
   blocks.push(Buffer.alloc(1024));
-  return gzipSync(Buffer.concat(blocks), { level: 9, mtime: 0 });
+  return gzipSync(Buffer.concat(blocks), { level: gzipLevel, mtime: 0 });
 }
 
 async function verifyOutput(outputDir, archivePath, checksumPath) {
@@ -255,7 +255,15 @@ export async function stageCliRuntime({ webRoot, outputRoot, platform = process.
   return { outputRoot: output, appRoot: path.join(output, APP_DIR) };
 }
 
-export async function packageCliRuntime({ webRoot, outputDir, platform = process.platform, arch = process.arch, version }) {
+export async function packageCliRuntime({
+  webRoot,
+  outputDir,
+  platform = process.platform,
+  arch = process.arch,
+  version,
+  gzipLevel = process.env.SKYNEX_CLI_GZIP_LEVEL || '9',
+}) {
+  if (gzipLevel !== '6' && gzipLevel !== '9') throw new Error('CLI gzip level must be 6 or 9');
   if (platform !== process.platform || arch !== process.arch) throw new Error(`Cannot package native runtime for cross-target ${platform}/${arch} on ${process.platform}/${process.arch}`);
   const webReal = await realpath(webRoot);
   const output = path.resolve(outputDir);
@@ -276,7 +284,7 @@ export async function packageCliRuntime({ webRoot, outputDir, platform = process
   await mkdir(stagedOutput);
   try {
     await buildRuntime({ webRoot: webReal, stageRoot: stagedOutput, platform, arch, version });
-    const archive = await createTar(stagedOutput);
+    const archive = await createTar(stagedOutput, Number(gzipLevel));
     const digest = createHash('sha256').update(archive).digest('hex');
     await mkdir(output, { recursive: true });
     await verifyOutput(output, archivePath, checksumPath);
