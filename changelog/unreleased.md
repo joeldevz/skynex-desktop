@@ -1,20 +1,7 @@
 ---
-title: Workspace chats and spoken summaries
+title:
 ---
 
 ## App
-
-### New
-- **Workspaces:** Start a general chat that knows about every linked folder. Reopen it from the workspace history, or start a chat for a specific folder.
-- **Chat:** Play a short spoken summary of a long reply. You can replay the summary without generating it again.
-
-### Improvements
-- **Usage:** See usage grouped by workspace. Totals include older conversations and those outside the recent session list.
-- Workspaces: If a saved agent is unavailable, the composer shows which agent will be used and lets you choose a different one before sending.
-- About: See the Skynex CLI version reported by the connected server when it is available.
-
-### Fixes
-- Chat: `/compact` appears in command suggestions.
-- Installation: The Skynex App installer no longer installs or changes companion tools.
 
 ## VS Code
