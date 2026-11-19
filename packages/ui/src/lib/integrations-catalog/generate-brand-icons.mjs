@@ -90,6 +90,11 @@ const BRANDS = {
   gusto: 'gusto',
   make: 'make',
   ifttt: 'ifttt',
+  socket: 'socket',
+  elastic: 'elastic',
+  paypal: 'paypal',
+  wix: 'wix',
+  algolia: 'algolia',
 };
 
 /** simple-icons' own title → slug rule, for entries without an explicit slug. */

@@ -44,7 +44,8 @@ describe('integrations catalog registry', () => {
       expect(hasRemote || hasLocal).toBe(true);
       expect(hasRemote && hasLocal).toBe(false);
       if (mcp.remote) {
-        expect(/^https:\/\//.test(mcp.remote.url)).toBe(true);
+        const startsWithInput = entry.inputs?.some(({ id }) => mcp.remote?.url.startsWith(`{${id}}/`)) ?? false;
+        expect(/^https:\/\//.test(mcp.remote.url) || startsWithInput).toBe(true);
         if (mcp.auth === 'token') {
           expect(mcp.remote.tokenHeader).toBeDefined();
           expect(/^https:\/\//.test(mcp.tokenHelpUrl ?? '')).toBe(true);

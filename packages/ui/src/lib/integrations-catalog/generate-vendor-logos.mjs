@@ -19,9 +19,15 @@ const SIZE = 128;
 
 /** Catalog entry id → the vendor's own icon URL. */
 const LOGOS = {
+  semgrep: 'https://github.com/semgrep.png?size=256',
+  sonarqube: 'https://github.com/SonarSource.png?size=256',
+  dynatrace: 'https://github.com/Dynatrace.png?size=256',
+  klaviyo: 'https://github.com/klaviyo.png?size=256',
+  brightdata: 'https://github.com/brightdata.png?size=256',
   amplitude: 'https://amplitude.com/nextjs-public/favicon/apple-touch-icon.png',
   ashby: 'https://www.ashbyhq.com/icon.png',
   attio: 'https://github.com/attio.png?size=256',
+  apify: 'https://github.com/apify.png?size=256',
   aws: 'https://a0.awsstatic.com/libra-css/images/site/touch-icon-iphone-114-smile.png',
   axiom: 'https://axiom.co/apple-touch-icon.png',
   azure: 'https://learn.microsoft.com/apple-touch-icon.png',

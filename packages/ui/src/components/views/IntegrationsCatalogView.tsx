@@ -204,6 +204,20 @@ const COMPONENT_ICON = {
   extension: 'apps',
 } satisfies Record<CatalogComponent['kind'], IconName>;
 
+/** Rows a category shows on the browse page before "Show all". */
+const SECTION_PREVIEW_SIZE = 4;
+
+/** Where each decorative featured mark sits in the hero art, in percent. */
+const HERO_TILE_POSITIONS = [
+  { start: 10, top: 16 },
+  { start: 38, top: 8 },
+  { start: 22, top: 56 },
+  { start: 58, top: 48 },
+  { start: 74, top: 12 },
+] as const;
+
+type CatalogView = 'discover' | 'installed';
+
 export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: () => void } = {}): React.ReactNode {
   const { t } = useI18n();
   const open = useUIStore((state) => state.isIntegrationsCatalogOpen);
@@ -247,6 +261,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
     scroller.scrollTop = selectedId ? 0 : browseScrollTopRef.current;
   }, [selectedId]);
   const [query, setQuery] = React.useState('');
+  const [view, setView] = React.useState<CatalogView>('discover');
   /** The category chip the browse view is narrowed to; null shows every section. */
   const [category, setCategory] = React.useState<CatalogCategory | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -269,6 +284,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
       setPendingSignInId(null);
       browseScrollTopRef.current = 0;
       setQuery('');
+      setView('discover');
       setCategory(null);
       setBusyId(null);
       setConfirm(null);
@@ -677,6 +693,12 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium text-foreground">{entry.name}</span>
+          {entry.verified ? (
+            <Icon name="verified-badge" className="size-3.5 shrink-0 text-[var(--status-info)]" aria-label={t('integrationsCatalog.detail.official')} />
+          ) : null}
+          {catalogMcpComponent(entry)?.auth === 'oauth' ? (
+            <span className="shrink-0 rounded-full bg-[var(--surface-muted)] px-1.5 typography-micro text-muted-foreground">{t('integrationsCatalog.status.oauth')}</span>
+          ) : null}
           {entry.status === 'beta' ? (
             <span className="shrink-0 rounded-full bg-[var(--surface-muted)] px-1.5 typography-micro text-muted-foreground">{t('integrationsCatalog.status.beta')}</span>
           ) : null}
@@ -696,6 +718,48 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
   const entriesIn = (target: CatalogCategory): CatalogEntry[] =>
     CATALOG_ENTRIES.filter((entry) => entry.categories.includes(target));
 
+  const renderHero = (): React.ReactNode => {
+    const [featuredId, ...decorativeIds] = CATALOG_FEATURED_IDS;
+    const featured = featuredId ? getCatalogEntry(featuredId) : undefined;
+    if (!featured) return null;
+    const decorative = decorativeIds.flatMap((id) => {
+      const entry = getCatalogEntry(id);
+      return entry ? [entry] : [];
+    }).slice(0, HERO_TILE_POSITIONS.length);
+    return (
+      <section className="oc-tile mb-10 flex flex-wrap overflow-hidden rounded-2xl" aria-label={t('integrationsCatalog.featured.single')}>
+        <div
+          aria-hidden
+          className="relative min-h-44 flex-[1.3_1_18rem] overflow-hidden bg-[radial-gradient(circle_at_30%_60%,color-mix(in_srgb,var(--primary)_32%,transparent),transparent_72%)]"
+        >
+          {decorative.map((entry, index) => (
+            <span
+              key={entry.id}
+              className="absolute shadow-lg"
+              style={{ insetInlineStart: `${HERO_TILE_POSITIONS[index].start}%`, top: `${HERO_TILE_POSITIONS[index].top}%` }}
+            >
+              <BrandTile entry={entry} size="md" />
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-[1_1_16rem] flex-col justify-center gap-2 p-6">
+          <span className="typography-micro text-muted-foreground">{t('integrationsCatalog.featured.single')}</span>
+          <div className="flex items-center gap-2">
+            <BrandTile entry={featured} size="sm" />
+            <h2 className="text-lg font-semibold text-foreground">{featured.name}</h2>
+          </div>
+          <p className="line-clamp-3 text-sm text-muted-foreground">{t(featured.detailsKey)}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {renderHeaderActions(featured)}
+            <Button variant="ghost" size="lg" onClick={() => showEntry(featured.id)}>
+              {t('integrationsCatalog.action.details')}
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   const renderBrowseSections = (): React.ReactNode => {
     if (searchResults) {
       return searchResults.length === 0 ? (
@@ -707,140 +771,109 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
         </section>
       );
     }
+    if (view === 'installed') {
+      return installedEntries.length === 0 ? (
+        <p className="py-16 text-center text-sm text-muted-foreground">{t('integrationsCatalog.rail.installedEmpty')}</p>
+      ) : (
+        <section>
+          <SectionHeading title={t('integrationsCatalog.filter.installed')} count={installedEntries.length} />
+          {renderRows(installedEntries)}
+        </section>
+      );
+    }
     if (category) {
       const entries = entriesIn(category);
       return (
         <section>
+          <Button variant="ghost" size="sm" className="-ms-2 mb-3 text-muted-foreground" onClick={() => setCategory(null)}>
+            <Icon name="arrow-left" className="size-4" />
+            {t('integrationsCatalog.category.all')}
+          </Button>
           <SectionHeading title={t(CATEGORY_LABEL_KEY[category])} count={entries.length} />
           {renderRows(entries)}
         </section>
       );
     }
-    const featured = CATALOG_FEATURED_IDS.flatMap((id) => {
-      const entry = getCatalogEntry(id);
-      return entry ? [entry] : [];
-    });
     return (
-      <div className="flex flex-col gap-10">
-        <section>
-          <SectionHeading title={t('integrationsCatalog.section.featured')} />
-          {renderRows(featured)}
-        </section>
-        {CATALOG_CATEGORY_ORDER.map((target) => {
-          const entries = entriesIn(target);
-          if (entries.length === 0) return null;
-          return (
-            <section key={target}>
-              <h2 className="border-b border-[var(--interactive-border)] pb-2.5">
-                <button
-                  type="button"
-                  onClick={() => setCategory(target)}
-                  className="group/heading inline-flex items-center gap-1 text-base font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] rounded-sm"
-                >
-                  {t(CATEGORY_LABEL_KEY[target])}
-                  <span className="ms-1 text-sm font-normal text-muted-foreground">{entries.length}</span>
-                  <Icon name="arrow-right-s" className="size-4 text-muted-foreground transition-transform group-hover/heading:translate-x-0.5 rtl:group-hover/heading:-translate-x-0.5" />
-                </button>
-              </h2>
-              {renderRows(entries)}
-            </section>
-          );
-        })}
+      <div>
+        {renderHero()}
+        <div className="flex flex-col gap-9">
+          {CATALOG_CATEGORY_ORDER.map((target) => {
+            const entries = entriesIn(target);
+            if (entries.length === 0) return null;
+            return (
+              <section key={target}>
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-base font-semibold text-foreground">{t(CATEGORY_LABEL_KEY[target])}</h2>
+                  <span className="text-sm text-muted-foreground">{entries.length}</span>
+                  {entries.length > SECTION_PREVIEW_SIZE ? (
+                    <button
+                      type="button"
+                      onClick={() => setCategory(target)}
+                      className="ms-auto inline-flex items-center gap-1 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                    >
+                      {t('integrationsCatalog.section.showAll')}
+                      <Icon name="arrow-right-s" className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+                {renderRows(entries.slice(0, SECTION_PREVIEW_SIZE))}
+              </section>
+            );
+          })}
+        </div>
       </div>
     );
   };
 
   const renderBrowse = (): React.ReactNode => (
-    <div className="mx-auto w-full max-w-[920px] px-8 pb-12">
+    <div className="mx-auto w-full max-w-[920px] px-8 pb-12 pt-6">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <h1 className="min-w-0 text-2xl font-semibold text-foreground">{t('integrationsCatalog.page.title')}</h1>
-        <div className="relative w-full max-w-xs">
-          <Icon
-            name="search"
-            className="pointer-events-none absolute inset-s-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('integrationsCatalog.search.placeholder')}
-            aria-label={t('integrationsCatalog.search.placeholder')}
-            className="ps-8"
-          />
+        <div className="oc-recessed flex w-fit gap-0.5 rounded-lg bg-[color-mix(in_srgb,var(--foreground)_4%,transparent)] p-0.5" role="group" aria-label={t('integrationsCatalog.page.title')}>
+          {([
+            ['discover', t('integrationsCatalog.rail.discover')],
+            ['installed', t('integrationsCatalog.filter.installed')],
+          ] as const).map(([target, label]) => (
+            <button
+              key={target}
+              type="button"
+              aria-pressed={view === target}
+              onClick={() => {
+                setView(target);
+                setCategory(null);
+              }}
+              className={cn(
+                'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors [@media(pointer:coarse)]:min-h-11',
+                view === target
+                  ? 'oc-raised bg-[var(--surface-background)] text-foreground dark:bg-[var(--surface-elevated)]'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {label}
+              {target === 'installed' ? <span className="text-xs text-muted-foreground">{installedEntries.length}</span> : null}
+            </button>
+          ))}
         </div>
       </div>
 
-      {searchResults ? null : (
-        <div className="mt-4 flex flex-wrap gap-1.5" role="group" aria-label={t('integrationsCatalog.info.category')}>
-          <Button variant="chip" size="sm" className="rounded-full" aria-pressed={category === null} onClick={() => setCategory(null)}>
-            {t('integrationsCatalog.category.all')}
-          </Button>
-          {CATALOG_CATEGORY_ORDER.map((target) => (
-            <Button
-              key={target}
-              variant="chip"
-              size="sm"
-              className="rounded-full"
-              aria-pressed={category === target}
-              onClick={() => setCategory(category === target ? null : target)}
-            >
-              {t(CATEGORY_LABEL_KEY[target])}
-            </Button>
-          ))}
-        </div>
-      )}
+      <div className="relative mt-4">
+        <Icon
+          name="search"
+          className="pointer-events-none absolute inset-s-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('integrationsCatalog.search.placeholder')}
+          aria-label={t('integrationsCatalog.search.placeholder')}
+          className="ps-9"
+        />
+      </div>
 
       <div className="mt-8">{renderBrowseSections()}</div>
     </div>
-  );
-
-  /** The rail: back to browsing, then every installed integration with its state. */
-  const renderRail = (): React.ReactNode => (
-    <aside className="flex w-56 shrink-0 flex-col border-e border-border/50">
-      <div className="flex-1 overflow-y-auto p-2">
-        <button
-          type="button"
-          onClick={() => showEntry(null)}
-          aria-pressed={!selectedEntry}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start typography-ui-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            !selectedEntry ? 'bg-interactive-selection text-interactive-selection-foreground' : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <Icon name="compass-3" className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">{t('integrationsCatalog.rail.discover')}</span>
-        </button>
-
-        <div className="mt-5 flex items-baseline gap-1.5 px-2 pb-1.5 typography-micro font-medium text-muted-foreground">
-          {t('integrationsCatalog.filter.installed')}
-          <span className="text-muted-foreground/70">{installedEntries.length}</span>
-        </div>
-        {installedEntries.length === 0 ? (
-          <p className="px-2 typography-micro text-muted-foreground/80">{t('integrationsCatalog.rail.installedEmpty')}</p>
-        ) : installedEntries.map((entry) => {
-          const selected = selectedId === entry.id;
-          const status = statusOf(entry);
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => showEntry(entry.id)}
-              aria-pressed={selected}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start typography-ui-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected ? 'bg-interactive-selection text-interactive-selection-foreground' : 'text-foreground/80 hover:text-foreground',
-              )}
-            >
-              <BrandTile entry={entry} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-              {status.tone === 'warning' ? (
-                <span className="size-1.5 shrink-0 rounded-full bg-[var(--status-warning)]" title={status.label} aria-label={status.label} />
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </aside>
   );
 
   /** Token field, picker inputs and prerequisites, shown before the first install. */
@@ -1159,8 +1192,6 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
 
   return (
     <div className="absolute inset-0 z-10 flex bg-background">
-      {renderRail()}
-
       <main
         ref={scrollerRef}
         className="min-w-0 flex-1 overflow-y-auto"

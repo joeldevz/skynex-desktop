@@ -98,7 +98,7 @@ test('the catalog lists entries, filters by category and opens a detail page on 
   const body = browser.document.body;
 
   expect(body.textContent?.includes('Linear')).toBe(true);
-  expect(body.textContent?.includes('Playwright')).toBe(true);
+  expect(body.textContent?.includes('Show all')).toBe(true);
   expect(body.textContent?.includes('Slack')).toBe(false);
 
   // Clicking a card opens that integration's detail page.
@@ -106,26 +106,42 @@ test('the catalog lists entries, filters by category and opens a detail page on 
   if (!linearCard) throw new Error('Linear card missing');
   await act(async () => linearCard.click());
   expect(body.textContent?.includes('Connect Linear so the agent can read your issues')).toBe(true);
-  expect(body.textContent?.includes('Playwright')).toBe(false);
+  expect(body.textContent?.includes('Show all')).toBe(false);
 
   // The detail breadcrumb returns to the grid.
   const back = findClickable([...body.querySelectorAll('nav button')], 'Integrations');
   if (!back) throw new Error('Back button missing');
   await act(async () => back.click());
-  expect(body.textContent?.includes('Playwright')).toBe(true);
+  expect(body.textContent?.includes('Show all')).toBe(true);
 });
 
-test('the category filter narrows the grid', async () => {
-    await act(async () => root.render(<I18nProvider><IntegrationsCatalogView /></I18nProvider>));
-    const body = browser.document.body;
-    const codeChip = [...body.querySelectorAll('button')].find((button) => button.textContent?.startsWith('Code'));
-    if (!codeChip) throw new Error('Category chip missing');
-    await act(async () => codeChip.click());
-    expect(body.textContent?.includes('GitHub')).toBe(true);
-    expect(body.textContent?.includes('Playwright')).toBe(false);
-  });
+test('discover previews each category and Show all opens the full category', async () => {
+  await act(async () => root.render(<I18nProvider><IntegrationsCatalogView /></I18nProvider>));
+  const body = browser.document.body;
+  const sectionOf = (title: string) => [...body.querySelectorAll('main section')]
+    .find((section) => section.querySelector('h2')?.textContent === title);
+  const code = sectionOf('Code');
+  if (!code) throw new Error('Code section missing');
+  const previewRows = code.querySelectorAll('[role="button"]').length;
+  expect(previewRows).toBe(4);
+  expect(body.textContent?.includes('Featured')).toBe(true);
 
-test('the rail lists installed integrations and opens one', async () => {
+  const showAll = [...code.querySelectorAll('button')].find((button) => button.textContent?.includes('Show all'));
+  if (!showAll) throw new Error('Show all missing');
+  await act(async () => showAll.click());
+  expect(body.querySelectorAll('main [role="button"]').length).toBeGreaterThan(previewRows);
+  expect(body.textContent?.includes('Featured')).toBe(false);
+
+  const back = [...body.querySelectorAll('main button')].find((button): button is HTMLElement =>
+    button instanceof HTMLElement && button.textContent === 'All');
+  if (!back) throw new Error('Back to all missing');
+  await act(async () => back.click());
+  expect(sectionOf('Code')?.querySelectorAll('[role="button"]').length).toBe(4);
+});
+
+const installedToggle = () => findClickable([...browser.document.body.querySelectorAll('button[aria-pressed]')], 'Installed');
+
+test('the Installed view lists installed integrations and opens one', async () => {
   useMcpConfigStore.setState({
     mcpServers: [{
       name: 'atlassian',
@@ -136,12 +152,16 @@ test('the rail lists installed integrations and opens one', async () => {
   });
   await act(async () => root.render(<I18nProvider><IntegrationsCatalogView /></I18nProvider>));
   const body = browser.document.body;
-  const rail = body.querySelector('aside');
-  if (!rail) throw new Error('Rail missing');
-  expect(rail.textContent?.includes('Installed1')).toBe(true);
-  expect(rail.textContent?.includes('Linear')).toBe(false);
+  const toggle = installedToggle();
+  if (!toggle) throw new Error('Installed toggle missing');
+  expect(toggle.textContent).toBe('Installed1');
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  const list = body.querySelector('main section');
+  if (!list) throw new Error('Installed list missing');
+  expect(list.textContent?.includes('Linear')).toBe(false);
 
-  const atlassian = [...rail.querySelectorAll('button')].find((button) => button.textContent?.includes('Atlassian'));
+  const atlassian = findClickable([...list.querySelectorAll('[role="button"]')], 'Atlassian');
   if (!atlassian) throw new Error('Installed entry missing');
   await act(async () => atlassian.click());
   expect(body.querySelector('main h1')?.textContent).toBe('Atlassian');
@@ -203,8 +223,8 @@ test('a same-named skill outside the catalog folder does not count as installed'
     ],
   });
   await act(async () => root.render(<I18nProvider><IntegrationsCatalogView /></I18nProvider>));
-  const railText = () => browser.document.body.querySelector('aside')?.textContent ?? '';
-  expect(railText().includes('Installed0')).toBe(true);
+  const installedCount = () => installedToggle()?.textContent ?? '';
+  expect(installedCount()).toBe('Installed0');
 
   // The catalog's own copy, in the user's OpenCode skills folder, counts.
   await act(async () => useSkillsStore.setState({
@@ -213,7 +233,7 @@ test('a same-named skill outside the catalog folder does not count as installed'
       { id: 'pdf', name: 'pdf', path: '/home/user/.config/opencode/skills/pdf/SKILL.md', scope: 'user', source: 'opencode' },
     ],
   }));
-  expect(railText().includes('Installed1')).toBe(true);
+  expect(installedCount()).toBe('Installed1');
 });
 
 test('a detail page opens at its top and going back restores the browse scroll', async () => {

@@ -13,6 +13,10 @@ The Integrations page (sidebar header, next to Archive) offers a hand-picked lis
 | `../i18n/messages/integrations-catalog.i18n.ts` | Page strings and each entry's `description` and `details`, all locales. |
 | `../../components/views/IntegrationsCatalogView.tsx` | The page: browse, detail, install and uninstall. |
 
+## Browse layout
+
+The page has a Discover/Installed toggle beside the title instead of a side rail. Discover shows the featured banner, then each category with its first four entries and a Show all link that opens the whole category. Installed lists every entry with any part installed. Rows show the official mark for `verified` entries and an OAuth label for entries whose MCP server signs in through OAuth. Search covers the whole catalog in both views.
+
 ## Entry model
 
 - An entry bundles components: at most one MCP server, plus OpenCode plugins, skills, or an OpenChamber extension. The entry id is also the MCP server name in the user's config.
@@ -58,7 +62,7 @@ Done when every candidate has a verdict, and every entry you add matches its ver
 
 ## Adding an entry
 
-- Place it in `registry.ts` next to entries of the same auth kind, with one or two categories from `CATALOG_CATEGORY_ORDER`. `CATALOG_FEATURED_IDS` is the opening section; change it only when asked.
+- Place it in `registry.ts` next to entries of the same auth kind, with one or two categories from `CATALOG_CATEGORY_ORDER`. `CATALOG_FEATURED_IDS` feeds the opening banner: its first entry is the featured integration and the next five are the banner's decorative marks. Change it only when asked.
 - Bundle the vendor's own skills only when they work with the server: the agent uses them alongside its tools (Render deploy and debug, the Exa research orchestrator). Skip skills that teach calling the vendor's REST API by hand, and framework-by-framework families. A skill installs under its folder basename, so the basename must name the skill on its own and stay unique (PostHog's `all` and `api` folders cannot be bundled). Its frontmatter `name` must be a plain kebab-case name OpenCode accepts: Webflow's `webflow-mcp:site-audit` style names are skipped. Skip skills that drive a vendor CLI or their own curl scripts (Tavily, Browserbase, Parallel research, Axiom SRE); the vendor's MCP server is what the entry installs. Set `skillName` when the SKILL.md frontmatter name differs from the folder.
 - Plugins pin a major version in `spec` and carry `license`.
 - Write `integrationsCatalog.entry.<id>.description` (one line: what the agent does with it) and `.details` (two or three sentences, mention bundled skills) in every locale block; `locale-ui-patterns` owns translation.
@@ -83,5 +87,6 @@ Probed, with the reason, so they are not retried blind. Recheck when the reason 
 | Google Workspace | Developer Preview program, plus a Google Cloud project and OAuth client per user, or our own verified Google app. |
 | Google Cloud (BigQuery and others) | GA, but the same OAuth-client requirement as Workspace. |
 | Microsoft 365 | No public hosted server for third-party clients. |
+| Brave Search | Official server is local and takes its key through an environment variable, which catalog entries cannot set; Search Providers already covers Brave. |
 | Anthropic office skills (docx, xlsx, pptx, pdf) | Proprietary license forbids redistribution and use outside Anthropic's products. |
 | Figma skill | Kept, with `termsUrl`: governed by Figma Developer Terms. |
