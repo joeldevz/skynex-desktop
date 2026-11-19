@@ -3,7 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Window } from 'happy-dom';
 
-import { useWebviewFocusGuard } from './useWebviewFocusGuard';
+import { requireWebviewKeyboardFocus, useWebviewFocusGuard } from './useWebviewFocusGuard';
 
 type GuardAgentAction = ReturnType<typeof useWebviewFocusGuard>;
 
@@ -113,6 +113,16 @@ describe('webview focus guard', () => {
       holdPageFocus();
       webview.focus();
       expect(document.activeElement).toBe(webview);
+    });
+    expect(document.activeElement).toBe(composer);
+  });
+
+  test('a keyboard action requires the webview to be the host’s active element', async () => {
+    await guardAgentAction(async (holdPageFocus) => {
+      holdPageFocus();
+      expect(() => requireWebviewKeyboardFocus(webview)).toThrow('panel did not gain keyboard focus');
+      webview.focus();
+      requireWebviewKeyboardFocus(webview);
     });
     expect(document.activeElement).toBe(composer);
   });

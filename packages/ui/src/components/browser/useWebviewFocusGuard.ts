@@ -16,6 +16,12 @@ export const isStageShown = (stage: HTMLElement): boolean => {
     && stage.checkVisibility({ opacityProperty: true, visibilityProperty: true });
 };
 
+export const requireWebviewKeyboardFocus = (webview: HTMLElement): void => {
+  if (webview.ownerDocument.activeElement !== webview) {
+    throw new Error('The browser panel did not gain keyboard focus. Focus the panel and retry the key press.');
+  }
+};
+
 /** The element that really holds focus, looking through shadow roots. */
 const focusTarget = (event: FocusEvent): HTMLElement | null => {
   const target = event.composedPath()[0];

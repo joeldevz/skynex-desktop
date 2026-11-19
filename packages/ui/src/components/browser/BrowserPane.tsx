@@ -70,7 +70,7 @@ import {
 import { BrowserEmptyState } from './BrowserEmptyState';
 import { useAnnotationAttach, useAnnotationOverlayLabels } from './useAnnotationAttach';
 import { readEventPayload, useWebviewNavigation } from './useWebviewNavigation';
-import { isStageShown, useWebviewFocusGuard, type HoldPageFocus } from './useWebviewFocusGuard';
+import { isStageShown, requireWebviewKeyboardFocus, useWebviewFocusGuard, type HoldPageFocus } from './useWebviewFocusGuard';
 
 export type BrowserPaneProps = {
   initialUrl: string;
@@ -595,13 +595,14 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
       // the view that really has focus, so the page takes it for the key alone
       // and hands it back to the app right after.
       const releaseFocus = holdPageFocus();
-      webview.focus({ preventScroll: true });
       try {
+        webview.focus({ preventScroll: true });
         const selector = asOptionalString(parameters.selector);
         if (selector) {
           const focused = pageStatusResultSchema.parse(await webview.executeJavaScript(buildFocusScript({ selector }), true));
           if (!focused.ok) throw new Error(focused.error);
         }
+        requireWebviewKeyboardFocus(webview);
         await invokeDesktopCommand('desktop_browser_dispatch_input', { webContentsId: webview.getWebContentsId(), kind: 'key', key });
       } finally {
         releaseFocus();
