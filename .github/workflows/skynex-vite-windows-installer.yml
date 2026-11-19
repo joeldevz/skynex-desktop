@@ -1,4 +1,4 @@
-name: Skynex Vite Windows installer benchmark
+name: Skynex Windows x64 beta installers
 
 on:
   push:
@@ -12,20 +12,20 @@ permissions:
 
 jobs:
   installer:
-    name: Windows x64 ${{ matrix.mode }} trial ${{ matrix.trial }}
+    name: Windows x64 0.1.4-beta.${{ matrix.beta }}
     runs-on: windows-2022
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        mode: [vite7, vite8]
-        trial: [1, 2]
+        beta: [1, 2]
     defaults:
       run:
         shell: bash
     env:
       OPENCHAMBER_TARGET_ARCH: x64
       ELECTRON_BUILDER_ARCH: x64
+      BETA_VERSION: 0.1.4-beta.${{ matrix.beta }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,7 +39,6 @@ jobs:
           test "$(node -p "process.platform + '-' + process.arch")" = win32-x64
           bun install --frozen-lockfile
       - name: Install isolated Vite 8 toolchain
-        if: matrix.mode == 'vite8'
         run: |
           mkdir .vite-benchmark
           cp scripts/vite-windows-benchmark.mjs .vite-benchmark/benchmark.mjs
@@ -47,25 +46,30 @@ jobs:
           npm ci --prefix .vite-benchmark --ignore-scripts --no-audit --no-fund
       - name: Build and stage web assets
         env:
-          VITE_MODE: ${{ matrix.mode }}
-          TRIAL: ${{ matrix.trial }}
+          TRIAL: ${{ matrix.beta }}
         run: |
-          if [[ "$VITE_MODE" == vite7 ]]; then
-            bun run --cwd packages/electron build:web-assets
-          else
-            bun run --cwd packages/sdk build
-            bun run extensions:build
-            node --max-old-space-size=6144 .vite-benchmark/benchmark.mjs parallel "$TRIAL"
-            test ! -e packages/electron/resources/web-dist
-            cp -R ".vite-benchmark/parallel-$TRIAL" packages/electron/resources/web-dist
-          fi
+          node --input-type=commonjs - <<'NODE'
+          const fs = require('node:fs');
+          const version = process.env.BETA_VERSION;
+          if (!/^0\.1\.4-beta\.[12]$/.test(version)) throw Error('Unexpected beta version');
+          for (const file of ['package.json', 'packages/electron/package.json', 'packages/web/package.json', 'packages/ui/package.json']) {
+            const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            pkg.version = version;
+            fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+          }
+          NODE
+          bun run --cwd packages/sdk build
+          bun run extensions:build
+          node --max-old-space-size=6144 .vite-benchmark/benchmark.mjs parallel "$TRIAL"
+          test ! -e packages/electron/resources/web-dist
+          cp -R ".vite-benchmark/parallel-$TRIAL" packages/electron/resources/web-dist
       - name: Prepare native payload and bundle Electron
         working-directory: packages/electron
         run: |
           bun run prepare:opencode-cli
           bun run verify:opencode-cli
           bun run prepare:ripgrep
-          bun run bundle:main
+          OPENCHAMBER_UPDATER_E2E_BUILD=1 bun run bundle:main
           node ./scripts/rebuild-native.mjs
       - name: Build Windows NSIS installer
         working-directory: packages/electron
@@ -83,9 +87,11 @@ jobs:
           version=$(node -p "require('./package.json').version")
           installer="dist/Skynex-$version-win-x64.exe"
           test -s "$installer.blockmap"
+          if [[ ! -f dist/latest.yml ]]; then
+            cp dist/beta.yml dist/latest.yml
+          fi
           node ./scripts/verify-update-manifest.mjs dist/latest.yml "$version" "$installer"
       - name: Smoke-test the installed Windows app
-        if: matrix.mode == 'vite8'
         shell: pwsh
         working-directory: packages/electron
         run: |
@@ -207,11 +213,11 @@ jobs:
           }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: skynex-windows-x64-${{ matrix.mode }}-${{ matrix.trial }}
+          name: skynex-windows-x64-${{ env.BETA_VERSION }}
           path: |
             packages/electron/dist/Skynex-*-win-x64.exe
             packages/electron/dist/Skynex-*-win-x64.exe.blockmap
             packages/electron/dist/latest.yml
           compression-level: 0
           if-no-files-found: error
-          retention-days: 2
+          retention-days: 7
