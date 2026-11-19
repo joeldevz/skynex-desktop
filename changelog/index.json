@@ -7301,6 +7301,27 @@
     "vscode": null
   },
   {
+    "version": "0.1.5",
+    "date": "2026-11-19",
+    "title": "Windows and Linux x64 downloads",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": [
+        "**Downloads:** Skynex App 0.1.5 includes desktop installers and a standalone CLI for Windows and Linux x64.",
+        "**ARM64:** This release has no ARM64 packages. The Windows and Linux ARM64 downloads for Skynex App 0.1.4 remain available."
+      ]
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.4",
     "date": "2026-11-18",
     "title": "Workspace chats and spoken summaries",
