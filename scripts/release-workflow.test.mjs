@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import yaml from 'yaml';
@@ -32,6 +35,11 @@ test('Skynex release uploads have write access while build-only jobs stay read-o
   const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
 
   assert.equal(desktopWorkflow.permissions.contents, 'read');
+  assert.equal(desktopWorkflow.jobs['create-release'].if,
+    "${{ github.repository == 'joeldevz/skynex-desktop' && github.ref == 'refs/heads/skynex' }}");
+  for (const [name, job] of Object.entries(desktopWorkflow.jobs)) {
+    if (name !== 'create-release') assert.ok([job.needs].flat().includes('create-release'), name);
+  }
   for (const name of ['create-release', 'build-windows', 'publish']) {
     assert.equal(desktopWorkflow.jobs[name].permissions.contents, 'write');
   }
@@ -40,18 +48,74 @@ test('Skynex release uploads have write access while build-only jobs stay read-o
   }
 });
 
-test('Skynex publication builds and requires only Windows and Linux CLI packages', () => {
+test('Skynex release selects and validates x64 by default and both ARM64 platforms on opt-in', (t) => {
   const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
   const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
-  const targets = desktopWorkflow.jobs['build-cli-runtime'].strategy.matrix.include;
-  assert.deepEqual(targets.map(({ platform, arch }) => `${platform}-${arch}`), [
-    'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64',
-  ]);
-  assert.ok(targets.every(({ runner }) => !runner.startsWith('macos')));
-
+  const input = desktopWorkflow.on.workflow_dispatch.inputs.include_arm64;
+  assert.equal(input.type, 'boolean');
+  assert.equal(input.default, false);
+  const selection = desktopWorkflow.jobs['create-release'].steps.find(({ id }) => id === 'build_targets');
+  const staging = desktopWorkflow.jobs.publish.steps.find(({ name }) => name === 'Prepare release assets');
   const inventory = desktopWorkflow.jobs.publish.steps.find(({ name }) => name === 'Verify complete release asset inventory');
-  assert.ok(!inventory.run.includes('darwin'));
-  for (const target of ['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']) {
-    assert.ok(inventory.run.includes(`'${target}'`));
+  for (const step of [selection, staging, inventory]) {
+    assert.equal(step.env.INCLUDE_ARM64, '${{ inputs.include_arm64 }}');
+  }
+  const version = '0.1.4';
+  for (const includeArm64 of [false, true]) {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'skynex-release-'));
+    t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+    const output = path.join(cwd, 'output');
+    const env = { ...process.env, GITHUB_OUTPUT: output, VERSION: version, INCLUDE_ARM64: String(includeArm64) };
+    const run = (script) => spawnSync('bash', ['-e', '-c', script], { cwd, env, encoding: 'utf8' });
+    const selected = run(selection.run);
+    assert.equal(selected.status, 0, selected.stderr);
+    const matrices = Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map((line) => {
+      const [name, json] = line.split('=');
+      return [name, JSON.parse(json).include];
+    }));
+    const arches = includeArm64 ? ['x64', 'arm64'] : ['x64'];
+    for (const [matrix, job] of [['windows', 'build-windows'], ['linux', 'build-linux'], ['cli', 'build-cli-runtime']]) {
+      assert.equal(desktopWorkflow.jobs[job].strategy.matrix, `\${{ fromJSON(needs.create-release.outputs.${matrix}_matrix) }}`);
+      assert.equal(desktopWorkflow.jobs['create-release'].outputs[`${matrix}_matrix`], `\${{ steps.build_targets.outputs.${matrix} }}`);
+    }
+    assert.deepEqual(matrices.windows.map(({ arch }) => arch), arches);
+    assert.deepEqual(matrices.linux.map(({ arch }) => arch), arches);
+    assert.deepEqual(matrices.cli.map(({ platform, arch }) => `${platform}-${arch}`),
+      ['linux', 'win32'].flatMap((platform) => arches.map((arch) => `${platform}-${arch}`)));
+    const write = (file, data = 'fixture') => {
+      fs.mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true });
+      fs.writeFileSync(path.join(cwd, file), data);
+    };
+    const windows = [];
+    for (const arch of arches) {
+      const manifest = `version: ${version}\n`;
+      const installer = `Skynex-${version}-win-${arch}.exe`;
+      windows.push(installer, `${installer}.blockmap`);
+      write(`artifacts/windows/windows-manifest-${arch}/latest.yml`, manifest);
+      const linux = arch === 'x64'
+        ? ['x86_64', 'amd64', 'x86_64', 'latest-linux.yml']
+        : ['arm64', 'arm64', 'aarch64', 'latest-linux-arm64.yml'];
+      const [app, deb, rpm, name] = linux;
+      for (const file of [`Skynex-${version}-linux-${app}.AppImage`, `Skynex-${version}-linux-${deb}.deb`, `Skynex-${version}-linux-${rpm}.rpm`, name]) {
+        write(`artifacts/linux/linux-release-${arch}/${file}`, manifest);
+      }
+      for (const platform of ['linux', 'win32']) {
+        const archive = `artifacts/cli/skynex-app-${version}-${platform}-${arch}.tar.gz`;
+        write(archive);
+        write(`${archive}.sha256`);
+      }
+    }
+    write('scripts/install.sh');
+    write('artifacts/cli/skynex-app-install.mjs');
+    const staged = run(staging.run);
+    assert.equal(staged.status, 0, staged.stderr);
+    const assets = [...windows, ...fs.readdirSync(path.join(cwd, 'artifacts/ready'))].map((name) => ({ name, size: 1 }));
+    assert.equal(assets.length, includeArm64 ? 24 : 13);
+    const check = (files) => run(inventory.run.replace("node - <<'NODE'\n",
+      `node - <<'NODE'\nglobalThis.fetch = async () => ({ ok: true, json: async () => (${JSON.stringify({ draft: true, assets: files })}) });\n`));
+    const complete = check(assets);
+    assert.equal(complete.status, 0, complete.stderr);
+    assert.match(check(assets.slice(1)).stderr, /Expected exactly one/);
+    assert.match(check([...assets, { name: 'unexpected.tar.gz', size: 1 }]).stderr, /Unexpected release assets/);
   }
 });

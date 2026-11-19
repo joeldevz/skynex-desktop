@@ -4313,6 +4313,13 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.5] - 2026-11-19
+
+### Misc
+
+- **Downloads:** Skynex App 0.1.5 includes desktop installers and a standalone CLI for Windows and Linux x64.
+- **ARM64:** This release has no ARM64 packages. The Windows and Linux ARM64 downloads for Skynex App 0.1.4 remain available.
+
 ## [0.1.4] - 2026-11-18
 
 ### New

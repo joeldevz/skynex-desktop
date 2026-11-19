@@ -7,18 +7,26 @@ on:
         description: 'Version to release (e.g., 0.1.0)'
         required: true
         type: string
+      include_arm64:
+        description: 'Include Windows and Linux ARM64 desktop installers and CLI packages'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   create-release:
+    if: ${{ github.repository == 'joeldevz/skynex-desktop' && github.ref == 'refs/heads/skynex' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
       version: ${{ steps.get_version.outputs.version }}
+      windows_matrix: ${{ steps.build_targets.outputs.windows }}
+      linux_matrix: ${{ steps.build_targets.outputs.linux }}
+      cli_matrix: ${{ steps.build_targets.outputs.cli }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,6 +43,33 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Select build targets
+        id: build_targets
+        env:
+          INCLUDE_ARM64: ${{ inputs.include_arm64 }}
+        run: |
+          node --input-type=commonjs - <<'NODE'
+          const { appendFileSync } = require('node:fs');
+          const matrices = {
+            windows: [{ arch: 'x64' }, { arch: 'arm64' }],
+            linux: [
+              { runner: 'ubuntu-24.04', arch: 'x64', host_arch: 'x86_64', artifact_arch: 'x86_64', deb_arch: 'amd64', rpm_arch: 'x86_64', manifest: 'latest-linux.yml' },
+              { runner: 'ubuntu-24.04-arm', arch: 'arm64', host_arch: 'aarch64', artifact_arch: 'arm64', deb_arch: 'arm64', rpm_arch: 'aarch64', manifest: 'latest-linux-arm64.yml' },
+            ],
+            cli: [
+              { runner: 'ubuntu-24.04', platform: 'linux', arch: 'x64' },
+              { runner: 'ubuntu-24.04-arm', platform: 'linux', arch: 'arm64' },
+              { runner: 'windows-2022', platform: 'win32', arch: 'x64' },
+              { runner: 'windows-11-arm', platform: 'win32', arch: 'arm64' },
+            ],
+          };
+          const includeArm64 = process.env.INCLUDE_ARM64 === 'true';
+          for (const [name, targets] of Object.entries(matrices)) {
+            const include = targets.filter(({ arch }) => arch === 'x64' || includeArm64);
+            appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${JSON.stringify({ include })}\n`);
+          }
+          NODE
 
       - name: Extract changelog for release
         id: release_notes
@@ -63,12 +98,7 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            target: x86_64-pc-windows-msvc
-          - arch: arm64
-            target: aarch64-pc-windows-msvc
+      matrix: ${{ fromJSON(needs.create-release.outputs.windows_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -147,22 +177,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: x64
-            host_arch: x86_64
-            artifact_arch: x86_64
-            deb_arch: amd64
-            rpm_arch: x86_64
-            manifest: latest-linux.yml
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-            host_arch: aarch64
-            artifact_arch: arm64
-            deb_arch: arm64
-            rpm_arch: aarch64
-            manifest: latest-linux-arm64.yml
+      matrix: ${{ fromJSON(needs.create-release.outputs.linux_matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -245,20 +260,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            platform: linux
-            arch: x64
-          - runner: ubuntu-24.04-arm
-            platform: linux
-            arch: arm64
-          - runner: windows-2022
-            platform: win32
-            arch: x64
-          - runner: windows-11-arm
-            platform: win32
-            arch: arm64
+      matrix: ${{ fromJSON(needs.create-release.outputs.cli_matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -349,20 +351,23 @@ jobs:
         with:
           name: cli-installer-bootstrap
           path: artifacts/cli
-      - name: Prepare Windows update manifests
+      - name: Prepare release assets
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
+          INCLUDE_ARM64: ${{ inputs.include_arm64 }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/ready
           cp artifacts/windows/windows-manifest-x64/latest.yml artifacts/ready/latest.yml
-          cp artifacts/windows/windows-manifest-arm64/latest.yml artifacts/ready/latest-arm64.yml
           cp artifacts/linux/linux-release-x64/* artifacts/ready/
-          cp artifacts/linux/linux-release-arm64/* artifacts/ready/
           cp artifacts/cli/* artifacts/ready/
           cp scripts/install.sh artifacts/ready/install.sh
           test "$(grep -c "^version: $VERSION$" artifacts/ready/latest.yml)" -eq 1
-          test "$(grep -c "^version: $VERSION$" artifacts/ready/latest-arm64.yml)" -eq 1
+          if [[ "$INCLUDE_ARM64" == true ]]; then
+            cp artifacts/windows/windows-manifest-arm64/latest.yml artifacts/ready/latest-arm64.yml
+            cp artifacts/linux/linux-release-arm64/* artifacts/ready/
+            test "$(grep -c "^version: $VERSION$" artifacts/ready/latest-arm64.yml)" -eq 1
+          fi
       - name: Upload Linux packages and manifests to draft release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
@@ -377,6 +382,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           VERSION: ${{ needs.create-release.outputs.version }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          INCLUDE_ARM64: ${{ inputs.include_arm64 }}
         run: |
           node - <<'NODE'
           (async () => {
@@ -384,24 +390,33 @@ jobs:
             const expected = [
               `Skynex-${version}-win-x64.exe`,
               `Skynex-${version}-win-x64.exe.blockmap`,
-              `Skynex-${version}-win-arm64.exe`,
-              `Skynex-${version}-win-arm64.exe.blockmap`,
-              'latest.yml', 'latest-arm64.yml',
+               'latest.yml',
               `Skynex-${version}-linux-x86_64.AppImage`,
               `Skynex-${version}-linux-amd64.deb`,
               `Skynex-${version}-linux-x86_64.rpm`,
               'latest-linux.yml',
-              `Skynex-${version}-linux-arm64.AppImage`,
-              `Skynex-${version}-linux-arm64.deb`,
-              `Skynex-${version}-linux-aarch64.rpm`,
-              'latest-linux-arm64.yml',
-              ...['linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64'].flatMap((target) => [
+               ...['linux-x64', 'win32-x64'].flatMap((target) => [
                 `skynex-app-${version}-${target}.tar.gz`,
                 `skynex-app-${version}-${target}.tar.gz.sha256`,
               ]),
               'skynex-app-install.mjs',
-              'install.sh',
-            ];
+               'install.sh',
+             ];
+            if (process.env.INCLUDE_ARM64 === 'true') {
+              expected.push(
+                `Skynex-${version}-win-arm64.exe`,
+                `Skynex-${version}-win-arm64.exe.blockmap`,
+                'latest-arm64.yml',
+                `Skynex-${version}-linux-arm64.AppImage`,
+                `Skynex-${version}-linux-arm64.deb`,
+                `Skynex-${version}-linux-aarch64.rpm`,
+                'latest-linux-arm64.yml',
+                ...['linux-arm64', 'win32-arm64'].flatMap((target) => [
+                  `skynex-app-${version}-${target}.tar.gz`,
+                  `skynex-app-${version}-${target}.tar.gz.sha256`,
+                ]),
+              );
+            }
             const response = await fetch(`https://api.github.com/repos/${repo}/releases/${releaseId}`, {
               headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
             });
