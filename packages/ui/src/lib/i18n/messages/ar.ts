@@ -2947,6 +2947,7 @@ export const dict = {
   'sessionAuth.error.retry': 'إعادة المحاولة',
   'sessionAuth.error.passkeySetupFailed': 'تعذّر إعداد مفتاح المرور.',
   'sessionAuth.error.incorrectPassword': 'كلمة المرور غير صحيحة. حاول مجددًا.',
+  'sessionAuth.error.passwordRequired': 'أدخل كلمة المرور لإلغاء القفل.',
   'sessionAuth.error.unexpectedResponse': 'رد غير متوقع من الخادم.',
   'sessionAuth.error.networkRetry': 'خطأ في الشبكة. تحقق من الاتصال وأعد المحاولة.',
   'sessionAuth.error.passkeySignInCanceled': 'تم إلغاء تسجيل الدخول بمفتاح المرور.',

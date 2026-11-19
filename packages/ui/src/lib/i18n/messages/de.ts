@@ -2724,6 +2724,7 @@ export const dict = {
   'sessionAuth.error.retry': 'Erneut versuchen',
   'sessionAuth.error.passkeySetupFailed': 'Einrichtung des Passkeys fehlgeschlagen.',
   'sessionAuth.error.incorrectPassword': 'Falsches Passwort. Bitte erneut versuchen.',
+  'sessionAuth.error.passwordRequired': 'Gib dein Passwort ein, um zu entsperren.',
   'sessionAuth.error.unexpectedResponse': 'Unerwartete Antwort vom Server.',
   'sessionAuth.error.networkRetry': 'Netzwerkfehler. Verbindung prüfen und erneut versuchen.',
   'sessionAuth.error.passkeySignInCanceled': 'Passkey-Anmeldung wurde abgebrochen.',

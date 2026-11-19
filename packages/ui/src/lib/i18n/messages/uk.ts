@@ -2972,6 +2972,7 @@ export const dict: Record<I18nKey, string> = {
   "sessionAuth.error.retry": "Повторити спробу",
   "sessionAuth.error.passkeySetupFailed": "Помилка налаштування ключа доступу.",
   "sessionAuth.error.incorrectPassword": "Невірний пароль. Спробуйте знову.",
+  "sessionAuth.error.passwordRequired": "Введіть пароль, щоб розблокувати.",
   "sessionAuth.error.unexpectedResponse": "Неочікувана відповідь від сервера.",
   "sessionAuth.error.networkRetry": "Помилка мережі. Перевірте з’єднання та повторіть спробу.",
   "sessionAuth.error.passkeySignInCanceled": "Вхід за ключем доступу скасовано.",

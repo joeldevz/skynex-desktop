@@ -270,18 +270,22 @@ const AuthShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       style={{ fontFamily: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif' }}
     >
       <div className="app-region-drag fixed inset-s-0 top-0 z-20" style={titlebarDragStyle} aria-hidden />
+      {/* A dot grid that fades out toward the edges, and a soft glow of the
+          theme's primary color behind the form. Static: nothing here animates. */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-55"
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
         style={{
-          background: 'radial-gradient(120% 140% at 50% -20%, var(--surface-overlay) 0%, transparent 68%)',
+          backgroundImage: 'radial-gradient(color-mix(in srgb, var(--foreground) 14%, transparent) 1px, transparent 1px)',
+          backgroundSize: '22px 22px',
+          maskImage: 'radial-gradient(60% 60% at 50% 50%, #000 30%, transparent 80%)',
+          WebkitMaskImage: 'radial-gradient(60% 60% at 50% 50%, #000 30%, transparent 80%)',
         }}
       />
       <div
+        aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundColor: 'var(--surface-subtle)',
-          opacity: 0.22,
-        }}
+        style={{ background: 'radial-gradient(35% 40% at 50% 45%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%)' }}
       />
       <div className="app-region-no-drag relative z-10 flex w-full justify-center px-4 py-12 sm:px-6">
         {children}
@@ -639,6 +643,11 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!password) {
+      setErrorMessage(t('sessionAuth.error.passwordRequired'));
+      passwordInputRef.current?.focus();
+      return;
+    }
     await handlePasswordUnlock(false);
   };
 
@@ -917,6 +926,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({
       <AuthShell>
         <div className="flex flex-col items-center gap-6 w-full max-w-xs">
           <div className="flex flex-col items-center gap-1 text-center">
+            <OpenChamberLogo width={48} height={48} className="mb-2" />
             <h1 className="text-xl font-semibold text-foreground">
               {isTunnelLocked ? t('sessionAuth.locked.tunnelTitle') : t('sessionAuth.locked.unlockTitle')}
             </h1>
@@ -947,41 +957,35 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({
                     : t('sessionAuth.actions.usePasskey')}</span>
                 </Button>
               )}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Icon name="lock" className="absolute inset-s-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
-                  <Input
-                    id="openchamber-ui-password"
-                    ref={passwordInputRef}
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder={t('sessionAuth.password.placeholder')}
-                    value={password}
-                    onChange={(event) => {
-                      setPassword(event.target.value);
-                      if (errorMessage) {
-                        setErrorMessage('');
-                      }
-                    }}
-                    className="ps-10"
-                    aria-invalid={Boolean(errorMessage) || undefined}
-                    aria-describedby={errorMessage ? 'oc-ui-auth-error' : undefined}
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!password || isSubmitting}
-                  aria-label={isSubmitting ? t('sessionAuth.actions.unlockingAria') : t('sessionAuth.actions.unlockAria')}
-                >
-                  {isSubmitting ? (
-                    <Icon name="loader-4" className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Icon name="lock-unlock" className="h-4 w-4" />
-                  )}
-                </Button>
+              <div className="relative">
+                <Icon name="lock" className="absolute inset-s-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                <Input
+                  id="openchamber-ui-password"
+                  ref={passwordInputRef}
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder={t('sessionAuth.password.placeholder')}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (errorMessage) {
+                      setErrorMessage('');
+                    }
+                  }}
+                  className="ps-10"
+                  aria-invalid={Boolean(errorMessage) || undefined}
+                  aria-describedby={errorMessage ? 'oc-ui-auth-error' : undefined}
+                  disabled={isSubmitting}
+                />
               </div>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <Icon name="loader-4" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Icon name="lock-unlock" className="h-4 w-4" />
+                )}
+                <span>{isSubmitting ? t('sessionAuth.actions.unlockingAria') : t('sessionAuth.actions.unlockAria')}</span>
+              </Button>
               {canOfferPasskeySetup ? (
                 <div className="flex items-center justify-between pt-1">
                   <label className="flex items-center gap-2 text-center typography-micro text-muted-foreground">

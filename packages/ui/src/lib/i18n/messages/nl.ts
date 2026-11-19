@@ -3015,6 +3015,7 @@ export const dict = {
   'sessionAuth.error.retry': 'Opnieuw proberen',
   'sessionAuth.error.passkeySetupFailed': 'Instellen van passkey mislukt.',
   'sessionAuth.error.incorrectPassword': 'Onjuist wachtwoord. Probeer het opnieuw.',
+  'sessionAuth.error.passwordRequired': 'Voer je wachtwoord in om te ontgrendelen.',
   'sessionAuth.error.unexpectedResponse': 'Onverwacht antwoord van de server.',
   'sessionAuth.error.networkRetry': 'Netwerkfout. Controleer de verbinding en probeer het opnieuw.',
   'sessionAuth.error.passkeySignInCanceled': 'Aanmelden met passkey is geannuleerd.',

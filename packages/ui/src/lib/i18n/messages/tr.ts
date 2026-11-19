@@ -2833,6 +2833,7 @@ export const dict = {
   'sessionAuth.error.retry': 'Yeniden dene',
   'sessionAuth.error.passkeySetupFailed': 'Passkey kurulumu başarısız oldu.',
   'sessionAuth.error.incorrectPassword': 'Şifre hatalı. Tekrar deneyin.',
+  'sessionAuth.error.passwordRequired': 'Kilidi açmak için parolanı gir.',
   'sessionAuth.error.unexpectedResponse': 'Sunucudan beklenmeyen yanıt.',
   'sessionAuth.error.networkRetry': 'Ağ hatası. Bağlantıyı kontrol edip tekrar deneyin.',
   'sessionAuth.error.passkeySignInCanceled': 'Passkey ile oturum açma iptal edildi.',

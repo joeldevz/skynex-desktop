@@ -2990,6 +2990,7 @@ export const dict: Record<I18nKey, string> = {
   'sessionAuth.error.retry': '重試',
   'sessionAuth.error.passkeySetupFailed': 'Passkey 設定失敗。',
   'sessionAuth.error.incorrectPassword': '密碼錯誤，請重試。',
+  'sessionAuth.error.passwordRequired': '輸入密碼以解鎖。',
   'sessionAuth.error.unexpectedResponse': '伺服器傳回了意外回應。',
   'sessionAuth.error.networkRetry': '網路錯誤。請檢查連線後重試。',
   'sessionAuth.error.passkeySignInCanceled': 'Passkey 登入已取消。',

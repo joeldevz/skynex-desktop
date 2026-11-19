@@ -2947,6 +2947,7 @@ export const dict = {
   'sessionAuth.error.retry': 'נסה שוב',
   'sessionAuth.error.passkeySetupFailed': 'הגדרת מפתח הגישה נכשלה.',
   'sessionAuth.error.incorrectPassword': 'סיסמה שגויה. אפשר לנסות שוב.',
+  'sessionAuth.error.passwordRequired': 'הזן את הסיסמה כדי לבטל את הנעילה.',
   'sessionAuth.error.unexpectedResponse': 'תגובה לא צפויה מהשרת.',
   'sessionAuth.error.networkRetry': 'שגיאת רשת. יש לבדוק את החיבור ולנסות שוב.',
   'sessionAuth.error.passkeySignInCanceled': 'הכניסה עם מפתח גישה בוטלה.',

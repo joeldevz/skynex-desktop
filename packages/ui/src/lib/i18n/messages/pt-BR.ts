@@ -2972,6 +2972,7 @@ export const dict: Record<I18nKey, string> = {
   "sessionAuth.error.retry": "Tentar novamente",
   "sessionAuth.error.passkeySetupFailed": "Não foi possível configurar a chave de acesso.",
   "sessionAuth.error.incorrectPassword": "Senha incorreta. Tente novamente.",
+  "sessionAuth.error.passwordRequired": "Digite sua senha para desbloquear.",
   "sessionAuth.error.unexpectedResponse": "Resposta inesperada do servidor.",
   "sessionAuth.error.networkRetry": "Erro de rede. Verifique a conexão e tente novamente.",
   "sessionAuth.error.passkeySignInCanceled": "O início de sessão com chave de acesso foi cancelado.",

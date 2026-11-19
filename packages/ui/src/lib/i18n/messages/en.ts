@@ -3015,6 +3015,7 @@ export const dict = {
   'sessionAuth.error.retry': 'Retry',
   'sessionAuth.error.passkeySetupFailed': 'Passkey setup failed.',
   'sessionAuth.error.incorrectPassword': 'Incorrect password. Try again.',
+  'sessionAuth.error.passwordRequired': 'Enter your password to unlock.',
   'sessionAuth.error.unexpectedResponse': 'Unexpected response from server.',
   'sessionAuth.error.networkRetry': 'Network error. Check connection and retry.',
   'sessionAuth.error.passkeySignInCanceled': 'Passkey sign-in was canceled.',

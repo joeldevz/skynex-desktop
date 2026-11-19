@@ -2714,6 +2714,7 @@ export const dict = {
   'sessionAuth.error.retry': 'Réessayer',
   'sessionAuth.error.passkeySetupFailed': 'La configuration du mot de passe a échoué.',
   'sessionAuth.error.incorrectPassword': 'Mot de passe incorrect. Essayer à nouveau.',
+  'sessionAuth.error.passwordRequired': 'Saisis ton mot de passe pour déverrouiller.',
   'sessionAuth.error.unexpectedResponse': 'Réponse inattendue du serveur.',
   'sessionAuth.error.networkRetry': 'Erreur réseau. Vérifiez la connexion et réessayez.',
   'sessionAuth.error.passkeySignInCanceled': 'La connexion par mot de passe a été annulée.',

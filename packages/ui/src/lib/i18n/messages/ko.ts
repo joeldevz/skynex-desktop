@@ -3015,6 +3015,7 @@ export const dict: Record<I18nKey, string> = {
   'sessionAuth.error.retry': '다시 시도',
   'sessionAuth.error.passkeySetupFailed': '패스키 설정에 실패했습니다.',
   'sessionAuth.error.incorrectPassword': '비밀번호가 올바르지 않습니다. 다시 시도하세요.',
+  'sessionAuth.error.passwordRequired': '잠금을 해제하려면 비밀번호를 입력하세요.',
   'sessionAuth.error.unexpectedResponse': '서버에서 예상치 못한 응답을 받았습니다.',
   'sessionAuth.error.networkRetry': '네트워크 오류입니다. 연결 상태를 확인하고 다시 시도하세요.',
   'sessionAuth.error.passkeySignInCanceled': '패스키 로그인이 취소되었습니다.',

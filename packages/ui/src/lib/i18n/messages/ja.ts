@@ -3014,6 +3014,7 @@ export const dict: Record<I18nKey, string> = {
   'sessionAuth.error.retry': '再試行',
   'sessionAuth.error.passkeySetupFailed': 'パスキーの設定に失敗しました。',
   'sessionAuth.error.incorrectPassword': 'パスワードが間違っています。もう一度お試しください。',
+  'sessionAuth.error.passwordRequired': 'ロックを解除するにはパスワードを入力してください。',
   'sessionAuth.error.unexpectedResponse': 'サーバーから予期しない応答がありました。',
   'sessionAuth.error.networkRetry': 'ネットワークエラー。接続を確認して再試行してください。',
   'sessionAuth.error.passkeySignInCanceled': 'パスキーサインインがキャンセルされました。',
