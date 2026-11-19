@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   create-release:
+    if: ${{ github.repository == 'joeldevz/skynex-desktop' && github.ref == 'refs/heads/skynex' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

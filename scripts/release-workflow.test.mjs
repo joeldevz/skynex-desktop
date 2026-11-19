@@ -35,6 +35,11 @@ test('Skynex release uploads have write access while build-only jobs stay read-o
   const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
 
   assert.equal(desktopWorkflow.permissions.contents, 'read');
+  assert.equal(desktopWorkflow.jobs['create-release'].if,
+    "${{ github.repository == 'joeldevz/skynex-desktop' && github.ref == 'refs/heads/skynex' }}");
+  for (const [name, job] of Object.entries(desktopWorkflow.jobs)) {
+    if (name !== 'create-release') assert.ok([job.needs].flat().includes('create-release'), name);
+  }
   for (const name of ['create-release', 'build-windows', 'publish']) {
     assert.equal(desktopWorkflow.jobs[name].permissions.contents, 'write');
   }
