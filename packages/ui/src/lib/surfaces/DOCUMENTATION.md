@@ -3,8 +3,8 @@
 ## Purpose
 
 `packages/ui/src/lib/surfaces` owns the declarative registry of context panel
-surfaces — the desktop workspaces switched by the vertical rail on the right
-edge (`components/layout/ContextPanelRail.tsx`) and rendered in the zones
+surfaces — the desktop workspaces switched by the horizontal toolbar in the
+header (`components/layout/ContextPanelRail.tsx`) and rendered in the zones
 around the chat by `components/layout/ContextPanel.tsx` (one per zone) and
 `components/layout/ContextSurfacePanes.tsx`.
 
@@ -57,10 +57,15 @@ Full-screen extension pages are separate from this rail registry. `contributes.p
   drops update the rail immediately; visibility changes and "Show all" preserve
   the order. Dialog reorders retain saved ids of unavailable extensions at the
   end of the preference. Escape cancels a drag before closing the dialog.
+- The toolbar shares the existing header row with the session title and window
+  controls, leaving no reserved rail width beside the chat. Icons keep their
+  size and scroll horizontally when space runs out. Reordering follows measured
+  rectangles in either text direction; dragging below the toolbar enters zone
+  placement. Tooltips open below the header.
 - `getVisibleContextRailSurfaces` is the single visibility filter shared by the
   rail and the global surface-switch shortcut (`switch_context_surface` in
   `lib/shortcuts`): it drops surfaces the user hid
-  (`useUIStore.contextRailHiddenSurfaces`, edited from the rail's trailing
+  (`useUIStore.contextRailHiddenSurfaces`, edited from the rail's leading
   configure button — `ContextRailSurfacesDialog`),
   drops the walkthrough on VS Code and below `WALKTHROUGH_MIN_WIDTH`, hides the Tracker
   unless a source-control account is connected (signed in from Settings →
@@ -221,12 +226,15 @@ for the shortcut), never in VS Code, and in a build without workflows it is
 absent from the rail and from the rail's surfaces dialog, so the unreleased
 feature is not named anywhere.
 
-The `memory` surface (`components/memory/SkynexMemoryPanel.tsx`) replaces the
-removed Notes surface. It is always shown and keyed to the project directory of
-the request. Tasks is a section of the chat's Work Status panel, not a rail
-surface; it reads and writes the project's `.skynex/tasks` notebook through the
-server. Memory reads and writes Neurox under the project's directory-name
-namespace.
+Tasks is a section of the chat's Work Status panel; it reads and writes the
+project's `.skynex/tasks` notebook through the server.
+
+### Why Memory has no panel entry
+
+The Memory panel was retired to keep the workspace focused on the conversation.
+It has no registry entry or command-palette action, and saved `memory` tabs are
+discarded by the existing unknown-mode sanitizer. Other tabs remain available.
+Neurox tools, server APIs and stored memories are independent and stay intact.
 
 ## Panel header
 

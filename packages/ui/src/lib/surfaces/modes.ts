@@ -9,7 +9,6 @@ const BUILT_IN_CONTEXT_PANEL_MODES = [
   'pr',
   'terminal',
   'workflows',
-  'memory',
 ] as const;
 
 type BuiltInContextPanelMode = (typeof BUILT_IN_CONTEXT_PANEL_MODES)[number];

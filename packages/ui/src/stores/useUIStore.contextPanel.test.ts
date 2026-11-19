@@ -168,6 +168,36 @@ describe('useUIStore Tracker tabs', () => {
 });
 
 describe('useUIStore context panel tabs', () => {
+  test.each([20, 27])('rehydration discards retired Memory tabs from version %i and retains other panels', async (version) => {
+    const memoryTab = { id: 'memory', mode: 'memory', dedupeKey: 'memory', touchedAt: 1 };
+    const fileTab = { id: 'file:readme', mode: 'file', targetPath: '/repo/README.md', dedupeKey: 'readme', touchedAt: 1 };
+    useUIStore.persist.setOptions({ storage: {
+      getItem: () => ({ version, state: {
+        contextZoneSizes: { right: 512, bottom: 256 },
+        contextPanelByDirectory: {
+          '/repo': { isOpen: true, expanded: false, activeTabId: 'memory', tabs: [fileTab, memoryTab], touchedAt: 1 },
+          '/memory-only': { isOpen: true, expanded: false, activeTabId: 'memory', tabs: [memoryTab], touchedAt: 1 },
+        },
+      } }),
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    } });
+    try {
+      await useUIStore.persist.rehydrate();
+      const panels = useUIStore.getState().contextPanelByDirectory;
+      expect(panels['/repo']?.tabs.map((tab) => tab.mode)).toEqual(['file']);
+      expect(panels['/repo']?.activeTabId).toBe('file:readme');
+      expect(panels['/repo']?.isOpen).toBe(true);
+      expect(panels['/memory-only']?.tabs).toEqual([]);
+      expect(panels['/memory-only']?.activeTabId).toBeNull();
+      if (version >= 26) {
+        expect(useUIStore.getState().contextZoneSizes).toEqual({ right: 512, bottom: 256 });
+      }
+    } finally {
+      useUIStore.persist.setOptions(originalPersistOptions);
+    }
+  });
+
   test('opens a plugin surface tab', () => {
     useUIStore.getState().openContextPanelTab('/repo', {
       mode: 'plugin:hello',

@@ -13,7 +13,7 @@ import {
   SortableContext,
   arrayMove,
   useSortable,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -111,7 +111,7 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn('relative', isDragging && 'z-10 opacity-70')}
+      className={cn('relative shrink-0', isDragging && 'z-10 opacity-70')}
     >
     {/* Right-click moves the surface to another zone around the chat. */}
     <ContextMenu>
@@ -175,7 +175,7 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
         </TooltipTrigger>
         {/* Descriptions run long, and extensions bring their own: cap the
             width so they wrap instead of stretching across the chat. */}
-        <TooltipContent side="left" sideOffset={8} className="max-w-72 break-words">
+        <TooltipContent side="bottom" sideOffset={8} className="max-w-72 break-words">
           <div className="flex flex-col gap-0.5">
             <span>{label}</span>
             <span className="typography-micro text-muted-foreground">{description}</span>
@@ -381,14 +381,14 @@ export const ContextPanelRail: React.FC = () => {
   const zoneGestureRef = React.useRef<ZoneDragGesture | null>(null);
   const handleDragStart = React.useCallback((event: DragStartEvent) => {
     const surface = surfaces.find((entry) => entry.id === event.active.id);
-    const railLeft = railRef.current?.getBoundingClientRect().left;
-    if (!surface || railLeft === undefined) return;
+    const railBottom = railRef.current?.getBoundingClientRect().bottom;
+    if (!surface || railBottom === undefined) return;
     zoneGestureRef.current?.cancel();
     zoneGestureRef.current = startZoneDragGesture({
       mode: surface.mode,
       label: surface.label ?? t(changeRequestCopy(surface.labelKey, changeRequestTerm)),
       from: zoneOfMode(useUIStore.getState().contextSurfaceZones, surface.mode),
-    }, (point) => point.x < railLeft - 16);
+    }, (point) => point.y > railBottom + 16);
   }, [changeRequestTerm, surfaces, t]);
   const handleDragCancel = React.useCallback(() => {
     zoneGestureRef.current?.cancel();
@@ -426,10 +426,25 @@ export const ContextPanelRail: React.FC = () => {
     <nav
       ref={railRef}
       aria-label={t('contextRail.aria.rail')}
-      className="flex h-full w-11 flex-shrink-0 flex-col items-center gap-2 bg-background py-2"
+      className="app-region-no-drag flex min-w-0 max-w-full items-center gap-1 overflow-x-auto bg-background px-1 py-1"
     >
+      <Tooltip delayDuration={RAIL_TOOLTIP_DELAY_MS}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t('contextRail.configure.open')}
+            onClick={() => setIsSurfacesDialogOpen(true)}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:text-foreground"
+          >
+            <Icon name="equalizer-2" className="h-[18px] w-[18px]" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={8}>
+          {t('contextRail.configure.open')}
+        </TooltipContent>
+      </Tooltip>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragCancel={handleDragCancel} onDragEnd={handleDragEnd}>
-        <SortableContext items={surfaces.map((surface) => surface.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={surfaces.map((surface) => surface.id)} strategy={rectSortingStrategy}>
           {surfaces.map((surface, index) => {
             const label = surface.label ?? t(changeRequestCopy(surface.labelKey, changeRequestTerm));
             // Git shows a numeric badge instead of the old activity dot.
@@ -480,23 +495,6 @@ export const ContextPanelRail: React.FC = () => {
           })}
         </SortableContext>
       </DndContext>
-      {/* Outside the sortable list on purpose: this button takes no digit,
-          cannot be dragged, and configures the rail rather than living on it. */}
-      <Tooltip delayDuration={RAIL_TOOLTIP_DELAY_MS}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={t('contextRail.configure.open')}
-            onClick={() => setIsSurfacesDialogOpen(true)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:text-foreground"
-          >
-            <Icon name="equalizer-2" className="h-[18px] w-[18px]" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="left" sideOffset={8}>
-          {t('contextRail.configure.open')}
-        </TooltipContent>
-      </Tooltip>
       <ContextRailSurfacesDialog open={isSurfacesDialogOpen} onOpenChange={setIsSurfacesDialogOpen} />
     </nav>
   );

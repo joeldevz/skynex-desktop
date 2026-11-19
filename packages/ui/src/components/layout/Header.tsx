@@ -92,7 +92,7 @@ type HeaderSessionSnapshot = {
   parentId: string | null;
 };
 
-export const Header: React.FC = () => {
+export const Header: React.FC<{ toolbar?: React.ReactNode }> = ({ toolbar }) => {
   streamPerfCount('ui.header.render');
   const { t, direction } = useI18n();
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
@@ -1014,8 +1014,6 @@ export const Header: React.FC = () => {
       onMouseDown={handleDragStart}
       className={cn(
         'app-region-drag relative flex h-12 select-none items-center',
-        // 10 px puts the last 24 px button's centre 22 px from the window edge,
-        // on the axis of the 44 px icon rail below it.
         endEdgeOwnedByInWindowControls ? 'pe-0' : 'pe-2.5',
         macosHeaderSizeClass
       )}
@@ -1280,6 +1278,8 @@ export const Header: React.FC = () => {
         )}
 
         {activeSurfaceHeader || isVSCode || !sessionTabsEnabled ? <div className="flex-1" /> : null}
+
+        {toolbar}
 
         {/* Spacing comes from the gap only, so whichever control ends up last
             sits on the header's own right padding with no trailing margin. */}

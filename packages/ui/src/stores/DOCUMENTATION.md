@@ -17,6 +17,14 @@ Do not put high-frequency local component state here just because it is convenie
 
 ## Architecture
 
+### Why retiring a panel advances the UI persistence version
+
+`useUIStore` version 28 reuses the context-tab sanitizer to drop the retired
+`memory` mode from version 27 snapshots. Zustand runs `migrate` only when the
+stored version differs, so removing a mode from its registry alone cannot clean
+up an already-open panel. Valid tabs and their panel sizes stay intact. This
+changes only UI state; Neurox APIs and stored memories are unaffected.
+
 ### Config and directory startup
 
 `useConfigStore` initializes its directory key from the client without reading

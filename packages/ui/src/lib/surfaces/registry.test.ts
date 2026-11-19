@@ -17,6 +17,14 @@ const baseOptions = {
 } as const;
 
 describe('getVisibleContextRailSurfaces', () => {
+  test('retires Memory from the registry, saved rail order and recognized modes', () => {
+    expect(CONTEXT_SURFACES.map((surface) => String(surface.id))).not.toContain('memory');
+    const surfaces = getVisibleContextRailSurfaces({ ...baseOptions, railOrder: ['memory', 'git', 'context'] });
+    expect(surfaces.slice(0, 2).map((surface) => surface.id)).toEqual(['git', 'context']);
+    expect(surfaces.map((surface) => String(surface.id))).not.toContain('memory');
+    expect(isContextPanelMode('memory')).toBe(false);
+  });
+
   test('offers no Tasks panel in the rail, and a saved tasks tab is not a panel mode', () => {
     expect(getVisibleContextRailSurfaces(baseOptions).map((surface) => String(surface.id))).not.toContain('tasks');
     expect(isContextPanelMode('tasks')).toBe(false);

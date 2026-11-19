@@ -8,9 +8,9 @@ const memorySchema = z.object({
   observationType: z.string().nullable(),
   createdAt: z.string().nullable(),
 });
-export type SkynexMemory = z.infer<typeof memorySchema>;
+type SkynexMemory = z.infer<typeof memorySchema>;
 
-export type SkynexMemoryNote = { what: string; why: string; where: string; learned: string };
+type SkynexMemoryNote = { what: string; why: string; where: string; learned: string };
 
 const base = '/api/skynex/memory';
 const memoriesSchema = z.object({ memories: z.array(memorySchema) });
