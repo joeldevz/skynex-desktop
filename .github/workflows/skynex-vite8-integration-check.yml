@@ -1,0 +1,97 @@
+name: Skynex Vite 8 integration checks
+
+on:
+  push:
+    branches: [ci/skynex-vite8-integration]
+    paths:
+      - '.github/workflows/skynex-vite8-integration-check.yml'
+      - 'nix/hashes.json'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    env:
+      ELECTRON_BUILDER_ARCH: x64
+      OPENCHAMBER_TARGET_ARCH: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.14.0'
+      - name: Build and verify Windows x64 installer
+        run: |
+          test "$(node -p 'process.platform + "-" + process.arch')" = win32-x64
+          bun install --frozen-lockfile
+          cd packages/electron
+          bun run build:web-assets
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run prepare:ripgrep
+          bun run bundle:main
+          bun run rebuild:native
+          node ./scripts/package.mjs --win --x64 --publish=never
+          bun run verify:opencode-cli:packaged
+          web=dist/win-unpacked/resources/web-dist
+          for entry in index.html mobile.html mini-chat.html sw.js; do
+            test -s "$web/$entry"
+            cmp "$web/$entry" "resources/web-dist/$entry"
+          done
+          grep -lF 'react.memo_cache_sentinel' "$web"/assets/OnboardingScreen-*.js
+          version=$(node -p "require('./package.json').version")
+          installer="dist/Skynex-$version-win-x64.exe"
+          test -s "$installer.blockmap"
+          node ./scripts/verify-update-manifest.mjs dist/latest.yml "$version" "$installer"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skynex-vite8-integration-win-x64
+          path: |
+            packages/electron/dist/Skynex-*-win-x64.exe
+            packages/electron/dist/Skynex-*-win-x64.exe.blockmap
+            packages/electron/dist/latest.yml
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 2
+
+  nix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Discover and verify the Bun dependency hash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          scratch=$(mktemp -d)
+          git archive HEAD | tar -x -C "$scratch"
+          cd "$scratch"
+          node -e 'const fs=require("node:fs");const p="nix/hashes.json";const j=JSON.parse(fs.readFileSync(p));j.bunDeps="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n")'
+          target="path:$scratch#openchamber.bunDeps"
+          log=$(mktemp)
+          if nix build --no-link --no-write-lock-file "$target" -L >"$log" 2>&1; then
+            echo 'Expected the sentinel hash to fail' >&2
+            exit 1
+          fi
+          hash=$(awk '/hash mismatch in fixed-output derivation '\''[^'\'']*openchamber-bun-deps/{wanted=1;next} wanted && /got:/{print $NF;exit}' "$log")
+          if [[ ! "$hash" =~ ^sha256-[a-zA-Z0-9+/]{43}=$ ]]; then
+            tail -60 "$log" >&2
+            exit 1
+          fi
+          BUN_DEPS_HASH="$hash" node -e 'const fs=require("node:fs");const p="nix/hashes.json";const j=JSON.parse(fs.readFileSync(p));j.bunDeps=process.env.BUN_DEPS_HASH;fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n")'
+          nix build --no-link --no-write-lock-file "$target" -L
+          printf 'SKYNEX_BUN_DEPS_VERIFIED=%s\n' "$hash"
