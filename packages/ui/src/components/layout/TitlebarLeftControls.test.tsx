@@ -161,7 +161,7 @@ describe('TitlebarLeftControls', () => {
       </I18nProvider>,
     ));
 
-    expect(document.querySelector('button[aria-label="Archive"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Archive"]')).toBeNull();
     expect(document.querySelector('button[aria-label="Scheduled tasks"]')).not.toBeNull();
     expect(document.querySelector('button[aria-label="Issues and PRs"]')).not.toBeNull();
   });

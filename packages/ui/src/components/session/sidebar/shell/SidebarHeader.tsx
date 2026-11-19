@@ -44,7 +44,6 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
   const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
   const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
-  const isArchiveOpen = useUIStore((state) => state.isArchivePageOpen);
   const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
   const isScheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
   const enterpriseMode = useEnterpriseMode();
@@ -60,9 +59,6 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
           <Icon name="git-pull-request" className={iconClassName} />
         </SidebarPageButton>
       ) : null}
-      <SidebarPageButton label={t('sessions.sidebar.nav.archive')} pressed={isArchiveOpen} onClick={() => useUIStore.getState().setArchivePageOpen(!isArchiveOpen)} className={buttonClassName}>
-        <Icon name="archive" className={iconClassName} />
-      </SidebarPageButton>
       {enterpriseMode ? null : (
         <SidebarPageButton label={t('integrationsCatalog.sidebar.open')} pressed={isIntegrationsCatalogOpen} onClick={() => useUIStore.getState().setIntegrationsCatalogOpen(!isIntegrationsCatalogOpen)} className={buttonClassName}>
           <Icon name="store-2" className={iconClassName} />
