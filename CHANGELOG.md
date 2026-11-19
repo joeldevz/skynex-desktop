@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.7] - 2026-11-19
+
+### Fixes
+
+- **Browser:** If the integrated browser cannot take keyboard focus, a key press reports the problem and asks you to focus the panel before retrying.
+
 ## [0.1.6] - 2026-11-19
 
 ### New
