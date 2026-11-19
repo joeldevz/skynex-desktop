@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+import babel from '@rolldown/plugin-babel';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
@@ -40,11 +41,8 @@ const themeJsonHmrPlugin = () => ({
 export default defineConfig({
   root: path.resolve(__dirname, '.'),
   plugins: [
-    react({
-      babel: {
-        plugins: ['babel-plugin-react-compiler'],
-      },
-    }),
+    react(),
+    babel({ presets: [reactCompilerPreset()], parallel: 4 }),
     {
       name: 'inject-react-scan-script',
       transformIndexHtml() {
@@ -131,7 +129,9 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
     chunkSizeWarningLimit: 500,
-    rollupOptions: {
+    // Preserve the browser support floor from Vite 7.
+    target: ['chrome107', 'edge107', 'firefox104', 'safari16'],
+    rolldownOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         mobile: path.resolve(__dirname, 'mobile.html'),
