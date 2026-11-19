@@ -4,7 +4,7 @@
 
 This module owns spoken-summary requests and text preparation. `useMessageTTS`
 coordinates generation, reading ownership, and the configured playback provider.
-Message actions expose manual playback; automatic reading keeps its existing mode.
+Message actions expose manual playback, including on-demand summaries.
 
 Web, Electron, hosted mobile, and Capacitor use the existing OpenChamber server
 for generation and their configured voice for playback. VS Code hides the manual
@@ -15,6 +15,9 @@ Mini Chat keeps its existing reduced action set.
 
 - "Listen to summary" requests a concise summary only on a click, regardless of
   reply length or the full-read visibility setting.
+- Standard and automatic reading do not request summaries. The input mode
+  controls text formatting. The retired `summarized` preference loads as
+  clean text; `raw` is unchanged.
 - Generation uses the existing small-model route and provider preferences.
   Playback uses the configured voice and existing enterprise enforcement.
 - Manual summaries keep the selected speech provider, local model, and voice.
@@ -48,15 +51,15 @@ Mini Chat keeps its existing reduced action set.
   failed summary responses do not become successful cache entries.
 - Browser speech synthesis exposes no reusable audio buffer. Its manual summary
   text is cached, while the browser synthesizes each playback. Full reading and
-  automatic playback keep their existing behavior.
+  automatic playback do not use the manual-summary caches.
 
 ## Decisions
 
 ### Why a separate manual summary
 
-The manual action always requests concise conversational prose. The existing
-summarized reading mode retains its length threshold and full-text fallback so
-the new action does not change full reading or automatic playback.
+The manual action always requests concise conversational prose. Keeping
+summarization behind that action makes the read-aloud button predictable and
+removes a second generation path with a different length threshold and fallback.
 
 ### Why browser voice discovery can fail
 

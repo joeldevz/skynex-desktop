@@ -6,6 +6,14 @@ which primitive to reach for.
 
 About uses the Skynex GitHub repository for product links on desktop and mobile. OpenChamber attribution remains in the footer; upstream social accounts are not Skynex support links.
 
+## Voice
+
+Playback opens first, with provider and voice preview before reading options.
+Local playback model management expands separately from the voice picker, so
+downloads do not push the choice or preview down. Dictation owns microphone
+input settings. `voiceSettingsTabs.ts` maps settings items to their tab so
+search and direct settings links reveal the target before it is highlighted.
+
 ## Autosave on the OpenCode configuration pages
 
 `agents/`, `commands/`, `skills/`, `mcp/`, `plugins/` and `behavior/` edit files

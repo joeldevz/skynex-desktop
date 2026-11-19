@@ -14,7 +14,6 @@ import { useSayTTS } from './useSayTTS';
 import { useLocalTTS } from './useLocalTTS';
 import { browserVoiceService } from '@/lib/voice/browserVoiceService';
 import { ensureLineTerminalPunctuation, sanitizeForTTS } from '@/lib/voice/summarize';
-import { requestSmallModel } from '@/lib/smallModelRequest';
 import { requestConciseSpokenSummary } from '@/lib/voice/spokenSummary';
 import { loadDesktopSettings } from '@/lib/persistence';
 import { opencodeClient } from '@/lib/opencode/client';
@@ -31,39 +30,8 @@ import {
     useIsReadingPreparing,
 } from '@/lib/voice/activeReading';
 
-// Below this length the reply is comfortable to listen to as-is; summarizing
-// would only add latency.
-const TTS_SUMMARIZE_MIN_CHARS = 600;
-
-const SUMMARIZE_SYSTEM_PROMPT = 'Summarize the assistant reply for text-to-speech listening. Reply with 2-4 sentences of plain spoken prose in the same language as the reply. No markdown, no lists, no code — mention code changes briefly in words instead.';
-
-async function summarizeForSpeech(
-    text: string,
-    preferred: { providerID?: string; modelID?: string },
-): Promise<string | null> {
-    try {
-        const response = await requestSmallModel({
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: text,
-                system: SUMMARIZE_SYSTEM_PROMPT,
-                ...(preferred.providerID ? { preferredProviderID: preferred.providerID } : {}),
-                ...(preferred.modelID ? { preferredModelID: preferred.modelID } : {}),
-            }),
-        // No small model is not an error here: the original reply is spoken.
-        }, { silentStatuses: [404] });
-        if (!response.ok) return null;
-        const payload = await response.json().catch(() => null) as { text?: unknown } | null;
-        return typeof payload?.text === 'string' && payload.text.trim() ? payload.text.trim() : null;
-    } catch {
-        return null;
-    }
-}
-
 export interface PlayMessageTTSOptions {
-    /** False skips summarization; concise always requests a summary without full-text fallback. */
-    summarize?: boolean | 'concise';
+    summarize?: 'concise';
 }
 
 export interface UseMessageTTSReturn {
@@ -208,24 +176,6 @@ export function useMessageTTS(readingKey?: string, manualPlaybackEnabled = false
                 }
                 sourceText = summary;
             }
-            // The configured summarized mode keeps its full-text fallback.
-            const shouldSummarize = options?.summarize !== false
-                && options?.summarize !== 'concise'
-                && ttsInputMode === 'summarized'
-                && text.length >= TTS_SUMMARIZE_MIN_CHARS;
-            if (shouldSummarize) {
-                const { currentProviderId, currentModelId } = useConfigStore.getState();
-                const summary = await summarizeForSpeech(text, {
-                    providerID: currentProviderId || undefined,
-                    modelID: currentModelId || undefined,
-                });
-                // Stopped or replaced while the summary was being written.
-                if (!isCurrentReading(token)) return;
-                if (summary) {
-                    sourceText = summary;
-                }
-            }
-
             const shouldUseRaw = ttsInputMode === 'raw' && isServerProvider;
             const sanitizedText = sanitizeForTTS(sourceText);
             const textToSpeak = shouldUseRaw ? sourceText : sanitizedText;

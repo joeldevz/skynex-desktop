@@ -262,18 +262,19 @@ describe('useMessageTTS concise playback', () => {
             expect(speakText.mock.calls).toHaveLength(1);
     });
 
-    test('ordinary playback does not generate a summary', async () => {
+    test('ordinary playback reads a long reply without requesting a summary', async () => {
         await mount();
-        await play('Read this reply as-is.', { summarize: false });
+        const text = 'Read this full reply aloud. '.repeat(30).trim();
+        await play(text);
 
         expect(summaryRequests()).toHaveLength(0);
-        expect(speakText.mock.calls[0]?.[0]).toBe('Read this reply as-is.');
+        expect(speakText.mock.calls[0]?.[0]).toBe(text);
     });
 
     test('shows a playback error and exits the reading state for both reading modes', async () => {
         speakText.mockRejectedValue(new Error('No browser speech voices are available'));
         await mount();
-        for (const summarize of [false, 'concise'] as const) {
+        for (const summarize of [undefined, 'concise'] as const) {
             playbackErrors = [];
             await play('A reply to read.', { summarize });
             expect(playback?.isPlaying).toBe(false);
@@ -290,14 +291,14 @@ describe('useMessageTTS concise playback', () => {
             options = args[3];
         });
         await mount();
-        await play('Started reply.', { summarize: false });
+        await play('Started reply.');
         expect(playback?.isPlaying).toBe(true);
         await act(async () => options?.onError?.('audio-hardware'));
         expect(playback?.isPlaying).toBe(false);
         expect(playbackErrors).toHaveLength(1);
 
         playbackErrors = [];
-        await play('Stopped reply.', { summarize: false });
+        await play('Stopped reply.');
         await act(async () => playback?.stop());
         await act(async () => options?.onError?.('interrupted'));
         expect(playbackErrors).toHaveLength(0);
@@ -360,13 +361,13 @@ describe('useMessageTTS concise playback', () => {
         let first: Promise<void> | undefined;
         const firstQueued = new Promise<void>((resolve) => { entered = resolve; });
         await act(async () => {
-            first = playback?.play('First.', { summarize: false });
+            first = playback?.play('First.');
             await firstQueued;
         });
         let second: Promise<void> | undefined;
         const secondQueued = new Promise<void>((resolve) => { entered = resolve; });
         await act(async () => {
-            second = playback?.play('Second.', { summarize: false });
+            second = playback?.play('Second.');
             await secondQueued;
         });
         await act(async () => { releases[0]?.(); await first; });

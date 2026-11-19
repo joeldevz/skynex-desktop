@@ -577,7 +577,7 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
       return;
     }
     if (!selectedText) return;
-    void playReading(selectedText, { summarize: false });
+    void playReading(selectedText);
     hideMenu();
     window.getSelection()?.removeAllRanges();
   }, [hideMenu, isReading, playReading, selectedText, stopReading]);

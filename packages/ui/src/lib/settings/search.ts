@@ -1422,7 +1422,7 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
   {
     id: 'voice.speech-recognition',
     page: 'voice',
-    titleKey: 'settings.voice.page.section.speechRecognition',
+    titleKey: 'settings.voice.page.section.dictation',
     keywords: ['stt', 'dictation', 'voice input', 'transcribe', 'whisper', 'parakeet', 'microphone'],
   },
   {

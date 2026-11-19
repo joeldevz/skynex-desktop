@@ -1523,7 +1523,7 @@ interface ConfigStore {
     sttLanguage: string;
     showMessageTTSButtons: boolean;
     autoReadAloudEnabled: boolean;
-    ttsInputMode: 'sanitized' | 'raw' | 'summarized';
+    ttsInputMode: 'sanitized' | 'raw';
     ttsChunkedMode: boolean;
     // Summarization settings
     summarizeMessageTTS: boolean;
@@ -1557,7 +1557,7 @@ interface ConfigStore {
     setSttLanguage: (lang: string) => void;
     setShowMessageTTSButtons: (show: boolean) => void;
     setAutoReadAloudEnabled: (enabled: boolean) => void;
-    setTtsInputMode: (mode: 'sanitized' | 'raw' | 'summarized') => void;
+    setTtsInputMode: (mode: 'sanitized' | 'raw') => void;
     setTtsChunkedMode: (enabled: boolean) => void;
     setSummarizeMessageTTS: (enabled: boolean) => void;
     setSummarizeVoiceConversation: (enabled: boolean) => void;
@@ -1969,7 +1969,6 @@ export const useConfigStore = create<ConfigStore>()(
                     if (typeof window !== 'undefined') {
                         const saved = localStorage.getItem('ttsInputMode');
                         if (saved === 'raw') return 'raw' as const;
-                        if (saved === 'summarized') return 'summarized' as const;
                     }
                     return 'sanitized' as const;
                 })(),
@@ -4043,7 +4042,7 @@ export const useConfigStore = create<ConfigStore>()(
                     globalThis.window?.localStorage?.setItem('autoReadAloudEnabled', String(enabled));
                 },
 
-                setTtsInputMode: (mode: 'sanitized' | 'raw' | 'summarized') => {
+                setTtsInputMode: (mode: 'sanitized' | 'raw') => {
                     set({ ttsInputMode: mode });
                     if (typeof window !== 'undefined') {
                         localStorage.setItem('ttsInputMode', mode);

@@ -36,6 +36,8 @@ import { disposePreviewAudio } from './voicePreviewAudio';
 import { toast } from '@/components/ui';
 import type { VoiceApiKeyKind } from '@/lib/voiceKeysApi';
 import { Spinner } from '@/components/ui/spinner';
+import { SortableTabsStrip } from '@/components/ui/sortable-tabs-strip';
+import { useVoiceSettingsTabStore } from './voiceSettingsTabs';
 
 const VOICE_TEXT_INPUT_CLASS = 'oc-surface-elevated oc-raised oc-field w-full min-w-0 h-8 rounded-md bg-surface-elevated px-3 typography-ui-label text-foreground placeholder:text-muted-foreground focus:outline-none';
 
@@ -459,17 +461,13 @@ const LocalTtsModelRow = ({
 
 const LocalTtsModelStatus = ({ models, requestingId, request }: ReturnType<typeof useLocalTtsModels>) => {
     const { t } = useI18n();
-    const [availableOpen, setAvailableOpen] = useState(false);
+    const [open, setOpen] = useState(false);
     const [filter, setFilter] = useState('');
 
     if (models.length === 0) {
         return null;
     }
 
-    // Installed models, anything downloading or in an error state, and the
-    // default English model stay inline where the user expects them; the rest
-    // of the catalog sits behind a collapse so the panel does not flood with
-    // 14 rows.
     const inline: DictationModelState[] = [];
     const available: DictationModelState[] = [];
     for (const model of models) {
@@ -488,33 +486,25 @@ const LocalTtsModelStatus = ({ models, requestingId, request }: ReturnType<typeo
         : available;
 
     return (
-        <div className="flex flex-col">
-            {inline.map((model) => (
-                <LocalTtsModelRow
-                    key={model.id}
-                    model={model}
-                    requestingId={requestingId}
-                    request={request}
-                    t={t}
+        <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger className="group flex min-h-8 w-full items-center justify-between gap-2 text-start">
+                <span className="typography-ui-label text-foreground">
+                    {t('settings.voice.page.localTts.manageModels')}
+                </span>
+                <Icon
+                    name={open ? 'arrow-down-s' : 'arrow-right-s'}
+                    className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
                 />
-            ))}
-            {available.length > 0 ? (
-                <Collapsible open={availableOpen} onOpenChange={setAvailableOpen}>
-                    <CollapsibleTrigger className="group flex w-full items-center justify-between py-1 hover:bg-transparent">
-                        <div className="flex items-center gap-1.5 text-start">
-                            <span className="typography-ui-label font-normal text-foreground">
-                                {t('settings.voice.page.localTts.availableToDownload')}
-                            </span>
-                            <span className="typography-micro text-muted-foreground">
-                                ({available.length})
-                            </span>
-                        </div>
-                        <Icon
-                            name={availableOpen ? 'arrow-down-s' : 'arrow-right-s'}
-                            className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground"
-                        />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-1">
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-1">
+                {inline.map((model) => (
+                    <LocalTtsModelRow key={model.id} model={model} requestingId={requestingId} request={request} t={t} />
+                ))}
+                {available.length > 0 && (
+                    <div className="pt-2">
+                        <p className="typography-meta mb-1 text-muted-foreground">
+                            {t('settings.voice.page.localTts.availableToDownload')} ({available.length})
+                        </p>
                         <input
                             type="text"
                             value={filter}
@@ -538,10 +528,10 @@ const LocalTtsModelStatus = ({ models, requestingId, request }: ReturnType<typeo
                                 />
                             ))
                         )}
-                    </CollapsibleContent>
-                </Collapsible>
-            ) : null}
-        </div>
+                    </div>
+                )}
+            </CollapsibleContent>
+        </Collapsible>
     );
 };
 
@@ -621,6 +611,12 @@ const VoiceApiKeyField: React.FC<{ kind: VoiceApiKeyKind }> = ({ kind }) => {
 
 export const VoiceSettings: React.FC = () => {
     const { t } = useI18n();
+    const tab = useVoiceSettingsTabStore((state) => state.tab);
+    const setTab = useVoiceSettingsTabStore((state) => state.setTab);
+    const tabs = useMemo(() => [
+        { id: 'playback', label: t('settings.voice.page.section.playbackAndSummary') },
+        { id: 'dictation', label: t('settings.voice.page.section.dictation') },
+    ], [t]);
     const { isMobile } = useDeviceInfo();
     const voiceProvider = useConfigStore((state) => state.voiceProvider);
     const setVoiceProvider = useConfigStore((state) => state.setVoiceProvider);
@@ -1013,28 +1009,25 @@ export const VoiceSettings: React.FC = () => {
 
     return (
         <>
+            <div className="mb-8">
+                <SortableTabsStrip
+                    items={tabs}
+                    activeId={tab}
+                    onSelect={(id) => {
+                        if (id === 'playback' || id === 'dictation') setTab(id);
+                    }}
+                    layoutMode="fit"
+                    variant="active-pill"
+                    pillSize="form"
+                    className="h-8 max-w-[28rem]"
+                />
+            </div>
+            {tab === 'playback' ? (
             <SettingsSection
                 settingsItem="voice.playback"
-                title={t('settings.voice.page.section.playbackAndSummary')}
                 divider={false}
                 contentClassName="space-y-3"
             >
-                <SettingsCheckboxRow
-                    checked={showMessageTTSButtons}
-                    onChange={setShowMessageTTSButtons}
-                    label={t('settings.voice.page.field.messageReadAloudButton')}
-                    ariaLabel={t('settings.voice.page.field.messageReadAloudButtonAria')}
-                />
-
-                <SettingsCheckboxRow
-                    checked={autoReadAloudEnabled}
-                    onChange={setAutoReadAloudEnabled}
-                    label={t('settings.voice.page.field.autoReadAloud')}
-                    ariaLabel={t('settings.voice.page.field.autoReadAloudAria')}
-                    info={t('settings.voice.page.tooltip.autoReadAloud')}
-                    settingsItem="voice.auto-read-aloud"
-                />
-
                 {voicePlaybackEnabled && (
                     <>
                         <SettingsFieldRow
@@ -1155,9 +1148,6 @@ export const VoiceSettings: React.FC = () => {
                                 </SettingsStackedField>
                             </div>
                         )}
-
-                        {/* Local (Kokoro) TTS model status */}
-                        {voiceProvider === 'local' && <LocalTtsModelStatus {...localTtsModels} />}
 
                         <div>
                             {voiceProvider === 'openai-compatible' ? null : (
@@ -1295,7 +1285,6 @@ export const VoiceSettings: React.FC = () => {
                                     options={[
                                         { value: 'sanitized', label: t('settings.voice.page.field.ttsInputModeSanitized') },
                                         { value: 'raw', label: t('settings.voice.page.field.ttsInputModeRaw') },
-                                        { value: 'summarized', label: t('settings.voice.page.field.ttsInputModeSummarized') },
                                     ]}
                                 />
                             </SettingsFieldRow>
@@ -1325,11 +1314,28 @@ export const VoiceSettings: React.FC = () => {
                         )}
                     </>
                 )}
+                <div className={SETTINGS_OPTION_STACK_CLASS}>
+                    <SettingsCheckboxRow
+                        checked={showMessageTTSButtons}
+                        onChange={setShowMessageTTSButtons}
+                        label={t('settings.voice.page.field.messageReadAloudButton')}
+                        ariaLabel={t('settings.voice.page.field.messageReadAloudButtonAria')}
+                    />
+                    <SettingsCheckboxRow
+                        checked={autoReadAloudEnabled}
+                        onChange={setAutoReadAloudEnabled}
+                        label={t('settings.voice.page.field.autoReadAloud')}
+                        ariaLabel={t('settings.voice.page.field.autoReadAloudAria')}
+                        info={t('settings.voice.page.tooltip.autoReadAloud')}
+                        settingsItem="voice.auto-read-aloud"
+                    />
+                </div>
+                {voicePlaybackEnabled && voiceProvider === 'local' && <LocalTtsModelStatus {...localTtsModels} />}
             </SettingsSection>
-
+            ) : (
             <SettingsSection
                 settingsItem="voice.speech-recognition"
-                title={t('settings.voice.page.section.speechRecognition')}
+                divider={false}
                 contentClassName="space-y-3"
             >
                 <SettingsCheckboxRow
@@ -1429,6 +1435,7 @@ export const VoiceSettings: React.FC = () => {
                     </>
                 )}
             </SettingsSection>
+            )}
         </>
     );
 };
