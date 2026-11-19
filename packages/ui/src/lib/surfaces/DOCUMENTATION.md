@@ -61,7 +61,10 @@ Full-screen extension pages are separate from this rail registry. `contributes.p
   controls, leaving no reserved rail width beside the chat. Icons keep their
   size and scroll horizontally when space runs out. Reordering follows measured
   rectangles in either text direction; dragging below the toolbar enters zone
-  placement. Tooltips open below the header.
+  placement. Tooltips open below the header. While a full-page surface covers the chat (Integrations,
+  Archive, Scheduled tasks, a workspace, the source board and the other main
+  pages), the header leaves out the toolbar and the chat's own actions; window
+  controls stay.
 - `getVisibleContextRailSurfaces` is the single visibility filter shared by the
   rail and the global surface-switch shortcut (`switch_context_surface` in
   `lib/shortcuts`): it drops surfaces the user hid

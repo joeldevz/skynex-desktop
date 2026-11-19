@@ -92,7 +92,8 @@ type HeaderSessionSnapshot = {
   parentId: string | null;
 };
 
-export const Header: React.FC<{ toolbar?: React.ReactNode }> = ({ toolbar }) => {
+/** `toolbar` and the chat actions are left out while a full-page surface covers the chat. */
+export const Header: React.FC<{ toolbar?: React.ReactNode; showChatActions?: boolean }> = ({ toolbar, showChatActions = true }) => {
   streamPerfCount('ui.header.render');
   const { t, direction } = useI18n();
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
@@ -1279,12 +1280,12 @@ export const Header: React.FC<{ toolbar?: React.ReactNode }> = ({ toolbar }) => 
 
         {activeSurfaceHeader || isVSCode || !sessionTabsEnabled ? <div className="flex-1" /> : null}
 
-        {toolbar}
+        {showChatActions ? toolbar : null}
 
         {/* Spacing comes from the gap only, so whichever control ends up last
             sits on the header's own right padding with no trailing margin. */}
         <div className="flex shrink-0 items-center gap-2">
-          {showMiniChatHeaderAction ? (
+          {showChatActions && showMiniChatHeaderAction ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -1301,7 +1302,7 @@ export const Header: React.FC<{ toolbar?: React.ReactNode }> = ({ toolbar }) => 
               </TooltipContent>
             </Tooltip>
           ) : null}
-          {!isVSCode ? (
+          {showChatActions && !isVSCode ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -1329,7 +1330,7 @@ export const Header: React.FC<{ toolbar?: React.ReactNode }> = ({ toolbar }) => 
             </Tooltip>
           ) : null}
 
-          {desktopSidebarActions}
+          {showChatActions ? desktopSidebarActions : null}
           <WindowsWindowControls visible={endEdgeOwnedByInWindowControls} position={windowControlsSide} />
         </div>
       </div>

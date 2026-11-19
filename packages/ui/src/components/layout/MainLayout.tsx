@@ -207,7 +207,7 @@ export const MainLayout: React.FC = () => {
                 <div className="flex flex-1 overflow-hidden" data-page-scroll-lock="true">
                     <LeftSidebar isMobile={isMobile} />
                     <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden bg-background" data-page-scroll-lock="true">
-                        <Header toolbar={<ErrorBoundary><ContextPanelRail /></ErrorBoundary>} />
+                        <Header toolbar={<ErrorBoundary><ContextPanelRail /></ErrorBoundary>} showChatActions={!isSurfacePageOpen} />
                         <div className="relative flex flex-1 min-h-0 overflow-hidden bg-background" data-page-scroll-lock="true">
                             <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden bg-background" data-page-scroll-lock="true">
                                 <div className="relative flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true" data-workspace-row="true">
