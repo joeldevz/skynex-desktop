@@ -1,7 +1,11 @@
 ---
-title:
+title: Windows and Linux x64 downloads
 ---
 
 ## App
+
+### Misc
+- **Downloads:** Skynex App 0.1.5 includes desktop installers and a standalone CLI for Windows and Linux x64.
+- **ARM64:** This release has no ARM64 packages. The Windows and Linux ARM64 downloads for Skynex App 0.1.4 remain available.
 
 ## VS Code
