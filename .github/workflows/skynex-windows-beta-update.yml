@@ -116,8 +116,9 @@ jobs:
             $env:OPENCHAMBER_UPDATER_E2E_URL = $line.Matches[0].Groups[1].Value
             $app = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
             $base = Wait-AppHealth $app
-            $feedRecord = "updater feed configured { provider: 'generic', target: '$env:OPENCHAMBER_UPDATER_E2E_URL'"
-            if (!(Select-String -LiteralPath $appLog -SimpleMatch $feedRecord -Quiet)) {
+            $feedTarget = [regex]::Escape($env:OPENCHAMBER_UPDATER_E2E_URL)
+            $feedRecord = "updater feed configured\s*\{\s*provider:\s*'generic',\s*target:\s*'$feedTarget'\s*[,}]"
+            if ((Get-Content -LiteralPath $appLog -Raw) -cnotmatch $feedRecord) {
               throw 'The installed app did not confirm the generic loopback feed'
             }
             $info = Invoke-RestMethod -Uri "$base/api/openchamber/update-check?appType=web" -TimeoutSec 30
