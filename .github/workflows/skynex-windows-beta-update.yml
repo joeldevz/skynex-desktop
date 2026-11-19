@@ -1,0 +1,151 @@
+name: Skynex Windows beta update smoke
+
+on:
+  push:
+    branches: [ci/skynex-vite-windows]
+    paths: ['.github/workflows/skynex-windows-beta-update.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  update:
+    if: github.repository == 'joeldevz/skynex-desktop'
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          github-token: ${{ github.token }}
+          run-id: 44477131375
+          pattern: skynex-windows-x64-0.1.4-beta.*
+          path: beta-artifacts
+      - name: Install beta.1 and update through the local feed
+        shell: pwsh
+        run: |
+          if ((node -p "process.platform + '-' + process.arch") -ne 'win32-x64') { throw 'Expected native Windows x64' }
+          $beta1 = (Resolve-Path beta-artifacts/skynex-windows-x64-0.1.4-beta.1).Path
+          $beta2 = (Resolve-Path beta-artifacts/skynex-windows-x64-0.1.4-beta.2).Path
+          foreach ($i in 1,2) {
+            $dir = if ($i -eq 1) { $beta1 } else { $beta2 }
+            $version = "0.1.4-beta.$i"
+            node packages/electron/scripts/verify-update-manifest.mjs "$dir/latest.yml" $version "$dir/Skynex-$version-win-x64.exe"
+            if ($LASTEXITCODE -ne 0) { throw "Installer verification failed for $version" }
+          }
+          $root = Join-Path $env:RUNNER_TEMP ('skynex-update-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $root | Out-Null
+          $installDir = Join-Path $root 'installed'
+          $exe = Join-Path $installDir 'Skynex.exe'
+          $asar = Join-Path $installDir 'resources/app.asar'
+          $settings = Join-Path $HOME '.config/openchamber/settings.json'
+          $appLog = Join-Path $env:APPDATA 'OpenChamber/logs/main.log'
+          $feedLog = Join-Path $root 'feed.log'
+          $manifestReader = Join-Path $root 'read-asar-version.cjs'
+          @'
+          const fs = require('node:fs');
+          const fd = fs.openSync(process.argv[2], 'r');
+          const read = (size, position) => {
+            const buffer = Buffer.alloc(size);
+            if (fs.readSync(fd, buffer, 0, size, position) !== size) throw Error('Truncated ASAR');
+            return buffer;
+          };
+          try {
+            const prefix = read(16, 0);
+            const header = JSON.parse(read(prefix.readUInt32LE(12), 16));
+            const entry = header.files['package.json'];
+            const pkg = JSON.parse(read(entry.size, 8 + prefix.readUInt32LE(4) + Number(entry.offset)));
+            console.log(pkg.version);
+          } finally {
+            fs.closeSync(fd);
+          }
+          '@ | Set-Content -LiteralPath $manifestReader -Encoding utf8
+          function Wait-AppHealth($app) {
+            $deadline = (Get-Date).AddMinutes(2)
+            do {
+              $app.Refresh()
+              if ($app.HasExited) { throw 'Skynex exited before its backend became ready' }
+              if (Test-Path -LiteralPath $settings -PathType Leaf) {
+                try {
+                  $port = (Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json).desktopLocalPort
+                  if ($port -ge 1 -and $port -le 65535) {
+                    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+                      Where-Object { $_.OwningProcess -eq $app.Id -and $_.LocalAddress -in @('127.0.0.1', '::1') }
+                    if ($listener) {
+                      $base = "http://127.0.0.1:$port"
+                      $response = Invoke-WebRequest -Uri "$base/health" -TimeoutSec 3
+                      if ($response.StatusCode -eq 200) { return $base }
+                    }
+                  }
+                } catch {}
+              }
+              Start-Sleep -Milliseconds 500
+            } while ((Get-Date) -lt $deadline)
+            throw 'Installed app did not start its own loopback server'
+          }
+          function Find-InstalledMain {
+            Get-CimInstance Win32_Process -Filter "Name = 'Skynex.exe'" | Where-Object {
+              $_.ExecutablePath -eq $exe -and $_.CommandLine -notmatch '\s--type='
+            } | Select-Object -First 1
+          }
+          $feed = $null
+          try {
+            if (Test-Path -LiteralPath $settings) { throw 'Expected a fresh disposable Windows profile' }
+            $setup = Start-Process -FilePath "$beta1/Skynex-0.1.4-beta.1-win-x64.exe" -ArgumentList "/S /D=$installDir" -PassThru -Wait
+            if ($setup.ExitCode -ne 0 -or (node $manifestReader $asar) -ne '0.1.4-beta.1') { throw 'beta.1 installation failed' }
+            $before = (Get-FileHash -LiteralPath $asar -Algorithm SHA256).Hash
+            $server = (Resolve-Path packages/electron/scripts/updater-e2e-fixture.mjs).Path
+            $feed = Start-Process -FilePath (Get-Command node).Source -ArgumentList "`"$server`" serve --dir `"$beta2`"" -PassThru -RedirectStandardOutput $feedLog
+            $deadline = (Get-Date).AddSeconds(15)
+            do {
+              $feed.Refresh()
+              if ($feed.HasExited) { throw 'Loopback feed process exited early' }
+              $line = Get-Content -LiteralPath $feedLog -ErrorAction SilentlyContinue |
+                Select-String -Pattern 'fixture listening at (http://127\.0\.0\.1:\d+/)$' | Select-Object -First 1
+              if ($line) { break }
+              Start-Sleep -Milliseconds 200
+            } while ((Get-Date) -lt $deadline)
+            if (!$line) { throw 'Loopback feed did not start' }
+            $env:OPENCHAMBER_E2E = '1'
+            $env:OPENCHAMBER_UPDATER_E2E_URL = $line.Matches[0].Groups[1].Value
+            $app = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
+            $base = Wait-AppHealth $app
+            $feedRecord = "updater feed configured { provider: 'generic', target: '$env:OPENCHAMBER_UPDATER_E2E_URL'"
+            if (!(Select-String -LiteralPath $appLog -SimpleMatch $feedRecord -Quiet)) {
+              throw 'The installed app did not confirm the generic loopback feed'
+            }
+            $info = Invoke-RestMethod -Uri "$base/api/openchamber/update-check?appType=web" -TimeoutSec 30
+            if (!$info.available -or $info.currentVersion -ne '0.1.4-beta.1' -or $info.version -ne '0.1.4-beta.2' -or $info.updateOwner -ne 'electron-updater') {
+              throw 'Installed beta.1 did not select beta.2 through the desktop updater'
+            }
+            Write-Host "SKYNEX_UPDATE_SELECTED current=$($info.currentVersion) next=$($info.version) feed=$env:OPENCHAMBER_UPDATER_E2E_URL"
+            $update = Invoke-RestMethod -Uri "$base/api/openchamber/update-install" -Method Post -TimeoutSec 180
+            if (!$update.success -or !$update.autoRestart -or $update.version -ne '0.1.4-beta.2' -or $update.updateOwner -ne 'electron-updater') {
+              throw 'Desktop updater did not accept beta.2 installation'
+            }
+            if (!$app.WaitForExit(120000)) { throw 'beta.1 did not exit during the update' }
+            $deadline = (Get-Date).AddMinutes(2)
+            do {
+              $next = Find-InstalledMain
+              if ($next -and $next.ProcessId -ne $app.Id) { break }
+              Start-Sleep -Milliseconds 500
+            } while ((Get-Date) -lt $deadline)
+            if (!$next -or $next.ProcessId -eq $app.Id) { throw 'NSIS did not relaunch Skynex automatically' }
+            if ((node $manifestReader $asar) -ne '0.1.4-beta.2') { throw 'Relaunched installation is not beta.2' }
+            $after = (Get-FileHash -LiteralPath $asar -Algorithm SHA256).Hash
+            if ($before -eq $after) { throw 'Updater did not replace the installed app bundle' }
+            $null = Wait-AppHealth (Get-Process -Id $next.ProcessId)
+            Write-Host "SKYNEX_UPDATE_RELAUNCHED version=0.1.4-beta.2 oldPid=$($app.Id) newPid=$($next.ProcessId) asarSha256=$after health=200"
+          } finally {
+            if ($feed -and !$feed.HasExited) { Stop-Process -Id $feed.Id -ErrorAction SilentlyContinue }
+            $processes = Get-CimInstance Win32_Process | Where-Object {
+              $_.ExecutablePath -and $_.ExecutablePath.StartsWith($installDir + '\', [StringComparison]::OrdinalIgnoreCase)
+            }
+            foreach ($entry in $processes) { Stop-Process -Id $entry.ProcessId -Force -ErrorAction SilentlyContinue }
+          }
