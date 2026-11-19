@@ -4313,6 +4313,26 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.6] - 2026-11-19
+
+### New
+
+- **Voice:** Supertonic 3 adds 10 local voices for 31 languages, including Spanish. Download the model from Voice settings.
+
+### Improvements
+
+- **Voice settings:** Playback and Dictation have separate tabs. Pick and preview a voice from the Playback tab, or open its model list to manage downloads.
+- Chat: The read-aloud button reads the complete reply. Use Listen to summary for a shorter spoken version.
+- **Chat:** The context controls sit in the chat header and stay out of the way on full pages. The Memory panel has been removed; Neurox is unchanged.
+- Integrations: Browse the redesigned catalog, with 11 additional MCP integrations.
+- Workspaces: Browse folders as tiles and search sessions. Folder selections carry over as you browse the folder picker.
+- Sidebar: Workspaces show their session visibility button only when they have open sessions. Open Archive from the command palette on desktop.
+- Sign-in: The unlock screen has a clearly labelled button and explains when a password is missing.
+
+### Fixes
+
+- Browser: A browser action can wait briefly for the desktop client to reconnect.
+
 ## [0.1.5] - 2026-11-19
 
 ### Misc
