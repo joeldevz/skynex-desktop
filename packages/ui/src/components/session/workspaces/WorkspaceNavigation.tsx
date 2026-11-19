@@ -90,7 +90,8 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
         <div className="flex items-center justify-between gap-2 ps-2">
           <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.title')}</h2>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button variant="ghost" size="xs" disabled={sessions.length === 0} className="text-muted-foreground" aria-label={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} title={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} aria-pressed={allSessionsVisible} onClick={() => {
+            {sessions.length > 0 ? (
+            <Button variant="ghost" size="xs" className="text-muted-foreground" aria-label={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} title={allSessionsVisible ? t('workspaces.hideAllOpenSessions') : t('workspaces.showAllOpenSessions')} aria-pressed={allSessionsVisible} onClick={() => {
               if (allSessionsVisible) {
                 setHideAllSessions(true);
                 setHiddenWorkspaceIds(new Set());
@@ -103,6 +104,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
             }}>
               <Icon name={allSessionsVisible ? 'eye' : 'eye-off'} className="size-4" />
             </Button>
+            ) : null}
             <Button variant="ghost" size="xs" className="text-muted-foreground" aria-label={t('workspaces.newWorkspace')} title={t('workspaces.newWorkspace')} disabled={status !== 'ready' && status !== 'failed'} onClick={() => { setFailed(false); setCreating(true); }}>
               <Icon name="add" className="size-4" />
             </Button>
@@ -120,7 +122,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
                 try { useUIStore.getState().closeMainSurfaces(); useWorkspacesStore.getState().selectWorkspace(workspace.id); }
                 catch { setFailed(true); }
               }}><WorkspaceInitial index={index} name={formatWorkspaceLabel(workspace.name)} /><span dir="auto" className="truncate oc-ui-start-align" title={workspace.name}>{formatWorkspaceLabel(workspace.name)}</span></Button>
-              <Button variant="ghost" size="xs" disabled={!hasSessions} className="shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/workspace:opacity-100 [@media(hover:hover)]:group-focus-within/workspace:opacity-100" aria-label={visibilityLabel} title={visibilityLabel} aria-pressed={!sessionsHidden} onClick={() => {
+              {hasSessions ? <Button variant="ghost" size="xs" className="shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/workspace:opacity-100 [@media(hover:hover)]:group-focus-within/workspace:opacity-100" aria-label={visibilityLabel} title={visibilityLabel} aria-pressed={!sessionsHidden} onClick={() => {
                 if (hideAllSessions) {
                   setVisibleWorkspaceIds((current) => {
                     const next = new Set(current);
@@ -136,7 +138,7 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
                     return next;
                   });
                 }
-              }}><Icon name={sessionsHidden ? 'eye-off' : 'eye'} className="size-4" /></Button>
+              }}><Icon name={sessionsHidden ? 'eye-off' : 'eye'} className="size-4" /></Button> : null}
             </div>;
           })}
         </div>

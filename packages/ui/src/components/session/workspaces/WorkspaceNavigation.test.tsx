@@ -229,6 +229,29 @@ for (const direction of ['ltr', 'rtl']) {
   });
 }
 
+test('a workspace with no open sessions shows no visibility toggle, and none shows globally without sessions', async () => {
+  await withNavigation(async (ui) => {
+    await fixture();
+    const { useWorkspacesStore } = await import('@/stores/useWorkspacesStore');
+    const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
+    useWorkspacesStore.setState({ catalog: { version: 1, workspaces: [...workspaces,
+      { id: 'empty', name: 'Empty', description: '', defaults: {}, folders: [{ id: 'empty-folder', path: '/projects/empty', role: '' }] }] } });
+    await ui.render();
+    expect(ui.button('Hide open sessions for Product')).toBeTruthy();
+    expect(() => ui.button('Hide open sessions for Empty')).toThrow();
+    expect(() => ui.button('Show open sessions for Empty')).toThrow();
+    expect(ui.button('Hide all open sessions')).toBeTruthy();
+
+    await act(async () => openSessionsStore.setState({ sessions: [] }));
+    expect(() => ui.button('Hide all open sessions')).toThrow();
+    expect(() => ui.button('Show all open sessions')).toThrow();
+    await act(async () => {
+      openSessionsStore.setState({ sessions });
+      useWorkspacesStore.setState({ catalog: { version: 1, workspaces } });
+    });
+  });
+});
+
 test('workspace and global visibility controls only filter the list, preserving open membership', async () => {
   await withNavigation(async (ui) => {
     const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
