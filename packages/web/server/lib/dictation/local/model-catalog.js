@@ -274,6 +274,30 @@ export const LOCAL_TTS_MODEL_CATALOG = {
     },
     description: 'Piper TTS (Swedish)',
   },
+  // Supertonic 3 speaks 31 languages with 10 voices from one model and
+  // needs the text's language at generation time (`extra.lang`). It sits
+  // last so the per-language models above stay the automatic pick; it is
+  // used when selected, and for languages no other entry covers.
+  'supertonic-3-int8': {
+    type: 'supertonic',
+    languages: [
+      'en', 'ko', 'ja', 'ar', 'bg', 'cs', 'da', 'de', 'el', 'es', 'et', 'fi', 'fr', 'hi', 'hr', 'hu',
+      'id', 'it', 'lt', 'lv', 'nl', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sv', 'tr', 'uk', 'vi',
+    ],
+    archiveUrl:
+      'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2',
+    extractedDir: 'sherpa-onnx-supertonic-3-tts-int8-2026-05-11',
+    files: {
+      durationPredictor: 'duration_predictor.int8.onnx',
+      textEncoder: 'text_encoder.int8.onnx',
+      vectorEstimator: 'vector_estimator.int8.onnx',
+      vocoder: 'vocoder.int8.onnx',
+      ttsJson: 'tts.json',
+      unicodeIndexer: 'unicode_indexer.bin',
+      voiceStyle: 'voice.bin',
+    },
+    description: 'Supertonic 3 TTS (31 languages, 10 voices)',
+  },
 };
 
 export const DEFAULT_LOCAL_STT_MODEL = 'parakeet-tdt-0.6b-v2-int8';

@@ -22,6 +22,14 @@ describe('local TTS catalog', () => {
     expect(resolveLocalTtsModelForLanguage('xx', DEFAULT_LOCAL_TTS_MODEL)).toBeNull();
   });
 
+  it('keeps a selected Supertonic for every language it speaks, without displacing per-language models', () => {
+    expect(resolveLocalTtsModelForLanguage('es', 'supertonic-3-int8')).toBe('supertonic-3-int8');
+    expect(resolveLocalTtsModelForLanguage('en', 'supertonic-3-int8')).toBe('supertonic-3-int8');
+    expect(resolveLocalTtsModelForLanguage('es', DEFAULT_LOCAL_TTS_MODEL)).toBe('piper-es_ES-davefx-medium');
+    expect(resolveLocalTtsModelForLanguage('ko', DEFAULT_LOCAL_TTS_MODEL)).toBe('supertonic-3-int8');
+    expect(resolveLocalTtsModelForLanguage('zh', 'supertonic-3-int8')).toBe('kokoro-multi-lang-v1_1');
+  });
+
   it('gives Chinese a Chinese speaker on the multi-language Kokoro', () => {
     expect(getLocalTtsDefaultSpeaker('kokoro-multi-lang-v1_1', 'zh')).toBe(3);
     expect(getLocalTtsDefaultSpeaker('kokoro-multi-lang-v1_1', 'en')).toBe(0);
@@ -33,7 +41,7 @@ describe('local TTS catalog', () => {
       expect(spec.languages.length, id).toBeGreaterThan(0);
       expect(spec.archiveUrl, id).toMatch(/^https:\/\/github\.com\/k2-fsa\/sherpa-onnx\/releases\/download\/tts-models\//);
       const resolved = getLocalSttModelSpec(id);
-      expect(resolved.requiredFiles, id).toContain(spec.files.model);
+      expect(resolved.requiredFiles, id).toContain(spec.files.model ?? spec.files.textEncoder);
       for (const key of spec.lexicon ?? []) {
         expect(spec.files[key], `${id} lexicon ${key}`).toBeTruthy();
       }

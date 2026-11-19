@@ -105,6 +105,7 @@ function getTtsEngine(modelsDir, modelId) {
     type: spec.type,
     files: spec.files,
     lexicon: spec.lexicon,
+    languages: spec.languages,
     numThreads: 2,
   });
   ttsEngines.set(key, created);
@@ -118,6 +119,7 @@ async function handleRequest(message) {
       const { pcm16, sampleRate } = engine.synthesize(message.text, {
         speakerId: message.speakerId,
         speed: message.speed,
+        language: message.language,
       });
       sendOk(message.requestId, {
         audio: pcm16ToWav(pcm16, sampleRate),

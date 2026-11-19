@@ -11,7 +11,7 @@ live transcript costs O(n^2) work for a result the final decode replaces. The
 composer shows no text while recording and inserts the full transcript on
 stop.
 
-Local TTS (Kokoro and Piper/VITS via sherpa-onnx OfflineTts) runs in the same
+Local TTS (Kokoro, Piper/VITS and Supertonic via sherpa-onnx OfflineTts) runs in the same
 worker process and is exposed as `POST /api/dictation/tts/speak` (JSON
 `{text, speakerId?, speed?, model?, language?, languageSample?}` → WAV bytes; 503 with
 `reasonCode` while the model is downloading). TTS models live in the same
@@ -30,6 +30,15 @@ first use like any other model, and starts from that model's default speaker
 (`defaultSpeakerByLanguage`) instead of the caller's speaker id. A language no
 catalog model covers keeps the caller's model, so text is always spoken. The
 response carries `X-Speech-Model` and `X-Speech-Language`.
+
+Supertonic 3 is one multilingual model that must be told the text's language.
+The service always sends the worker a language — the `auto` result, or the
+detected language of the text when the caller pinned its model — and the
+engine falls back to English for a language Supertonic does not speak, since
+sherpa-onnx fails generation for an unknown language. The entry is last in the
+catalog so the per-language models stay the automatic choice; it is chosen
+automatically only for languages no other entry speaks (Korean, Japanese,
+Arabic, Greek, Hindi...).
 
 ## Ownership
 

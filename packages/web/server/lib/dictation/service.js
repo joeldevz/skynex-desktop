@@ -276,6 +276,9 @@ export function createDictationService({ modelsDir }) {
       text,
       speakerId,
       speed,
+      // Multilingual models need the text's language even when the caller
+      // pinned the model and voice.
+      language: resolvedLanguage ?? detectTextLanguage(languageSample || text).language,
     });
     return { audio: result.audio, format: result.format, modelId, language: resolvedLanguage };
   };

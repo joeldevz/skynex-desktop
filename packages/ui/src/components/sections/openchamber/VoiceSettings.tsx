@@ -293,6 +293,9 @@ const KOKORO_VOICE_OPTIONS = [
 const LOCAL_TTS_MODEL_ID = 'kokoro-en-v0_19';
 
 const KOKORO_MULTI_LANG_MODEL_ID = 'kokoro-multi-lang-v1_1';
+// Supertonic 3 carries ten unnamed voice styles, speaker ids 0-9.
+const SUPERTONIC_MODEL_ID = 'supertonic-3-int8';
+const SUPERTONIC_VOICE_COUNT = 10;
 // A few named speakers out of the 103 in the Chinese/English Kokoro build.
 const KOKORO_MULTI_LANG_VOICE_OPTIONS = [
     { id: 0, label: 'Maple (af)' },
@@ -367,8 +370,8 @@ const useLocalTtsModels = () => {
     return { models, requestingId, request, refresh };
 };
 
-// Voices the picker offers: Kokoro speakers for the Kokoro models, one voice
-// per installed Piper model. Only installed models (plus the default) appear,
+// Voices the picker offers: Kokoro and Supertonic speakers for those models,
+// one voice per installed Piper model. Only installed models (plus the default) appear,
 // so a language model the server fetched on its own becomes selectable once
 // it is on disk.
 const buildLocalTtsVoiceOptions = (models: DictationModelState[]): LocalTtsVoiceOption[] => {
@@ -382,6 +385,12 @@ const buildLocalTtsVoiceOptions = (models: DictationModelState[]): LocalTtsVoice
         if (model.id === KOKORO_MULTI_LANG_MODEL_ID) {
             for (const voice of KOKORO_MULTI_LANG_VOICE_OPTIONS) {
                 options.push({ modelId: model.id, speakerId: voice.id, label: `${voice.label} · Kokoro zh/en` });
+            }
+            continue;
+        }
+        if (model.id === SUPERTONIC_MODEL_ID) {
+            for (let speakerId = 0; speakerId < SUPERTONIC_VOICE_COUNT; speakerId += 1) {
+                options.push({ modelId: model.id, speakerId, label: `Supertonic 3 · ${speakerId + 1}` });
             }
             continue;
         }

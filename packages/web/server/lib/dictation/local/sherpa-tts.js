@@ -1,5 +1,5 @@
 /**
- * Sherpa-onnx offline TTS (Kokoro and Piper/VITS). Runs inside the dictation worker process
+ * Sherpa-onnx offline TTS (Kokoro, Piper/VITS and Supertonic). Runs inside the dictation worker process
  * only — never load the native addon in the main server process.
  */
 
@@ -26,7 +26,8 @@ function float32ToPcm16le(samples) {
 /**
  * sherpa-onnx model config for one catalog entry. Kokoro carries a voices
  * bank (speaker ids) and optional lexicons; a Piper/VITS model is a single
- * voice with espeak-ng phonemization.
+ * voice with espeak-ng phonemization. Supertonic reads raw text through its
+ * own Unicode indexer and carries ten voice styles.
  * @param {{ modelDir: string, type?: string, files: Record<string, string>, lexicon?: string[] }} config
  */
 function buildModelConfig(config) {
@@ -35,6 +36,19 @@ function buildModelConfig(config) {
     assertFileExists(filePath, label);
     return filePath;
   };
+  if (config.type === 'supertonic') {
+    return {
+      supertonic: {
+        durationPredictor: file('durationPredictor', 'TTS duration predictor'),
+        textEncoder: file('textEncoder', 'TTS text encoder'),
+        vectorEstimator: file('vectorEstimator', 'TTS vector estimator'),
+        vocoder: file('vocoder', 'TTS vocoder'),
+        ttsJson: file('ttsJson', 'TTS config'),
+        unicodeIndexer: file('unicodeIndexer', 'TTS unicode indexer'),
+        voiceStyle: file('voiceStyle', 'TTS voice styles'),
+      },
+    };
+  }
   const modelPath = file('model', 'TTS model');
   const tokensPath = file('tokens', 'TTS tokens');
 
@@ -62,12 +76,15 @@ function buildModelConfig(config) {
 
 export class SherpaTtsEngine {
   /**
-   * @param {{ modelDir: string, type?: string, files: Record<string, string>, lexicon?: string[], numThreads?: number }} config
+   * @param {{ modelDir: string, type?: string, files: Record<string, string>, lexicon?: string[], languages?: string[], numThreads?: number }} config
    */
   constructor(config) {
     const model = buildModelConfig(config);
+    this.sherpa = loadSherpaOnnxNode();
+    // Supertonic rejects a language it does not speak instead of guessing.
+    this.languages = config.type === 'supertonic' ? (config.languages ?? []) : null;
 
-    const sherpa = loadSherpaOnnxNode();
+    const sherpa = this.sherpa;
     if (typeof sherpa.OfflineTts !== 'function') {
       throw new Error('sherpa-onnx-node OfflineTts is unavailable');
     }
@@ -83,7 +100,7 @@ export class SherpaTtsEngine {
   /**
    * Synthesize text to PCM16LE.
    * @param {string} text
-   * @param {{ speakerId?: number, speed?: number }} [options]
+   * @param {{ speakerId?: number, speed?: number, language?: string }} [options]
    * @returns {{ pcm16: Buffer, sampleRate: number }}
    */
   synthesize(text, options = {}) {
@@ -92,14 +109,21 @@ export class SherpaTtsEngine {
       throw new Error('Cannot synthesize empty text');
     }
 
-    const audio = this.tts.generate({
-      text: trimmed,
-      sid: Number.isInteger(options.speakerId) ? options.speakerId : 0,
-      speed: typeof options.speed === 'number' && options.speed > 0 ? options.speed : 1.0,
-      // Request a copied buffer from sherpa itself: native external-backed
-      // typed arrays are rejected by Electron.
-      enableExternalBuffer: false,
-    });
+    const sid = Number.isInteger(options.speakerId) ? options.speakerId : 0;
+    const speed = typeof options.speed === 'number' && options.speed > 0 ? options.speed : 1.0;
+    // Request a copied buffer from sherpa itself: native external-backed
+    // typed arrays are rejected by Electron.
+    const audio = this.languages
+      ? this.tts.generate({
+        text: trimmed,
+        generationConfig: new this.sherpa.GenerationConfig({
+          sid,
+          speed,
+          extra: { lang: this.languages.includes(options.language) ? options.language : 'en' },
+        }),
+        enableExternalBuffer: false,
+      })
+      : this.tts.generate({ text: trimmed, sid, speed, enableExternalBuffer: false });
 
     let samples = null;
     if (audio && audio.samples instanceof Float32Array) {
