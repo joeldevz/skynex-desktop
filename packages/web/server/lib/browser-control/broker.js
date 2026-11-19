@@ -14,15 +14,17 @@
  *
  * Two failure modes matter and are handled explicitly rather than as timeouts:
  *
- * - No client is listening. The agent is told immediately that the browser is
- *   not open, instead of blocking for the full timeout and then reporting
- *   something ambiguous.
+ * - No client is listening. The broker gives a reconnecting desktop client a
+ *   short grace (`connectGraceMs`) to come back, then tells the agent the
+ *   browser is not available, instead of blocking for the full timeout and
+ *   then reporting something ambiguous.
  * - The client accepted the request and then went away. That still times out,
  *   because the alternative — assuming success — would be a lie.
  */
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_TIMEOUT_MS = 120_000;
+const CONNECT_RETRY_MS = 500;
 
 export class BrowserControlError extends Error {
   constructor(message, status = 400) {
@@ -37,6 +39,7 @@ export const createBrowserControlBroker = ({
   createId,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
+  connectGraceMs = 0,
 } = {}) => {
   if (typeof emitRequest !== 'function') {
     throw new TypeError('emitRequest is required');
@@ -52,6 +55,36 @@ export const createBrowserControlBroker = ({
     entry.finish(outcome);
     return true;
   };
+
+  /** Waits for the client that claimed a published request to answer it. */
+  const track = (requestId, boundedTimeout, signal) => new Promise((resolve, reject) => {
+    const finish = (outcome) => {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      if (outcome.ok) resolve(outcome.data ?? null);
+      else reject(new BrowserControlError(outcome.message || 'Browser action failed', outcome.status || 400));
+    };
+
+    const onAbort = signal
+      ? () => settle(requestId, { ok: false, message: 'Browser action was cancelled', status: 499 })
+      : null;
+    if (signal) {
+      if (signal.aborted) {
+        reject(new BrowserControlError('Browser action was cancelled', 499));
+        return;
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    const timer = setTimer(() => {
+      settle(requestId, {
+        ok: false,
+        message: `The in-app browser did not respond within ${Math.round(boundedTimeout / 1000)}s`,
+        status: 504,
+      });
+    }, boundedTimeout);
+
+    pending.set(requestId, { finish, timer, claimed: false });
+  });
 
   return {
     /** Number of requests still awaiting a client response. */
@@ -70,7 +103,7 @@ export const createBrowserControlBroker = ({
       // The calling session goes out with the request: the client keeps one
       // session's tabs apart from another's, and opens a tab in the project
       // the session works in, which is not always the one on screen.
-      const listenerCount = emitRequest({
+      const publish = () => emitRequest({
         requestId,
         action,
         parameters,
@@ -79,47 +112,47 @@ export const createBrowserControlBroker = ({
           sessionId: context?.sessionId ?? null,
         },
       });
-      if (!listenerCount) {
-        // Written for the agent reading it, not the user: state what this
-        // environment can do, and leave deciding whether it matters to the
-        // caller rather than handing it an instruction it cannot carry out.
-        return Promise.reject(new BrowserControlError(
-          'No OpenChamber client connected here can control a page. Reading and '
-          + 'interacting with a page works when OpenChamber runs as its desktop '
-          + 'application; a web browser tab can display a page but cannot be '
-          + 'driven. Nothing was changed. Mention this to the user only if it '
-          + 'affects what they asked for.',
-          503,
-        ));
-      }
+      // Written for the agent reading it, not the user: state what this
+      // environment can do, and leave deciding whether it matters to the
+      // caller rather than handing it an instruction it cannot carry out.
+      const unavailable = () => new BrowserControlError(
+        'No Skynex client connected here can control a page. Reading and '
+        + 'interacting with a page works when Skynex runs as its desktop '
+        + 'application; a web browser tab can display a page but cannot be '
+        + 'driven. Nothing was changed. Mention this to the user only if it '
+        + 'affects what they asked for.',
+        503,
+      );
 
+      if (publish()) return track(requestId, boundedTimeout, signal);
+      if (!(connectGraceMs > 0)) return Promise.reject(unavailable());
+
+      // A desktop client that is reconnecting (just launched, waking from
+      // sleep, or after a server restart) is not listening for a moment. The
+      // request is published again until one is, or the grace runs out.
       return new Promise((resolve, reject) => {
-        const finish = (outcome) => {
-          if (signal && onAbort) signal.removeEventListener('abort', onAbort);
-          if (outcome.ok) resolve(outcome.data ?? null);
-          else reject(new BrowserControlError(outcome.message || 'Browser action failed', outcome.status || 400));
+        const deadline = Date.now() + connectGraceMs;
+        let timer = null;
+        const onAbort = () => {
+          clearTimer(timer);
+          reject(new BrowserControlError('Browser action was cancelled', 499));
         };
-
-        const onAbort = signal
-          ? () => settle(requestId, { ok: false, message: 'Browser action was cancelled', status: 499 })
-          : null;
-        if (signal) {
-          if (signal.aborted) {
-            reject(new BrowserControlError('Browser action was cancelled', 499));
+        if (signal?.aborted) { onAbort(); return; }
+        signal?.addEventListener('abort', onAbort, { once: true });
+        const retry = () => {
+          if (publish()) {
+            signal?.removeEventListener('abort', onAbort);
+            track(requestId, boundedTimeout, signal).then(resolve, reject);
             return;
           }
-          signal.addEventListener('abort', onAbort, { once: true });
-        }
-
-        const timer = setTimer(() => {
-          settle(requestId, {
-            ok: false,
-            message: `The in-app browser did not respond within ${Math.round(boundedTimeout / 1000)}s`,
-            status: 504,
-          });
-        }, boundedTimeout);
-
-        pending.set(requestId, { finish, timer, claimed: false });
+          if (Date.now() >= deadline) {
+            signal?.removeEventListener('abort', onAbort);
+            reject(unavailable());
+            return;
+          }
+          timer = setTimer(retry, Math.min(CONNECT_RETRY_MS, Math.max(0, deadline - Date.now())));
+        };
+        timer = setTimer(retry, CONNECT_RETRY_MS);
       });
     },
 

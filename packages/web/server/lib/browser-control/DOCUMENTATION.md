@@ -148,9 +148,13 @@ itself; it can only ask and wait.
   wins and every other client does nothing. Deciding by whose result arrives
   first would be too late, because by then each of them has already clicked.
   A claim for a settled request is refused for the same reason.
-- Nobody listening is answered immediately with a 503 describing the
-  environment, never by blocking for the full timeout. A blocked wait followed
-  by a timeout cannot be told apart from a page that hung.
+- Nobody listening is answered with a 503 describing the environment after a
+  short grace (`connectGraceMs`, 5 s on the server), never by blocking for the
+  full timeout. During the grace the request is published again every 500 ms,
+  so a desktop client that is reconnecting (just launched, waking from sleep,
+  after a server restart) picks it up. A blocked wait followed by a timeout
+  cannot be told apart from a page that hung; the grace is short and ends in
+  the same clear 503.
 - A client that accepted a request and then disappeared still times out.
   Assuming success would report a page interaction that never happened.
 - A result for an unknown request id is accepted with `matched: false`, not an

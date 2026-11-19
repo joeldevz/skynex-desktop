@@ -1840,6 +1840,7 @@ const openChamberSessionService = createOpenChamberSessionService({
 // clients reached so the broker can fail fast when nobody is listening.
 const browserControlBroker = createBrowserControlBroker({
   createId: () => `browser-${crypto.randomUUID()}`,
+  connectGraceMs: 5_000,
   emitRequest: (request) => {
     // Opening a page only needs a panel to open it in; everything else needs a
     // client that can actually drive one. Counting the right clients is what

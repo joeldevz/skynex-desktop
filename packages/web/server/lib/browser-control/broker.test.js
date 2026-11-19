@@ -64,6 +64,67 @@ describe('browser control broker', () => {
     }
   });
 
+  test('names Skynex in the unavailable message', async () => {
+    const { broker } = createBroker({ listeners: 0 });
+    await expect(broker.request('browser.snapshot', {})).rejects.toThrow('No Skynex client');
+  });
+
+  test('a client that reconnects within the grace receives the request', async () => {
+    const timers = [];
+    let listeners = 0;
+    const emitted = [];
+    const broker = createBrowserControlBroker({
+      emitRequest: (payload) => { emitted.push(payload); return listeners; },
+      createId: () => 'req-grace',
+      setTimer: (callback) => { timers.push(callback); return timers.length; },
+      clearTimer: () => {},
+      connectGraceMs: 5_000,
+    });
+    const inflight = broker.request('browser.snapshot', {});
+    expect(emitted).toHaveLength(1);
+    listeners = 1;
+    timers.shift()();
+    expect(emitted).toHaveLength(2);
+    expect(broker.claim('req-grace')).toBe(true);
+    broker.resolve('req-grace', { ok: true, data: { url: 'http://a/' } });
+    expect(await inflight).toEqual({ url: 'http://a/' });
+  });
+
+  test('gives up with the unavailable error once the grace runs out', async () => {
+    const timers = [];
+    const realNow = Date.now;
+    let now = 1_000;
+    Date.now = () => now;
+    try {
+      const broker = createBrowserControlBroker({
+        emitRequest: () => 0,
+        setTimer: (callback) => { timers.push(callback); return timers.length; },
+        clearTimer: () => {},
+        connectGraceMs: 1_000,
+      });
+      const inflight = broker.request('browser.click', { selector: '#a' });
+      now += 1_000;
+      timers.shift()();
+      await expect(inflight).rejects.toMatchObject({ status: 503 });
+      expect(broker.pendingCount).toBe(0);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  test('a cancelled call stops waiting for a client', async () => {
+    const controller = new AbortController();
+    const broker = createBrowserControlBroker({
+      emitRequest: () => 0,
+      setTimer: () => 1,
+      clearTimer: () => {},
+      connectGraceMs: 5_000,
+    });
+    const inflight = broker.request('browser.click', { selector: '#a' }, { signal: controller.signal });
+    controller.abort();
+    await expect(inflight).rejects.toMatchObject({ status: 499 });
+  });
+
   test('surfaces a client-reported failure with its message', async () => {
     const { broker, emitted } = createBroker();
     const inflight = broker.request('browser.click', { selector: '#missing' });
