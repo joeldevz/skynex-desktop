@@ -1,0 +1,95 @@
+name: Skynex Vite Windows installer benchmark
+
+on:
+  push:
+    branches: [ci/skynex-vite-windows]
+    paths: ['.github/workflows/skynex-vite-windows-installer.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Windows x64 ${{ matrix.mode }} trial ${{ matrix.trial }}
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [vite7, vite8]
+        trial: [1, 2]
+    defaults:
+      run:
+        shell: bash
+    env:
+      OPENCHAMBER_TARGET_ARCH: x64
+      ELECTRON_BUILDER_ARCH: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install app dependencies
+        run: |
+          test "$(node -p "process.platform + '-' + process.arch")" = win32-x64
+          bun install --frozen-lockfile
+      - name: Install isolated Vite 8 toolchain
+        if: matrix.mode == 'vite8'
+        run: |
+          mkdir .vite-benchmark
+          cp scripts/vite-windows-benchmark.mjs .vite-benchmark/benchmark.mjs
+          npm install --prefix .vite-benchmark --ignore-scripts --no-audit --no-fund --save-exact \
+            vite@8.3.8 @vitejs/plugin-react@6.3.0 @rolldown/plugin-babel@0.3.1 \
+            @babel/core@7.29.0 babel-plugin-react-compiler@1.0.0 vite-plugin-pwa@1.3.0
+      - name: Build and stage web assets
+        env:
+          VITE_MODE: ${{ matrix.mode }}
+          TRIAL: ${{ matrix.trial }}
+        run: |
+          if [[ "$VITE_MODE" == vite7 ]]; then
+            bun run --cwd packages/electron build:web-assets
+          else
+            bun run --cwd packages/sdk build
+            bun run extensions:build
+            node --max-old-space-size=6144 .vite-benchmark/benchmark.mjs parallel "$TRIAL"
+            test ! -e packages/electron/resources/web-dist
+            cp -R ".vite-benchmark/parallel-$TRIAL" packages/electron/resources/web-dist
+          fi
+      - name: Prepare native payload and bundle Electron
+        working-directory: packages/electron
+        run: |
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run prepare:ripgrep
+          bun run bundle:main
+          node ./scripts/rebuild-native.mjs
+      - name: Build Windows NSIS installer
+        working-directory: packages/electron
+        run: node ./scripts/package.mjs --win --x64 --publish=never
+      - name: Verify packaged CLI, web assets and update manifest
+        working-directory: packages/electron
+        run: |
+          bun run verify:opencode-cli:packaged
+          web=dist/win-unpacked/resources/web-dist
+          for entry in index.html mobile.html mini-chat.html sw.js; do
+            test -s "$web/$entry"
+            cmp "$web/$entry" "resources/web-dist/$entry"
+          done
+          grep -lF 'react.memo_cache_sentinel' "$web"/assets/OnboardingScreen-*.js
+          version=$(node -p "require('./package.json').version")
+          installer="dist/Skynex-$version-win-x64.exe"
+          test -s "$installer.blockmap"
+          node ./scripts/verify-update-manifest.mjs dist/latest.yml "$version" "$installer"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skynex-windows-x64-${{ matrix.mode }}-${{ matrix.trial }}
+          path: |
+            packages/electron/dist/Skynex-*-win-x64.exe
+            packages/electron/dist/Skynex-*-win-x64.exe.blockmap
+            packages/electron/dist/latest.yml
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 2
