@@ -1,9 +1,10 @@
 import React from 'react';
 import { useOptionalMobileSidebarActions } from '@/apps/mobileSidebar/mobileSidebarState';
 import { Button } from '@/components/ui/button';
-import { dropdownTriggerVariants } from '@/components/ui/dropdown-trigger';
-import { SettingsSection } from '@/components/sections/shared/SettingsSection';
+import { Input } from '@/components/ui/input';
+import { Icon } from '@/components/icon/Icon';
 import { useI18n } from '@/lib/i18n';
+import { formatDateTimeForPreference } from '@/lib/timeFormat';
 import type { Session } from '@/lib/opencode/model';
 import { normalizePath } from '@/lib/pathNormalization';
 import { getRuntimeKey, isTransientRuntimeKey } from '@/lib/runtime-switch';
@@ -30,6 +31,8 @@ export function useWorkspaceFolderHistory(workspace: Workspace | undefined) {
   const workspaceId = workspace?.id;
   const [opening, setOpening] = React.useState<string | null>(null);
   const [openFailed, setOpenFailed] = React.useState(false);
+  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
+  const [query, setQuery] = React.useState('');
   const [filter, setFilter] = React.useState({ workspaceId, runtimeKey, path: '', page: 1 });
   const selectedPath = filter.workspaceId === workspaceId && filter.runtimeKey === runtimeKey
     && workspace?.folders.some((folder) => normalizePath(folder.path) === filter.path) ? filter.path : '';
@@ -76,7 +79,11 @@ export function useWorkspaceFolderHistory(workspace: Workspace | undefined) {
     }
     return { folders, rows: [...rows.values()] };
   }, [workspace, entities]);
-  const sessions = React.useMemo(() => selectedPath ? history.rows.filter((row) => row.paths.includes(selectedPath)) : history.rows, [history, selectedPath]);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const sessions = React.useMemo(() => history.rows
+    .filter((row) => !selectedPath || row.paths.includes(selectedPath))
+    .filter((row) => !normalizedQuery || (row.session.title ?? '').toLocaleLowerCase().includes(normalizedQuery))
+    .sort((a, b) => (b.session.time.updated ?? 0) - (a.session.time.updated ?? 0)), [history, selectedPath, normalizedQuery]);
   const pageCount = Math.max(1, Math.ceil(sessions.length / 10));
   const page = Math.max(1, Math.min(filterChanged ? 1 : filter.page, pageCount));
   if (!filterChanged && filter.page !== page) setFilter({ ...filter, page });
@@ -119,21 +126,29 @@ export function useWorkspaceFolderHistory(workspace: Workspace | undefined) {
       setOpening(null);
     }
   }
+  const setPath = (path: string) => setFilter({ workspaceId, runtimeKey, path, page: 1 });
+  const chipClass = (active: boolean) => `h-7 shrink-0 whitespace-nowrap rounded-md px-2.5 typography-ui-label transition-colors [@media(pointer:coarse)]:min-h-11 ${active ? 'bg-interactive-selection text-interactive-selection-foreground' : 'text-muted-foreground hover:text-foreground'}`;
   return function renderWorkspaceHistory() {
-    return <SettingsSection title={t('workspaces.sessions')} contentClassName="space-y-1" headerAction={
-      <select aria-label={t('workspaces.sessionsFolderFilter')} className={`${dropdownTriggerVariants()} max-w-[16rem] truncate [@media(pointer:coarse)]:min-h-11`} value={selectedPath} onChange={(event) => setFilter({ workspaceId, runtimeKey, path: event.currentTarget.value, page: 1 })}>
-        <option value="">{t('workspaces.allFolders')}</option>
-        {[...history.folders.values()].map((folder) => <option key={folder.path} value={folder.path}>{folder.label}</option>)}
-      </select>
-    }>
-      {pageSessions.map(({ session, paths }) => <Button key={session.id} variant="ghost" className="h-auto w-full min-w-0 justify-start gap-2 [@media(pointer:coarse)]:min-h-11" disabled={opening !== null} onClick={() => void open(session)}>
-        <span className="min-w-0 flex-1 space-y-1 text-start">
-          <span dir="auto" className="oc-ui-start-align block truncate" title={session.title}>{session.title || t('sessions.sidebar.session.untitled')}</span>
-          <span dir="auto" className="oc-ui-start-align block truncate typography-meta text-muted-foreground" title={paths.join('\n')}>{paths.map((path) => history.folders.get(path)?.name).join(' · ')}</span>
-        </span>
-        <FolderSessionActivity sessionId={session.id} />
-        {!!session.time.archived && <span className="shrink-0 typography-meta text-muted-foreground">{t('mobile.sessions.search.section.archived')}</span>}
-      </Button>)}
+    return <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-48 flex-1">
+          <Icon name="search" className="pointer-events-none absolute inset-s-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input value={query} onChange={(event) => { setQuery(event.target.value); setFilter({ workspaceId, runtimeKey, path: selectedPath, page: 1 }); }} placeholder={t('workspaces.sessionsSearch')} aria-label={t('workspaces.sessionsSearch')} className="ps-9" />
+        </div>
+        {history.folders.size > 1 && <div className="flex max-w-full gap-0.5 overflow-x-auto" role="group" aria-label={t('workspaces.sessionsFolderFilter')}>
+          <button type="button" aria-pressed={selectedPath === ''} className={chipClass(selectedPath === '')} onClick={() => setPath('')}>{t('workspaces.allFolders')}</button>
+          {[...history.folders.values()].map((folder) => <button key={folder.path} type="button" title={folder.path} aria-pressed={selectedPath === folder.path} className={chipClass(selectedPath === folder.path)} onClick={() => setPath(folder.path)}>{folder.label}</button>)}
+        </div>}
+      </div>
+      <div className="space-y-0.5">
+        {pageSessions.map(({ session, paths }) => <Button key={session.id} variant="ghost" className="h-auto w-full min-w-0 justify-start gap-3 py-2 [@media(pointer:coarse)]:min-h-11" disabled={opening !== null} onClick={() => void open(session)}>
+          <span className="flex size-4 shrink-0 items-center justify-center"><FolderSessionActivity sessionId={session.id} /></span>
+          <span dir="auto" className="oc-ui-start-align min-w-0 flex-1 truncate text-start" title={session.title}>{session.title || t('sessions.sidebar.session.untitled')}</span>
+          {paths.length > 0 && <span dir="auto" className="oc-tile-inset max-w-40 shrink-0 truncate rounded px-1.5 typography-micro text-muted-foreground" title={paths.join('\n')}>{paths.map((path) => history.folders.get(path)?.name).join(' · ')}</span>}
+          {!!session.time.archived && <span className="shrink-0 typography-meta text-muted-foreground">{t('mobile.sessions.search.section.archived')}</span>}
+          <span className="w-24 shrink-0 text-end typography-meta text-muted-foreground">{formatDateTimeForPreference(session.time.updated, timeFormatPreference, { day: 'numeric', month: 'short' })}</span>
+        </Button>)}
+      </div>
       {pageCount > 1 && <div className="flex items-center justify-between gap-2">
         <Button variant="outline" size="sm" className="[@media(pointer:coarse)]:min-h-11" disabled={page === 1} onClick={() => setFilter({ ...filter, page: Math.max(1, page - 1) })}>{t('workspaces.sessionsPreviousPage')}</Button>
         <span className="typography-meta text-muted-foreground" aria-live="polite">{t('workspaces.sessionsPage', { page, total: pageCount })}</span>
@@ -142,9 +157,9 @@ export function useWorkspaceFolderHistory(workspace: Workspace | undefined) {
       <div className="flex min-h-6 items-center gap-2 typography-meta" aria-live="polite">
         {status === 'error' ? <><span className="text-[var(--status-error-text)]">{t('workspaces.folderSessionsError')}</span><Button variant="outline" size="sm" onClick={() => void useGlobalSessionsStore.getState().loadSessions()}>{t('directoryExplorerDialog.browse.retry')}</Button></>
           : status === 'loading' || !hasLoaded ? <span className="text-muted-foreground">{t('common.loading')}</span>
-            : sessions.length === 0 ? <span className="text-muted-foreground">{t('workspaces.sessionsEmpty')}</span> : null}
+            : sessions.length === 0 ? <span className="text-muted-foreground">{normalizedQuery ? t('workspaces.sessionsNoMatches') : t('workspaces.sessionsEmpty')}</span> : null}
       </div>
       <div className="min-h-6 typography-meta text-[var(--status-error-text)]" role="alert">{openFailed ? t('workspaces.openFailed') : ''}</div>
-    </SettingsSection>;
+    </section>;
   };
 }

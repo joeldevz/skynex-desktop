@@ -307,7 +307,6 @@ const ProjectDirectoryExplorerDialog: React.FC<{
   const { canRequestAccess, requestAccess, startAccessing } = useFileSystemAccess();
   const { isMobile } = useDeviceInfo();
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const addButtonRef = React.useRef<HTMLButtonElement>(null);
   const rowRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const [dialogHomeDirectory, setDialogHomeDirectory] = React.useState('');
   const [query, setQuery] = React.useState('~/');
@@ -319,7 +318,6 @@ const ProjectDirectoryExplorerDialog: React.FC<{
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
   const [isConfirming, setIsConfirming] = React.useState(false);
   const [isOpeningFinder, setIsOpeningFinder] = React.useState(false);
-  const [addButtonWidth, setAddButtonWidth] = React.useState(0);
   const [isCloneMode, setIsCloneMode] = React.useState(false);
   const [cloneRemoteUrl, setCloneRemoteUrl] = React.useState('');
   // One identity carries the account, the transport and the signature, so the
@@ -477,12 +475,6 @@ const ProjectDirectoryExplorerDialog: React.FC<{
     if (!explorerRootDirectory) return '';
     return trimTrailingSeparators(displayPathToAbsolutePath(query, explorerRootDirectory));
   }, [explorerRootDirectory, query]);
-  // Selections apply to the currently browsed directory: navigating into
-  // another folder clears the pending batch so the primary action always
-  // reflects the visible picker state.
-  React.useEffect(() => {
-    setSelectedPaths([]);
-  }, [browseDirectoryAbsolutePath]);
   const selectionPaths = React.useMemo(
     () => selectedPaths.filter((path) => {
       const normalized = normalizeDirectoryPath(path);
@@ -635,23 +627,10 @@ const ProjectDirectoryExplorerDialog: React.FC<{
       : t('directoryExplorerDialog.actions.addProject');
 
   React.useLayoutEffect(() => {
-    const button = addButtonRef.current;
-    if (!button) return;
-
-    const updateWidth = () => setAddButtonWidth(Math.ceil(button.getBoundingClientRect().width));
-    updateWidth();
-
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(updateWidth);
-    observer.observe(button);
-    return () => observer.disconnect();
-  }, [submitActionLabel]);
-
-  React.useLayoutEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     input.scrollLeft = input.scrollWidth;
-  }, [addButtonWidth, query]);
+  }, [query]);
 
   React.useLayoutEffect(() => {
     if (!open) return;
@@ -701,24 +680,6 @@ const ProjectDirectoryExplorerDialog: React.FC<{
       setIsConfirming(false);
     }
   }, [files, folderPick, handleClose, isConfirming, runtimeKey, t]);
-
-  const handleQuickAdd = React.useCallback(async (event: React.MouseEvent, path: string) => {
-    event.stopPropagation();
-    const normalized = normalizeDirectoryPath(path);
-    if (normalized && addedProjectPaths.has(normalized)) return;
-    if (folderPick) {
-      await submitFolders([path]);
-      return;
-    }
-    const project = await addProject(path);
-    if (!project) {
-      toast.error(t('directoryExplorerDialog.toast.failedToAddProject'), {
-        description: t('directoryExplorerDialog.toast.selectValidDirectoryPath'),
-      });
-      return;
-    }
-    openProjectDraft(project.id, project.path);
-  }, [addProject, addedProjectPaths, folderPick, openProjectDraft, submitFolders, t]);
 
   const finalizeSelection = React.useCallback(async (target: string) => {
     if (runtimeKey !== getRuntimeKey()) return;
@@ -998,27 +959,11 @@ const ProjectDirectoryExplorerDialog: React.FC<{
           onKeyDown={handleKeyDown}
           placeholder={t('directoryExplorerDialog.pathInput.placeholder')}
           className="bg-transparent ps-9 font-mono typography-ui-label"
-          style={!isMobile && addButtonWidth > 0 ? { paddingRight: `${addButtonWidth + 24}px` } : undefined}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
         />
-        {!isMobile ? (
-          <Button
-            ref={addButtonRef}
-            variant="outline"
-            size="xs"
-            tabIndex={-1}
-            className="absolute inset-e-1.5 top-1/2 h-7 -translate-y-1/2 gap-1 px-2 typography-meta"
-            disabled={isCloneMode ? !canSubmitClone : !canAddProject}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void finalizeSelection(submitTarget)}
-            title={submitActionLabel}
-          >
-            {submitActionLabel}
-          </Button>
-        ) : null}
       </div>
     </div>
   );
@@ -1093,7 +1038,6 @@ const ProjectDirectoryExplorerDialog: React.FC<{
                       {t('directoryExplorerDialog.browse.addedBadge')}
                     </span>
                   ) : row.type === 'directory' && !isCloneMode ? (
-                    <>
                       <button
                         type="button"
                         onMouseDown={(event) => event.stopPropagation()}
@@ -1103,18 +1047,15 @@ const ProjectDirectoryExplorerDialog: React.FC<{
                         aria-pressed={selectedPaths.includes(row.path)}
                         className="flex-shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-interactive-hover/60 hover:text-foreground"
                       >
-                        <Icon name={selectedPaths.includes(row.path) ? 'checkbox' : 'checkbox-blank'} className="h-4 w-4" />
+                        <span className={cn(
+                          'flex size-3.5 items-center justify-center rounded-[4px] border transition-colors',
+                          selectedPaths.includes(row.path)
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'border-[color:color-mix(in_srgb,var(--foreground)_40%,var(--interactive-border))]',
+                        )}>
+                          {selectedPaths.includes(row.path) ? <Icon name="check" className="size-2.5" /> : null}
+                        </span>
                       </button>
-                      <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => handleQuickAdd(event, row.path)}
-                        className="flex-shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-interactive-hover/60 hover:text-foreground"
-                        title={t('directoryExplorerDialog.browse.quickAdd')}
-                      >
-                        <Icon name="add" className="h-3.5 w-3.5" />
-                      </button>
-                    </>
                   ) : null}
                 </button>
               );
@@ -1151,9 +1092,25 @@ const ProjectDirectoryExplorerDialog: React.FC<{
     </div>
   );
 
+  const selectionChips = selectionPaths.length > 0 ? (
+    <div className="flex min-w-0 flex-1 flex-col gap-1.5" aria-live="polite">
+      <span className="typography-meta text-muted-foreground">{t('directoryExplorerDialog.browse.selectedLabel', { count: selectionPaths.length })}</span>
+      <div className="flex max-h-16 min-w-0 flex-wrap items-center gap-1 overflow-y-auto">
+        {selectionPaths.map((path) => (
+          <span key={path} dir="ltr" title={path} className="oc-tile-inset inline-flex max-w-40 items-center gap-1 rounded-md py-0.5 ps-2 pe-0.5 typography-meta text-foreground">
+            <span className="truncate">{path.split(/[\\/]/).filter(Boolean).at(-1) ?? path}</span>
+            <button type="button" className="rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label={t('directoryExplorerDialog.browse.removeSelection', { name: path })} onClick={() => togglePathSelection(path)}>
+              <Icon name="close" className="size-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const renderFooter = () => (
     <>
-      {!isMobile ? footerHints : null}
+      {selectionChips ?? (!isMobile ? footerHints : null)}
       <div className={cn('flex w-full flex-row justify-end gap-2 sm:w-auto', isMobile && 'justify-stretch')}>
         {canRequestAccess ? (
           <Button variant="ghost" size="xs" onClick={handleOpenInFinder} disabled={isConfirming || isOpeningFinder || isCloneMode}>
@@ -1171,11 +1128,9 @@ const ProjectDirectoryExplorerDialog: React.FC<{
             {isCloneMode ? t('directoryExplorerDialog.actions.addLocalProject') : t('directoryExplorerDialog.actions.cloneRepository')}
           </Button>
         )}
-        {isMobile ? (
-          <Button size="xs" onClick={() => void finalizeSelection(submitTarget)} disabled={isCloneMode ? !canSubmitClone : !canAddProject} className="flex-1">
-            {submitActionLabel}
-          </Button>
-        ) : null}
+        <Button size="xs" onClick={() => void finalizeSelection(submitTarget)} disabled={isCloneMode ? !canSubmitClone : !canAddProject} className={cn(isMobile && 'flex-1')}>
+          {submitActionLabel}
+        </Button>
       </div>
     </>
   );
@@ -1216,7 +1171,7 @@ const ProjectDirectoryExplorerDialog: React.FC<{
           </div>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col px-2 pb-0">{content}</div>
-        <DialogFooter className="flex w-full flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <DialogFooter className="flex w-full flex-col gap-3 px-5 py-3 sm:flex-row sm:items-end sm:justify-between">
           {renderFooter()}
         </DialogFooter>
       </DialogContent>

@@ -10,8 +10,6 @@ import { WorkspaceOverview } from './WorkspaceOverview';
 
 export interface WorkspaceOverviewContract {
   workspace: Workspace;
-  models: readonly { label: string; value: NonNullable<WorkspaceDefaults['model']> }[];
-  agents: readonly { label: string; value: string }[];
   onUpdate(patch: WorkspacePatch): Promise<void>;
   onCreateSession(selection: FolderSelection, defaults: WorkspaceDefaults): Promise<void>;
   onAddFolders(): Promise<void>;
@@ -115,8 +113,6 @@ function fixture() {
   let failUpdate = false;
   const props: WorkspaceOverviewContract = {
     workspace,
-    models: [{ label: 'Small', value: { providerID: 'test', id: 'small' } }, { label: 'Large', value: { providerID: 'test', id: 'large' } }],
-    agents: [{ label: 'Build', value: 'build' }, { label: 'Plan', value: 'plan' }],
     onUpdate: async (patch) => { updates.push(patch); if (failUpdate) throw new Error('save failed'); },
     onCreateSession: async (selection, defaults) => { creates.push([selection, defaults]); },
     onAddFolders: async () => { additions.push('picker'); },
@@ -126,7 +122,7 @@ function fixture() {
   return { props, updates, creates, additions, unlinks, setUpdateFailure: (value: boolean) => { failUpdate = value; } };
 }
 
-test('C1/C6 overview saves explicit documentation/default edits and unlinks without destructive controls', async () => {
+test('C1/C6 overview saves documentation edits without touching saved defaults and unlinks without destructive controls', async () => {
   await withOverview(async (ui) => {
     const f = fixture();
     await ui.render(f.props);
@@ -140,14 +136,13 @@ test('C1/C6 overview saves explicit documentation/default edits and unlinks with
     await ui.edit('Description', 'Explicitly revised');
     const notesDescription = within<HTMLInputElement>(folderTile(ui.container, '/reference/notes'), 'input', 'Folder description');
     await ui.edit('Folder description', 'Reference material', notesDescription);
-    await ui.choose('Default model', 'Large');
-    await ui.choose('Default agent', 'Plan');
+    expect(ui.container.querySelector('select')).toBeNull();
     expect(f.updates).toEqual([]);
     await act(async () => ui.button('Save').click());
     expect(f.updates).toHaveLength(1);
     expect(f.updates[0]).toMatchObject({ name: 'Product next', description: 'Explicitly revised',
-      folders: [workspace.folders[0], { ...workspace.folders[1], role: 'Reference material' }],
-      defaults: { model: { providerID: 'test', id: 'large' }, agent: 'plan' } });
+      folders: [workspace.folders[0], { ...workspace.folders[1], role: 'Reference material' }] });
+    expect(f.updates[0]).not.toHaveProperty('defaults');
     await act(async () => ui.button('Add folders').click());
     expect(f.additions).toEqual(['picker']);
     await act(async () => within<HTMLButtonElement>(folderTile(ui.container, '/reference/notes'), 'button', 'Unlink').click());

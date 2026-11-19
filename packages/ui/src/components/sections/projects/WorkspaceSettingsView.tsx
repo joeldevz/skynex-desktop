@@ -34,7 +34,7 @@ export const WorkspaceSettingsView: React.FC<{
   if (!workspace) return null;
   const models = providers.flatMap((provider) => provider.models.map((model) => ({ label: `${provider.name} / ${model.name}`, value: { providerID: provider.id, id: model.id } })));
   return <div data-settings-item="projects.workspace" className="h-full overflow-y-auto bg-background">
-    <WorkspaceOverview workspace={workspace} models={models} agents={agents.map((agent) => ({ label: agent.displayName, value: agent.name }))}
+    <WorkspaceOverview workspace={workspace}
       onCreateSession={async (selection, defaults) => {
         if (selection.kind === 'workspace') {
           const runtimeKey = getRuntimeKey();

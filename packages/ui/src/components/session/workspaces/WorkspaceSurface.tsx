@@ -37,7 +37,7 @@ export function WorkspaceSurface() {
   if (!workspace) return null;
   const models = providers.flatMap((provider) => provider.models.map((model) => ({ label: `${provider.name} / ${model.name}`, value: { providerID: provider.id, id: model.id } })));
   return <div className="h-full overflow-y-auto bg-background">
-    <WorkspaceOverview workspace={workspace} models={models} agents={agents.map((agent) => ({ label: agent.displayName, value: agent.name }))} renderWorkspaceHistory={renderWorkspaceHistory}
+    <WorkspaceOverview workspace={workspace} renderWorkspaceHistory={renderWorkspaceHistory}
       onOpenScheduledTasks={() => {
         if (mobileActions?.openScheduledTasks) mobileActions.openScheduledTasks();
         else useUIStore.getState().setScheduledTasksDialogOpen(true);
