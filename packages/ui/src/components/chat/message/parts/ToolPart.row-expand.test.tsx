@@ -53,7 +53,8 @@ const Row = ({ onToggled, toolPart }: { onToggled: () => void; toolPart: ToolPar
 const rows = [
   { tool: 'bash', input: part.state.input, label: 'Bash' },
   { tool: 'openchamber', input: { action: 'work.name', parameters: { title: 'Tasks inside Session' } }, label: 'Skynex' },
-  { tool: 'openchamber', input: { action: 'projects.list' }, label: 'OpenChamber' },
+  { tool: 'openchamber', input: { action: 'projects.list' }, label: 'Skynex' },
+  { tool: 'openchamber_web', input: { action: 'browser.snapshot' }, label: 'Skynex Browser' },
 ] satisfies { tool: string; input: ToolInput; label: string }[];
 
 for (const { tool, input, label } of rows) {

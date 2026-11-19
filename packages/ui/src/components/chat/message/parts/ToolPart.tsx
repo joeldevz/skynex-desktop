@@ -1784,11 +1784,9 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     const appToolCall = openChamberToolCall(normalizedPartTool, input);
     const awaitingAppAction = appToolCall?.tool === 'openchamber' && !appToolCall.action && !isFinalized;
     const displayName = guestHeader?.title ?? (
-        appToolCall?.tool === 'openchamber' && appToolCall.action === 'work.name'
-            ? 'Skynex'
-            : awaitingAppAction
-                ? t('chat.toolPart.preparing')
-                : getToolMetadata(normalizedPartTool || part.tool).displayName
+        awaitingAppAction
+            ? t('chat.toolPart.preparing')
+            : getToolMetadata(normalizedPartTool || part.tool).displayName
     );
 
     // Opened, the body already carries the whole error and output.

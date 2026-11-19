@@ -171,6 +171,9 @@ describe('managed agent tool runtime', () => {
 
     // Turning one tool off has to remove its inputs too, not just its actions.
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('url');
+    for (const action of ['browser.wait', 'browser.inspect', 'browser.hover', 'browser.resize', 'browser.capture']) {
+      expect(tool.openchamber_web.description).toContain(action);
+    }
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('label');
     expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('value');
     const webParameters = tool.openchamber_web.input.properties.parameters.properties;

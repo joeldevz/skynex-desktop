@@ -199,35 +199,35 @@ const TOOL_METADATA: Record<string, ToolMetadata> = {
      },
 
     openchamber: {
-      displayName: 'OpenChamber',
+      displayName: 'Skynex',
       category: 'system',
       outputLanguage: 'json',
       inputFields: []
     },
 
     openchamber_schedule: {
-      displayName: 'OpenChamber Schedule',
+      displayName: 'Skynex Scheduled Tasks',
       category: 'system',
       outputLanguage: 'json',
       inputFields: []
     },
 
     openchamber_web: {
-      displayName: 'OpenChamber Web',
+      displayName: 'Skynex Browser',
       category: 'system',
       outputLanguage: 'json',
       inputFields: []
     },
 
     openchamber_notify: {
-      displayName: 'OpenChamber Notify',
+      displayName: 'Skynex Notify',
       category: 'system',
       outputLanguage: 'json',
       inputFields: []
     },
 
     openchamber_render: {
-      displayName: 'OpenChamber Render',
+      displayName: 'Skynex Render',
       category: 'system',
       outputLanguage: 'json',
       inputFields: []

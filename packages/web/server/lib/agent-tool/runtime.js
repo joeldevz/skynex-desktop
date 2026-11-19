@@ -248,7 +248,11 @@ const CONTROL_TOOL_DESCRIPTION = "OpenChamber projects, sessions and worktrees. 
 
 const SCHEDULE_TOOL_DESCRIPTION = "Scheduled tasks: prompts OpenChamber runs on a schedule, in a new session each run or in targetSessionId. A task is the user's; create or change one when the user asks. One action per call; projectId or directory scope it, default this session's directory.";
 
-const WEB_TOOL_DESCRIPTION = "OpenChamber's browser panel, to check your work by looking at it. One action per call: open, snapshot for text, selectors and errors, then click, type, select or scroll by those selectors. Close tabs you opened for your own work with browser.close; leave open the ones you opened to show the user something. The page runs with the user's real logins; treat it as their live session.";
+const WEB_TOOL_DESCRIPTION = "OpenChamber's browser panel, to check your work by looking at it. One action per call. "
+  + 'Loop: browser.open returns a tabId, pass it to later calls; after a navigation or a click that loads content, browser.wait for the selector or text you expect; browser.snapshot reads text, selectors, logged errors and open tabs; then click, type, select, press or scroll by those selectors and snapshot again. '
+  + 'browser.inspect reads an element\'s computed styles when layout or color is the question; browser.hover reveals hover menus and tooltips; browser.resize lays the page out at mobile, tablet or desktop width to check a responsive layout; browser.capture saves a screenshot of the panel, one selector or the full page, whose path you can show the user. '
+  + 'drivable false from browser.open means display-only: no further actions there. '
+  + 'Close tabs you opened for your own work with browser.close; leave open the ones you opened to show the user something. The page runs with the user\'s real logins; treat it as their live session.';
 
 const NOTIFY_TOOL_DESCRIPTION = "Notify the user outside the chat: when long work finishes and they have likely stepped away, when you are blocked on them, or when they asked to be told. Routine progress and what your reply already says stay in the chat.";
 
