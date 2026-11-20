@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import { cyclePermissionMode } from "../../components/chat/permissionAutoAccept"
 
 const storage = new Map<string, string>()
-const createSessionCalls: Array<{ title?: string; directory: string | null; metadata?: unknown }> = []
+const createSessionCalls: Array<{ title?: string; directory: string | null; metadata?: unknown; workspaceScope?: unknown }> = []
 const permissionAutoAcceptCalls: Array<[string, string]> = []
 const savedVariantCalls: Array<string | undefined> = []
 const savedAgentModelCalls: Array<[string, string, string, string]> = []
@@ -337,8 +337,9 @@ mock.module("../session-actions", () => ({
     directory: string | null,
     metadata?: unknown,
     selectionTransition?: "submitted-draft",
+    selection?: { workspaceScope?: unknown },
   ) => {
-    createSessionCalls.push({ title, directory, metadata })
+    createSessionCalls.push({ title, directory, metadata, workspaceScope: selection?.workspaceScope })
     const session = { id: "ses_issue_2039", directory: createdSessionDirectory ?? directory }
     const sessionDirectory = session.directory ?? null
     if (sessionDirectory) {
@@ -544,6 +545,53 @@ describe("issue 2039 draft auto-accept", () => {
     expect(useSessionUIStore.getState().currentSessionId).toBe("ses_issue_2039")
     expect(useSessionUIStore.getState().newSessionDraft.open).toBe(false)
     expect(useSessionUIStore.getState().materializedDraftSessionId).toBe("ses_issue_2039")
+  })
+
+  test("starts a one-folder workspace draft in the worktree it picked, keeping its workspace", async () => {
+    useSessionUIStore.getState().openNewSessionDraft()
+    const draft = useSessionUIStore.getState().newSessionDraft
+    const scope = {
+      version: 1 as const,
+      workspaceId: "workspace-a",
+      workspaceName: "Workspace A",
+      description: "",
+      primaryDirectory: "/repo/a",
+      folders: [{ id: "folder-a", path: "/repo/a", role: "Code" }],
+    }
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft, target: "project", workspaceScope: scope, directoryOverride: "/worktrees/a-feature", workspaceTargetRevision: 1 },
+    })
+
+    await materializeOpenDraftSession({ providerID: "provider", modelID: "model" })
+
+    expect(createSessionCalls).toHaveLength(1)
+    expect(createSessionCalls[0]?.directory).toBe("/worktrees/a-feature")
+    expect(createSessionCalls[0]?.workspaceScope).toEqual({
+      ...scope,
+      primaryDirectory: "/worktrees/a-feature",
+      folders: [{ id: "folder-a", path: "/worktrees/a-feature", role: "Code" }],
+    })
+  })
+
+  test("a workspace draft on several folders still starts in its primary folder", async () => {
+    useSessionUIStore.getState().openNewSessionDraft()
+    const draft = useSessionUIStore.getState().newSessionDraft
+    const scope = {
+      version: 1 as const,
+      workspaceId: "workspace-a",
+      workspaceName: "Workspace A",
+      description: "",
+      primaryDirectory: "/repo/a",
+      folders: [{ id: "folder-a", path: "/repo/a", role: "" }, { id: "folder-b", path: "/repo/b", role: "" }],
+    }
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft, target: "project", workspaceScope: scope, directoryOverride: "/elsewhere", workspaceTargetRevision: 1 },
+    })
+
+    await materializeOpenDraftSession({ providerID: "provider", modelID: "model" })
+
+    expect(createSessionCalls[0]?.directory).toBe("/repo/a")
+    expect(createSessionCalls[0]?.workspaceScope).toEqual(scope)
   })
 
   test("writes the Settings default onto a new space session, which no server does for it", async () => {

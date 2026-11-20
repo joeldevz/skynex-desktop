@@ -36,6 +36,10 @@ import { useI18n } from '@/lib/i18n';
 import { getGitStatus } from '@/lib/gitApi';
 import { isSpaceCreationRequest, spaceOfCreationRequest } from '@/lib/spaces/space-creation-requests';
 import { useSpacesStore } from '@/lib/spaces/spaces-store';
+import { createProjectIdFromPath } from '@/lib/projectId';
+import { isSingleFolderScope } from '@/lib/workspaces/session-scope';
+import { getRuntimeKey } from '@/lib/runtime-switch';
+import type { WorktreeMetadata } from '@/types/worktree';
 
 /** How long a cached branch list is served before it is refreshed. */
 const BRANCHES_SWR_TTL_MS = 30_000;
@@ -51,6 +55,7 @@ export interface DraftTargetProject {
     iconImage?: { mime: string; updatedAt: number; source: 'custom' | 'auto' } | null;
     iconBackground?: string | null;
     kind?: 'chat' | 'project';
+    workspaceFolderOnly?: true;
 }
 
 /**
@@ -89,9 +94,15 @@ export function useDraftTarget(enabled: boolean) {
     const availableWorktreesByProject = useSessionUIStore((s) => s.availableWorktreesByProject);
     const fetchGitStatus = useGitStore((state) => state.fetchStatus);
     const { git: runtimeGit } = useRuntimeAPIs();
+    const scope = newSessionDraft.workspaceScope;
+    const workspaceFolderPath = isSingleFolderScope(scope) ? normalizePath(scope?.primaryDirectory ?? null) : null;
 
-    const selectedDraftProject = React.useMemo(() => {
+    const selectedDraftProject = React.useMemo<DraftTargetProject>(() => {
         if (newSessionDraft?.target === 'chat') return chatProject;
+        if (workspaceFolderPath) {
+            return configuredProjects.find((project) => normalizePath(project.path) === workspaceFolderPath)
+                ?? { id: createProjectIdFromPath(workspaceFolderPath), path: workspaceFolderPath, workspaceFolderOnly: true };
+        }
         const explicit = newSessionDraft?.selectedProjectId
             ? projects.find((project) => project.id === newSessionDraft.selectedProjectId) ?? null
             : null;
@@ -107,7 +118,7 @@ export function useDraftTarget(enabled: boolean) {
         }
 
         return configuredProjects[0] ?? chatProject;
-    }, [activeProjectId, chatProject, configuredProjects, newSessionDraft?.selectedProjectId, newSessionDraft?.target, projects]);
+    }, [activeProjectId, chatProject, configuredProjects, newSessionDraft?.selectedProjectId, newSessionDraft?.target, projects, workspaceFolderPath]);
 
     const selectedDraftProjectPath = React.useMemo(
         () => selectedDraftProject?.kind === 'chat' ? null : normalizePath(selectedDraftProject?.path ?? null),
@@ -127,14 +138,23 @@ export function useDraftTarget(enabled: boolean) {
     const [isDiscoveringDraftBranches, setIsDiscoveringDraftBranches] = React.useState(false);
     const [dirtyDraftDirectory, setDirtyDraftDirectory] = React.useState<string | null>(null);
     const lastDraftTargetRefreshRef = React.useRef(0);
+    const runtimeKey = getRuntimeKey();
+    const [folderWorktrees, setFolderWorktrees] = React.useState<{ runtimeKey: string; path: string; worktrees: WorktreeMetadata[] } | null>(null);
+    const folderWorktreeRead = React.useRef(0);
 
-    const refreshDraftWorktrees = React.useCallback(async (project: DraftTargetProject) => {
+    const refreshDraftWorktrees = React.useCallback(async (project: DraftTargetProject, force: boolean) => {
         if (project.kind === 'chat') {
             return;
         }
 
         try {
-            const worktrees = await listProjectWorktrees({ id: project.id, path: project.path }, { force: true });
+            const read = project.workspaceFolderOnly ? ++folderWorktreeRead.current : null;
+            const worktrees = await listProjectWorktrees(project, { force });
+            if (getRuntimeKey() !== runtimeKey) return;
+            if (project.workspaceFolderOnly) {
+                if (read === folderWorktreeRead.current) setFolderWorktrees({ runtimeKey, path: project.path, worktrees });
+                return;
+            }
             // A worktree creation that started while this list was read owns the
             // published list now: this list may not hold the new worktree yet.
             const draft = useSessionUIStore.getState().newSessionDraft;
@@ -155,7 +175,15 @@ export function useDraftTarget(enabled: boolean) {
         } catch {
             // Keep the last known list; the next focus or picker open retries.
         }
-    }, []);
+    }, [runtimeKey]);
+
+    React.useEffect(() => {
+        if (!enabled || !selectedDraftProject.workspaceFolderOnly || selectedDraftProjectIsGitRepo !== true
+            || newSessionDraft.pendingWorktreeRequestId || newSessionDraft.bootstrapPendingDirectory) return;
+        void refreshDraftWorktrees(selectedDraftProject, false);
+        return () => { folderWorktreeRead.current += 1; };
+    }, [enabled, selectedDraftProject, selectedDraftProjectIsGitRepo, newSessionDraft.pendingWorktreeRequestId,
+        newSessionDraft.bootstrapPendingDirectory, refreshDraftWorktrees]);
 
     // The branch list carries a staleness window but no timer, so a branch
     // changed outside OpenChamber stayed visible until the project changed.
@@ -182,7 +210,7 @@ export function useDraftTarget(enabled: boolean) {
         lastDraftTargetRefreshRef.current = now;
 
         void fetchBranches(selectedDraftProjectPath, runtimeGit);
-        void refreshDraftWorktrees(selectedDraftProject);
+        void refreshDraftWorktrees(selectedDraftProject, true);
     }, [
         enabled,
         fetchBranches,
@@ -290,6 +318,10 @@ export function useDraftTarget(enabled: boolean) {
             if (!selectedDraftProjectPath) {
                 return [];
             }
+            if (selectedDraftProject.workspaceFolderOnly) {
+                return folderWorktrees?.runtimeKey === runtimeKey && folderWorktrees.path === selectedDraftProjectPath
+                    ? folderWorktrees.worktrees : [];
+            }
             return availableWorktreesByProject.get(selectedDraftProjectPath)
                 ?? availableWorktreesByProject.get(selectedDraftProject.path)
                 ?? [];
@@ -301,7 +333,7 @@ export function useDraftTarget(enabled: boolean) {
             worktrees,
             pendingBootstrapDirectory: newSessionDraft?.bootstrapPendingDirectory ?? null,
         }).filter((option) => option.kind === 'worktree');
-    }, [availableWorktreesByProject, newSessionDraft?.bootstrapPendingDirectory, selectedDraftProject, selectedDraftProjectCurrentBranch, selectedDraftProjectPath]);
+    }, [availableWorktreesByProject, folderWorktrees, runtimeKey, newSessionDraft?.bootstrapPendingDirectory, selectedDraftProject, selectedDraftProjectCurrentBranch, selectedDraftProjectPath]);
 
     const selectedDraftDirectory = React.useMemo(
         () => normalizePath(newSessionDraft?.bootstrapPendingDirectory ?? null)
@@ -484,7 +516,7 @@ export function useDraftTarget(enabled: boolean) {
         }
         releaseDraftDirectoryPin();
         setNewSessionDraftTarget({
-            projectId: selectedDraftProject.id,
+            projectId: selectedDraftProject.workspaceFolderOnly ? undefined : selectedDraftProject.id,
             directoryOverride: directory,
         }, { force: true });
     }, [selectedDraftDirectory, selectedDraftProject, setNewSessionDraftTarget]);

@@ -687,7 +687,8 @@ and the send path reading the same grammar.
   open. The worktree picker remains a Select and follows the same rule, with
   its items in the same order either way; mobile keeps its bottom sheets.
   Both end with the two ways to make a worktree: **Quick worktree**
-  (`createWorktreeDraft`, auto-named, at once) and **New worktree…**, which
+  (`createWorktreeDraft`, auto-named, at once, in the draft's own project and
+  only without one in the active project) and **New worktree…**, which
   opens `NewWorktreeDialog` for the draft's own project. `ChatInput` hosts
   that dialog, like the isolated-space one, because Timeline has no project
   headers to open it from; a plain worktree pins the draft to the new
@@ -715,13 +716,28 @@ and the send path reading the same grammar.
    target selectors remain usable.
    A saved-agent fallback names the agent the composer will send and its Change
    agent action opens the existing agent picker on desktop and mobile.
-  Workspace-scoped drafts do not run project/worktree discovery or
-  expose those target controls. Failed catalog loads remain distinct from an
+  A draft on one saved Git folder shows the branch/worktree picker for that
+  folder. All folders, multi-folder scopes and non-Git folders show no picker.
+  Its session starts in the picked
+  directory and its scope's one folder moves there
+  (`scopeInDirectory`, applied by `draftWorkspaceScope` in
+  `sync/session-ui-store.ts` to creation and to the folder manifest), so the
+  session keeps its workspace. The app header names an open project draft
+  from the draft itself (its project, else its scope's folder), never from
+  the active project, so name and branch describe the same directory.
+  Failed catalog loads remain distinct from an
   empty catalog and can be retried. A folder picker beside the workspace picker
   offers All folders or one saved folder; All folders selects the general
   workspace scope, while one saved folder updates the same draft synchronously
   with that folder as the primary directory. General scopes show All folders
   even when the workspace has only one linked folder.
+
+### Why the workspace worktree picker uses the folder path
+
+The workspace already records the folder the user chose. A Git folder outside
+the project catalog uses a temporary reference for the existing worktree actions
+and keeps its worktree list in the composer. Selecting it never registers a
+project or publishes its list to the registered-project topology.
 - `ChatInput.tsx` maps Ctrl+N/P to the active command, skill, snippet, or
   mention picker after its IME guard.
 

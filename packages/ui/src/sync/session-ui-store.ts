@@ -100,7 +100,7 @@ import { createSessionDraftId } from "@/stores/useSessionDraftsStore"
 import { rememberExplicitOpen } from './session-actions'
 import { openSessionsStore, type OpenSessionReference, type MembershipResult } from '@/stores/useOpenSessionsStore'
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore'
-import { buildWorkspaceContext, readWorkspaceScope, snapshotWorkspaceScope, resolveWorkspaceDefaults, workspaceSessionScopeSchema, WORKSPACE_CONTEXT_PREFIX, type FolderSelection, type WorkspaceSessionScope } from '@/lib/workspaces/session-scope'
+import { buildWorkspaceContext, isSingleFolderScope, readWorkspaceScope, scopeInDirectory, snapshotWorkspaceScope, resolveWorkspaceDefaults, workspaceSessionScopeSchema, WORKSPACE_CONTEXT_PREFIX, type FolderSelection, type WorkspaceSessionScope } from '@/lib/workspaces/session-scope'
 import type { WorkspaceDefaults } from '@/lib/workspaces/model'
 import { expandWorkspaceCommand, findWorkspaceCommand } from '@/lib/workspaces/commands'
 import { persistWorktreeTopology, readPersistedWorktreeTopology } from "./worktree-topology-cache"
@@ -964,6 +964,17 @@ const resolveActiveProjectDirectory = (draft: NewSessionDraftState): string | nu
  * A concurrent rewrite of the same implicit draft to that fallback is accepted
  * instead of aborting create.
  */
+/**
+ * The scope a draft's session is created with. A one-folder workspace draft
+ * may have moved to a worktree of that folder: the session starts there and
+ * its scope follows, so creation and the folder manifest agree.
+ */
+const draftWorkspaceScope = (draft: NewSessionDraftState, directory?: string | null): WorkspaceSessionScope | undefined => (
+  draft.workspaceScope && isSingleFolderScope(draft.workspaceScope)
+    ? scopeInDirectory(draft.workspaceScope, directory ?? draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? draft.workspaceScope.primaryDirectory)
+    : draft.workspaceScope
+)
+
 const resolveCreatableDraftDirectory = async (
   draft: NewSessionDraftState,
   requestedDirectory: string | null | undefined,
@@ -1072,8 +1083,9 @@ const createSessionWithDraftLifecycle = async (
   try {
     const currentDraft = useSessionUIStore.getState().newSessionDraft
     const snapshotWasReplaced = draftSnapshot && (!currentDraft.open || currentDraft.draftId !== draft.draftId)
-    const resolved = draft.workspaceScope
-      ? { status: 'ok' as const, directory: draft.workspaceScope.primaryDirectory }
+    const workspaceScope = draftWorkspaceScope(draft, directoryOverride)
+    const resolved = workspaceScope
+      ? { status: 'ok' as const, directory: workspaceScope.primaryDirectory }
       : snapshotWasReplaced
         ? { status: 'ok' as const, directory: directoryOverride ?? draft.directoryOverride }
         : await resolveCreatableDraftDirectory(draft, directoryOverride)
@@ -1081,7 +1093,7 @@ const createSessionWithDraftLifecycle = async (
     const directory = resolved.directory
     if (draft.open && !isCurrentDraftTarget(draft)) return null
     const session = await createSessionAction(title, directory, metadata, selectionTransition,
-      { ...draft.workspaceDefaults, ...selection, workspaceScope: selection?.workspaceScope ?? draft.workspaceScope },
+      { ...draft.workspaceDefaults, ...selection, workspaceScope: selection?.workspaceScope ?? workspaceScope },
       "open",
       draftTargetGuard)
     if (!session) return null
@@ -1193,7 +1205,6 @@ export async function materializeOpenDraftSession(selection: {
     {
       model: { providerID: selection.providerID, id: selection.modelID, variant: selection.variant },
       agent: trimmedAgent,
-      workspaceScope: draft.workspaceScope,
     },
     draft,
   )
@@ -2057,7 +2068,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const capturedSessionId = capturedTarget?.sessionId ?? options?.sessionId ?? (usesDraftTarget ? null : get().currentSessionId)
     const capturedSession = capturedSessionId ? useGlobalSessionsStore.getState().entityById.get(capturedSessionId) : undefined
     const capturedScope = usesDraftTarget
-      ? capturedDraft.workspaceScope
+      ? draftWorkspaceScope(capturedDraft)
       : capturedSessionId
         ? readWorkspaceScope(capturedSession?.metadata) ?? openSessionsStore.getState().sessions.find((entry) => entry.sessionId === capturedSessionId)?.scope
         : undefined
@@ -2178,7 +2189,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           delivery: options?.delivery,
           skills: options?.skills,
           knowledgeSync: draftKnowledgeSync,
-          workspaceContext,
+          workspaceContext: capturedScope && createdDraftSession.directory
+            ? buildWorkspaceContext(scopeInDirectory(capturedScope, createdDraftSession.directory),
+              useWorkspacesStore.getState().catalog.workspaces.find((entry) => entry.id === capturedScope.workspaceId))
+            : workspaceContext,
           workspaceId: capturedScope?.workspaceId,
           additionalParts: draftParts?.map((p) => ({
             text: p.text,

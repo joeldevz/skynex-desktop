@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { CreateWorktreeArgs, ProjectRef } from '@/lib/worktrees/worktreeManager';
+import type { WorkspaceSessionScope } from '@/lib/workspaces/session-scope';
 
 const project: ProjectRef = { id: 'project-1', path: '/repo' };
+const otherProject: ProjectRef = { id: 'project-2', path: '/other' };
+const worktreeProjects: ProjectRef[] = [];
 
 type DraftState = {
   draftId: number;
   open: boolean;
   target: 'chat' | 'project';
   selectedProjectId?: string | null;
+  workspaceScope?: WorkspaceSessionScope;
   directoryOverride: string | null;
   pendingWorktreeRequestId?: string | null;
   bootstrapPendingDirectory?: string | null;
@@ -115,7 +119,8 @@ mock.module('@/lib/worktrees/worktreeManager', () => ({
 }));
 
 mock.module('@/lib/worktrees/worktreeCreate', () => ({
-  createWorktreeWithDefaults: async (_project: ProjectRef, args: CreateWorktreeArgs) => {
+  createWorktreeWithDefaults: async (target: ProjectRef, args: CreateWorktreeArgs) => {
+    worktreeProjects.push(target);
     createdPayloads.push(args);
     return {
       source: 'sdk',
@@ -146,6 +151,7 @@ mock.module('@/sync/session-ui-store', () => ({
 mock.module('@/stores/useProjectsStore', () => ({
   useProjectsStore: {
     getState: () => ({
+      projects: [project, otherProject],
       getActiveProject: () => activeProject,
     }),
   },
@@ -177,6 +183,7 @@ describe('quick worktree trust', () => {
     activeProject = { id: project.id, path: project.path };
     resolvedCommands = null;
     createdPayloads.length = 0;
+    worktreeProjects.length = 0;
     rejectedRequests.length = 0;
     resolvedRequests.length = 0;
     directories.length = 0;
@@ -235,5 +242,31 @@ describe('quick worktree trust', () => {
 
     expect(createdPayloads).toHaveLength(1);
     expect(createdPayloads[0]?.setupCommands).toEqual(['bun install', 'cp .env.example .env']);
+  });
+
+  test('an open draft makes the worktree in the project it targets, not the active one', async () => {
+    resolvedCommands = [];
+    draftState = { ...emptyDraft(), open: true, selectedProjectId: otherProject.id, directoryOverride: otherProject.path };
+
+    await createWorktreeDraft();
+
+    expect(worktreeProjects).toEqual([otherProject]);
+    expect(draftState.selectedProjectId).toBe(otherProject.id);
+  });
+
+  test('quick worktree uses an unregistered workspace folder without assigning a project', async () => {
+    const folder = { id: 'terraform', path: '/workspace/terraform', role: '' };
+    resolvedCommands = [];
+    draftState = {
+      ...emptyDraft(), open: true, directoryOverride: folder.path,
+      workspaceScope: { version: 1, workspaceId: 'workspace', workspaceName: 'Infrastructure', description: '',
+        primaryDirectory: folder.path, folders: [folder] },
+    };
+
+    await createWorktreeDraft();
+
+    expect(worktreeProjects.map((target) => target.path)).toEqual([folder.path]);
+    expect(draftState.selectedProjectId).toBeNull();
+    expect(draftState.workspaceScope?.workspaceId).toBe('workspace');
   });
 });

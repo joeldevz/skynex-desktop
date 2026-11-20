@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveWorkspaceDefaults, selectWorkspaceFolders, snapshotWorkspaceScope } from './session-scope';
+import { resolveWorkspaceDefaults, scopeInDirectory, selectWorkspaceFolders, snapshotGeneralWorkspaceScope, snapshotWorkspaceScope } from './session-scope';
 import { patchWorkspace, unlinkWorkspaceFolder } from './schema';
 import type { Workspace } from './model';
 import type { FolderSelection } from './session-scope';
@@ -60,5 +60,24 @@ describe('C2/C6 workspace session scope', () => {
     expect(resolveWorkspaceDefaults(input, { model })).toEqual({ agent: 'build', model });
     expect(resolveWorkspaceDefaults(input, { agent: 'plan', model })).toEqual({ agent: 'plan', model });
     expect(resolveWorkspaceDefaults({ ...input, defaults: {} }, {})).toEqual({});
+  });
+});
+
+describe('a one-folder scope in a worktree of its folder', () => {
+  test('moves the folder to the worktree and keeps the workspace', () => {
+    const scope = snapshotWorkspaceScope(workspace(), { kind: 'folder', folderId: 'a' });
+    if (scope.kind !== 'valid') throw new Error('expected a scope');
+    expect(scopeInDirectory(scope.value, '/worktrees/app-feature')).toEqual({
+      ...scope.value, primaryDirectory: '/worktrees/app-feature', folders: [{ id: 'a', path: '/worktrees/app-feature', role: 'Code' }],
+    });
+    expect(scopeInDirectory(scope.value, '/app')).toBe(scope.value);
+  });
+
+  test('leaves scopes over several folders and general scopes as they are', () => {
+    const several = snapshotWorkspaceScope(workspace(), { kind: 'workspace' });
+    const general = snapshotGeneralWorkspaceScope(workspace(), '/chats/product');
+    if (several.kind !== 'valid' || general.kind !== 'valid') throw new Error('expected scopes');
+    expect(scopeInDirectory(several.value, '/worktrees/app-feature')).toBe(several.value);
+    expect(scopeInDirectory(general.value, '/worktrees/app-feature')).toBe(general.value);
   });
 });

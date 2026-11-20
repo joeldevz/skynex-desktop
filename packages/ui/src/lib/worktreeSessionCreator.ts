@@ -25,6 +25,9 @@ import {
 import { projectPathForCheckoutFolder } from '@/lib/worktrees/worktreePaths';
 import { normalizePath } from '@/lib/pathNormalization';
 import { resolveProjectForDirectory } from '@/lib/projectResolution';
+import { createProjectIdFromPath } from '@/lib/projectId';
+import { isSingleFolderScope } from '@/lib/workspaces/session-scope';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 
 export const resolveProjectRef = (directory: string): ProjectRef | null => {
   const projects = useProjectsStore.getState().projects;
@@ -139,22 +142,40 @@ const createInstantWorktreeDraft = async (options?: {
     return null;
   }
 
-  const activeProject = useProjectsStore.getState().getActiveProject();
-  if (!activeProject?.path) {
+  // An open draft makes the worktree in the project it targets, which in a
+  // workspace folder draft need not be the active project.
+  const projectsState = useProjectsStore.getState();
+  const draftProject = currentDraft.open && currentDraft.target === 'project' && currentDraft.selectedProjectId
+    ? projectsState.projects.find((project) => project.id === currentDraft.selectedProjectId)
+    : undefined;
+  const scope = currentDraft.open ? currentDraft.workspaceScope : undefined;
+  const folderPath = scope && isSingleFolderScope(scope) ? scope.primaryDirectory : null;
+  const registeredProject = folderPath
+    ? projectsState.projects.find((project) => normalizePath(project.path) === normalizePath(folderPath))
+    : draftProject ?? (scope ? null : projectsState.getActiveProject());
+  const projectRef = registeredProject
+    ? { id: registeredProject.id, path: registeredProject.path }
+    : folderPath ? { id: createProjectIdFromPath(folderPath), path: folderPath } : null;
+  if (!projectRef) {
     toast.error('No active project', {
       description: 'Please select a project first.',
     });
     return null;
   }
 
-  const projectDirectory = activeProject.path;
+  const runtimeKey = getRuntimeKey();
 
   let isGitRepo = false;
   try {
-    isGitRepo = await checkIsGitRepository(projectDirectory);
+    isGitRepo = await checkIsGitRepository(projectRef.path);
   } catch {
     // Ignore errors, treat as not a git repo
   }
+
+  const previousDraft = useSessionUIStore.getState().newSessionDraft;
+  if (getRuntimeKey() !== runtimeKey || previousDraft.draftId !== currentDraft.draftId
+    || previousDraft.open !== currentDraft.open || previousDraft.workspaceTargetRevision !== currentDraft.workspaceTargetRevision
+    || previousDraft.pendingWorktreeRequestId || previousDraft.bootstrapPendingDirectory || isCreatingWorktreeSession) return null;
 
   if (!isGitRepo) {
     toast.error('Not a Git repository', {
@@ -166,8 +187,6 @@ const createInstantWorktreeDraft = async (options?: {
   isCreatingWorktreeSession = true;
 
   try {
-    const projectRef: ProjectRef = { id: activeProject.id, path: projectDirectory };
-    const previousDraft = useSessionUIStore.getState().newSessionDraft;
     const pendingRequestId = createPendingDraftWorktreeRequest();
 
     // Lock the draft immediately so no React effect can reset it to the project
@@ -175,7 +194,7 @@ const createInstantWorktreeDraft = async (options?: {
     const sessionStore = useSessionUIStore.getState();
     if (previousDraft.open) {
       sessionStore.overrideNewSessionDraftTarget({
-        projectId: projectRef.id,
+        selectedProjectId: registeredProject?.id ?? null,
         directoryOverride: previousDraft.directoryOverride ?? projectRef.path,
         pendingWorktreeRequestId: pendingRequestId,
         preserveDirectoryOverride: true,
@@ -205,7 +224,7 @@ const createInstantWorktreeDraft = async (options?: {
 
     resolvePendingDraftWorktreeRequest(pendingRequestId, metadata.path);
     useSessionUIStore.getState().overrideNewSessionDraftTarget({
-      projectId: projectRef.id,
+      selectedProjectId: registeredProject?.id ?? null,
       directoryOverride: metadata.path,
       pendingWorktreeRequestId: null,
       bootstrapPendingDirectory: metadata.path,

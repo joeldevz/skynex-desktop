@@ -26,7 +26,7 @@ describe('useDraftTarget refresh', () => {
     dom.close();
   });
 
-  test('refreshes a fresh cached branch list when the window regains focus', async () => {
+  test.each(['registered project', 'workspace-only folder'])('refreshes the selected %s when the window regains focus', async (kind) => {
     const { createRoot } = await import('react-dom/client');
     const { I18nProvider } = await import('@/lib/i18n');
     const { RuntimeAPIContext } = await import('@/contexts/runtimeAPIContext');
@@ -35,6 +35,9 @@ describe('useDraftTarget refresh', () => {
     const { useSessionUIStore } = await import('@/sync/session-ui-store');
     const { useGitStore } = await import('@/stores/useGitStore');
     const { useDraftTarget } = await import('../useDraftTarget');
+    const folder = { id: 'terraform', path: '/workspace/terraform', role: '' };
+    const isWorkspaceFolder = kind === 'workspace-only folder';
+    const directory = isWorkspaceFolder ? folder.path : PROJECT.path;
 
     useProjectsStore.setState({ projects: [PROJECT], activeProjectId: PROJECT.id });
     useSessionUIStore.setState({
@@ -42,17 +45,21 @@ describe('useDraftTarget refresh', () => {
       newSessionDraft: {
         draftId: 1,
         open: true,
-        selectedProjectId: PROJECT.id,
-        directoryOverride: PROJECT.path,
+        selectedProjectId: isWorkspaceFolder ? null : PROJECT.id,
+        directoryOverride: directory,
         parentID: null,
         target: 'project',
+        workspaceScope: isWorkspaceFolder ? {
+          version: 1, workspaceId: 'workspace', workspaceName: 'Infrastructure', description: '',
+          primaryDirectory: directory, folders: [folder],
+        } : undefined,
       },
     });
 
     const calls: string[] = [];
     const now = Date.now();
     useGitStore.setState({
-      directories: new Map([[PROJECT.path, {
+      directories: new Map([[directory, {
         isGitRepo: true,
         status: null,
         branches: { all: ['main'], current: 'main', branches: {} },
@@ -97,17 +104,20 @@ describe('useDraftTarget refresh', () => {
 
     // A fresh list is exactly the case the old code left alone.
     expect(calls).toEqual([]);
+    expect(target.current?.shouldShowDraftBranchSelector).toBe(true);
+    expect(target.current?.projectRootBranchOption).toEqual({ value: directory, label: 'main' });
 
     await act(async () => {
       window.dispatchEvent(new Event('focus'));
     });
-    expect(calls).toEqual([PROJECT.path]);
+    expect(calls).toEqual([directory]);
 
     // A picker opened moments later reuses that read.
     await act(async () => {
       target.current?.refreshDraftTarget();
     });
-    expect(calls).toEqual([PROJECT.path]);
+    expect(calls).toEqual([directory]);
+    expect(useProjectsStore.getState().projects).toEqual([PROJECT]);
 
     await act(async () => root.unmount());
   });

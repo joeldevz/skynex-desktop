@@ -230,6 +230,7 @@ import { useComposerDraft } from './composer/state/useComposerDraft';
 import { useDictationOrigin } from './composer/state/useDictationOrigin';
 import { useDraftTarget } from './composer/state/useDraftTarget';
 import { useDraftWorkspaceTarget } from './composer/state/useDraftWorkspaceTarget';
+import { isSingleFolderScope } from '@/lib/workspaces/session-scope';
 import { useMobileComposerShell } from './composer/state/useMobileComposerShell';
 import { useMobileViewportPin } from './composer/state/useMobileViewportPin';
 import { MobileCommentComposer } from './composer/comment/MobileCommentComposer';
@@ -4021,6 +4022,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     ), [isVSCode, t, trackerSources]);
     const showDraftTargetSelectors = newSessionDraftOpen && !isVSCode;
     const draftWorkspaceTarget = useDraftWorkspaceTarget(showDraftTargetSelectors);
+    const draftAllowsBranchTarget = !newSessionDraft?.workspaceScope
+        || isSingleFolderScope(newSessionDraft.workspaceScope);
     const workspaceDraftTitle = newSessionDraft?.workspaceScope
         ? newSessionDraft.workspaceScope.folders.length === 1
             ? newSessionDraft.workspaceScope.primaryDirectory.replace(/\\+$/, '').split(/[\\/]/).at(-1) || newSessionDraft.workspaceScope.workspaceName
@@ -4043,7 +4046,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         handleDraftProjectChange,
         handleDraftDirectoryChange,
         refreshDraftTarget,
-    } = useDraftTarget(showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope);
+    } = useDraftTarget(showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && draftAllowsBranchTarget);
     const draftTitleLabel = workspaceDraftTitle ?? draftProjectLabel;
 
     const handleMobileDraftPickerChange = React.useCallback((picker: 'project' | 'branch' | null) => {
@@ -4065,28 +4068,32 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         () => isDraftSendWaiting(draftRequestId) && isSpaceCreationRequest(draftRequestId),
     );
     const handleCreateSpace = React.useMemo(() => {
-        if (!isolatedSpacesEnabled || isVSCode || !selectedDraftProject || selectedDraftProject.kind === 'chat') return undefined;
+        if (!isolatedSpacesEnabled || isVSCode || !selectedDraftProject || selectedDraftProject.kind === 'chat' || selectedDraftProject.workspaceFolderOnly) return undefined;
         const project = { id: selectedDraftProject.id, path: selectedDraftProject.path };
         return () => setNewSpaceProject(project);
     }, [isVSCode, isolatedSpacesEnabled, selectedDraftProject]);
 
     // The full New Worktree dialog for the draft's project, so a named worktree, an existing
     // branch or a PR branch can be made where the sidebar has no project headers (Timeline).
-    const [newWorktreeProject, setNewWorktreeProject] = React.useState<{ id: string; path: string } | null>(null);
+    const [newWorktreeTarget, setNewWorktreeTarget] = React.useState<{
+        project: NonNullable<typeof selectedDraftProject>;
+        draft: NewSessionDraftState;
+        runtimeKey: string;
+    } | null>(null);
     const handleCreateCustomWorktree = React.useMemo(() => {
         if (!selectedDraftProject || selectedDraftProject.kind === 'chat') return undefined;
-        const project = { id: selectedDraftProject.id, path: selectedDraftProject.path };
-        return () => setNewWorktreeProject(project);
+        return () => setNewWorktreeTarget({ project: selectedDraftProject, draft: useSessionUIStore.getState().newSessionDraft, runtimeKey: getRuntimeKey() });
     }, [selectedDraftProject]);
     const handleCustomWorktreeCreated = React.useCallback((worktreePath: string) => {
-        const project = newWorktreeProject;
-        if (!project) return;
+        if (!newWorktreeTarget || getRuntimeKey() !== newWorktreeTarget.runtimeKey) return;
+        const { project, draft } = newWorktreeTarget;
         // Pin the draft to the new directory: until the worktree list refreshes,
         // the draft's validity check would otherwise reset it to the project root.
         const sessionStore = useSessionUIStore.getState();
+        if (draft.workspaceScope && !isDraftTargetSnapshotCurrent(draft, sessionStore.newSessionDraft)) return;
         if (sessionStore.newSessionDraft.open) {
             sessionStore.overrideNewSessionDraftTarget({
-                projectId: project.id,
+                selectedProjectId: project.workspaceFolderOnly ? null : project.id,
                 directoryOverride: worktreePath,
                 pendingWorktreeRequestId: null,
                 bootstrapPendingDirectory: worktreePath,
@@ -4094,14 +4101,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             });
         } else {
             sessionStore.openNewSessionDraft({
-                selectedProjectId: project.id,
+                selectedProjectId: project.workspaceFolderOnly ? null : project.id,
                 directoryOverride: worktreePath,
                 bootstrapPendingDirectory: worktreePath,
                 preserveDirectoryOverride: true,
             });
         }
         useDirectoryStore.getState().setDirectory(worktreePath, { showOverlay: false });
-    }, [newWorktreeProject]);
+    }, [newWorktreeTarget]);
 
     const chatSurfaceMode = useChatSurfaceMode();
     const isMiniChatSurface = chatSurfaceMode === 'mini-chat';
@@ -4565,7 +4572,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 {!isMobile && showDraftTargetSelectors && newSessionDraft?.unavailableWorkspaceAgent ? <div className="mb-1.5 flex flex-wrap items-center gap-x-2 rounded-md bg-status-warning/10 px-2 py-1 typography-meta text-status-warning" role="alert"><span>{t('workspaces.generalAgentFallback', { agent: newSessionDraft.unavailableWorkspaceAgent, fallback: currentAgentName ?? newSessionDraft.workspaceDefaults?.agent ?? '' })}</span><Button type="button" variant="link" size="xs" className="text-status-warning" onClick={() => setAgentPickerRequest((request) => (request ?? 0) + 1)}>{t('workspaces.changeAgent')}</Button></div> : null}
                 {!isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetPending ? <div className="mb-1.5 min-h-5 typography-meta text-muted-foreground" role="status">{t('common.loading')}</div> : null}
                 {!isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetError ? <div className="mb-1.5 typography-meta text-status-warning" role="alert">{t('workspaces.generalTargetFailed')} {t(newSessionDraft.workspaceTargetErrorReason === 'outside-editor-roots' ? 'workspaces.editorRoots' : newSessionDraft.workspaceTargetErrorReason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported' : 'workspaces.scopeUnavailable')}</div> : null}
-                {!isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && (showDraftTargetSelectors || draftPresentationExiting) && selectedDraftProject ? (
+                {!isMobile && newSessionDraft?.target !== 'chat' && draftAllowsBranchTarget && (showDraftTargetSelectors || draftPresentationExiting) && selectedDraftProject ? (
                     <div className={draftPresentationClassName}>
                         <DraftTargetSelectors
                             projects={draftProjects}
@@ -4592,7 +4599,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 {isMobile && showDraftTargetSelectors && newSessionDraft?.unavailableWorkspaceAgent ? <div className="flex flex-wrap items-center gap-x-2 rounded-md bg-status-warning/10 px-2 py-1 typography-meta text-status-warning" role="alert"><span>{t('workspaces.generalAgentFallback', { agent: newSessionDraft.unavailableWorkspaceAgent, fallback: currentAgentName ?? newSessionDraft.workspaceDefaults?.agent ?? '' })}</span><Button type="button" variant="link" size="xs" className="text-status-warning" onClick={() => handleOpenAgentPanel()}>{t('workspaces.changeAgent')}</Button></div> : null}
                 {isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetPending ? <div className="min-h-5 typography-meta text-muted-foreground" role="status">{t('common.loading')}</div> : null}
                 {isMobile && showDraftTargetSelectors && newSessionDraft?.workspaceTargetError ? <div className="typography-meta text-status-warning" role="alert">{t('workspaces.generalTargetFailed')} {t(newSessionDraft.workspaceTargetErrorReason === 'outside-editor-roots' ? 'workspaces.editorRoots' : newSessionDraft.workspaceTargetErrorReason === 'isolated-space-unsupported' ? 'workspaces.spaceUnsupported' : 'workspaces.scopeUnavailable')}</div> : null}
-                {isMobile && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && showDraftTargetSelectors && selectedDraftProject ? (
+                {isMobile && newSessionDraft?.target !== 'chat' && draftAllowsBranchTarget && showDraftTargetSelectors && selectedDraftProject ? (
                     <MobileDraftTargetTriggers
                         selectedProject={selectedDraftProject}
                         selectedBranchLabel={selectedDraftBranchLabel}
@@ -5063,7 +5070,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
 
         {/* Mobile draft target pickers: bottom sheets replacing the inline
             project/branch Selects (which desktop keeps). */}
-        {isMobile && showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && !newSessionDraft?.workspaceScope && selectedDraftProject ? (
+        {isMobile && showDraftTargetSelectors && newSessionDraft?.target !== 'chat' && draftAllowsBranchTarget && selectedDraftProject ? (
             <MobileDraftTargetSheets
                 projects={draftProjects}
                 selectedProject={selectedDraftProject}
@@ -5088,11 +5095,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         {newSpaceProject ? (
             <NewSpaceDialog open onOpenChange={(open) => { if (!open) setNewSpaceProject(null); }} project={newSpaceProject} />
         ) : null}
-        {newWorktreeProject ? (
+        {newWorktreeTarget ? (
             <NewWorktreeDialog
                 open
-                onOpenChange={(open) => { if (!open) setNewWorktreeProject(null); }}
-                project={newWorktreeProject}
+                onOpenChange={(open) => { if (!open) setNewWorktreeTarget(null); }}
+                project={newWorktreeTarget.project}
                 onWorktreeCreated={handleCustomWorktreeCreated}
             />
         ) : null}

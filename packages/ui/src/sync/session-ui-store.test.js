@@ -938,6 +938,18 @@ describe('openNewSessionDraft project binding', () => {
     getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
   });
 
+  test('a workspace folder that is not a project drops the previous project from the draft', () => {
+    useWorkspacesStore.setState({ status: 'ready', runtimeKey: getRuntimeKey(), catalog: { version: 1, workspaces: [{ id: 'ws', name: 'Skynex', description: '', folders: [{ id: 'f', path: '/repo/skynex', role: '' }], defaults: {}, commands: [] }] } });
+    try {
+      useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id });
+      useSessionUIStore.getState().setNewSessionDraftWorkspaceTarget('ws', { kind: 'folder', folderId: 'f' });
+      // The header names the draft from these fields, so it never shows the previous project.
+      expect(useSessionUIStore.getState().newSessionDraft).toMatchObject({ target: 'project', selectedProjectId: null, directoryOverride: '/repo/skynex' });
+    } finally {
+      useWorkspacesStore.setState({ status: 'unloaded', runtimeKey: null, catalog: { version: 1, workspaces: [] } });
+    }
+  });
+
   test('defaults an implicit draft to Chat when active project differs', () => {
     useSessionUIStore.getState().openNewSessionDraft();
     const draft = useSessionUIStore.getState().newSessionDraft;

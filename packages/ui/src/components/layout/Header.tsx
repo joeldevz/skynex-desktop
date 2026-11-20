@@ -130,19 +130,33 @@ export const Header: React.FC<{ toolbar?: React.ReactNode; showChatActions?: boo
     const project = state.projects.find((candidate) => candidate.id === state.activeProjectId);
     return project ? { id: project.id, path: project.path, label: project.label } : null;
   }));
+  // An open draft names what it targets, which need not be the active project:
+  // a workspace folder picks its own project, or none when the folder is not one.
+  const draftLabelSource = useSessionUIStore(useShallow((state) => {
+    const draft = state.newSessionDraft;
+    if (!draft?.open || draft.target !== 'project') return null;
+    return { projectId: draft.selectedProjectId ?? null, directory: draft.workspaceScope?.primaryDirectory ?? draft.directoryOverride ?? null };
+  }));
+  const draftProject = useProjectsStore(useShallow((state) => {
+    const project = draftLabelSource?.projectId ? state.projects.find((candidate) => candidate.id === draftLabelSource.projectId) : undefined;
+    return project ? { path: project.path, label: project.label } : null;
+  }));
   const activeProjectLabel = React.useMemo(() => {
-    if (!activeProject) {
+    const labelled = draftLabelSource
+      ? draftProject ?? (draftLabelSource.directory ? { path: draftLabelSource.directory, label: undefined } : activeProject)
+      : activeProject;
+    if (!labelled) {
       return null;
     }
 
-    const trimmedLabel = activeProject.label?.trim();
+    const trimmedLabel = labelled.label?.trim();
     if (trimmedLabel) {
       return trimmedLabel;
     }
 
-    const pathSegments = activeProject.path.split(/[\\/]/).filter(Boolean);
+    const pathSegments = labelled.path.split(/[\\/]/).filter(Boolean);
     return pathSegments[pathSegments.length - 1] ?? null;
-  }, [activeProject]);
+  }, [activeProject, draftLabelSource, draftProject]);
   const loadQuotaSettings = useQuotaStore((state) => state.loadSettings);
 
   const { isMobile } = useDeviceInfo();

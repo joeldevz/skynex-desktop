@@ -54,6 +54,23 @@ export function snapshotGeneralWorkspaceScope(workspace: Workspace, primaryDirec
   }) };
 }
 
+/** A scope on one saved folder: the only scope whose session may run in a worktree of that folder. */
+export function isSingleFolderScope(scope: WorkspaceSessionScope | null | undefined): boolean {
+  return scope?.version === 1 && scope.folders.length === 1;
+}
+
+/**
+ * The scope of a session started in `directory`, a worktree of the scope's one
+ * folder: the folder moves there, so the session keeps its workspace and its
+ * folder manifest names the directory it runs in. Any other scope is returned as is.
+ */
+export function scopeInDirectory(scope: WorkspaceSessionScope, directory: string): WorkspaceSessionScope {
+  if (!isSingleFolderScope(scope) || scope.primaryDirectory === directory) return scope;
+  return workspaceSessionScopeSchema.parse({
+    ...scope, primaryDirectory: directory, folders: scope.folders.map((folder) => ({ ...folder, path: directory })),
+  });
+}
+
 export function resolveWorkspaceDefaults(workspace: Workspace, overrides: WorkspaceDefaults): WorkspaceDefaults {
   return structuredClone({ ...workspace.defaults, ...overrides });
 }
