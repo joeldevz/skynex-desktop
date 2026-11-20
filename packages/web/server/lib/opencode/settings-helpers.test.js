@@ -206,7 +206,7 @@ describe('settings helpers', () => {
     expect(helpers.sanitizeSettingsUpdate({ enterToSend: 'true', enterToSendConfigured: 1 })).toEqual({});
   });
 
-  it('sanitizes shared sidebar display preferences', () => {
+  it('ignores retired shared sidebar preferences on settings updates', () => {
     const helpers = createTestHelpers();
 
     expect(helpers.sanitizeSettingsUpdate({
@@ -214,18 +214,8 @@ describe('settings helpers', () => {
       sidebarViewMode: 'timeline',
       sidebarProjectSortOrder: 'z-a',
       sidebarShowChatsSection: false,
-    })).toEqual({
-      sidebarProjectDisplayMode: 'single',
-      sidebarViewMode: 'timeline',
-      sidebarProjectSortOrder: 'z-a',
-      sidebarShowChatsSection: false,
-    });
-    expect(helpers.sanitizeSettingsUpdate({
-      sidebarProjectDisplayMode: 'grid',
-      sidebarViewMode: 'grid',
-      sidebarProjectSortOrder: 'random',
-      sidebarShowChatsSection: 'false',
-    })).toEqual({});
+      showReasoningTraces: false,
+    })).toEqual({ showReasoningTraces: false });
   });
 
   it('keeps every interface language and nothing else', () => {

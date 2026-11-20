@@ -217,22 +217,25 @@ describe('settings runtime', () => {
     }
   });
 
-  it('round-trips shared sidebar preferences through preferences.json', async () => {
-    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime();
-    const preferences = {
+  it('preserves legacy sidebar keys without promoting them to profile preferences', async () => {
+    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime({
+      mergePersistedSettings: (current, changes) => ({ ...current, ...changes }),
+    });
+    const legacySidebar = {
       sidebarProjectDisplayMode: 'single',
       sidebarViewMode: 'timeline',
       sidebarProjectSortOrder: 'date-added',
       sidebarShowChatsSection: false,
     };
     try {
-      await runtime.persistSettings(preferences);
+      await fsPromises.writeFile(settingsFilePath, JSON.stringify(legacySidebar), 'utf8');
+      await runtime.persistSettings({ showReasoningTraces: false });
 
-      await expect(runtime.readSettingsFromDisk()).resolves.toEqual(preferences);
-      // Profile keys live in preferences.json; settings.json keeps a legacy copy for older builds.
-      expect(JSON.parse(await fsPromises.readFile(settingsFilePath, 'utf8'))).toEqual(preferences);
+      const merged = { ...legacySidebar, showReasoningTraces: false };
+      await expect(runtime.readSettingsFromDisk()).resolves.toEqual(merged);
+      expect(JSON.parse(await fsPromises.readFile(settingsFilePath, 'utf8'))).toEqual(merged);
       const stored = JSON.parse(await fsPromises.readFile(path.join(tempRoot, 'preferences.json'), 'utf8'));
-      expect(Object.fromEntries(Object.entries(stored.fields).map(([key, entry]) => [key, entry.value]))).toEqual(preferences);
+      expect(Object.fromEntries(Object.entries(stored.fields).map(([key, entry]) => [key, entry.value]))).toEqual({ showReasoningTraces: false });
     } finally {
       await cleanup();
     }
