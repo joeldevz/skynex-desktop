@@ -102,6 +102,7 @@ import { openSessionsStore, type OpenSessionReference, type MembershipResult } f
 import { useWorkspacesStore } from '@/stores/useWorkspacesStore'
 import { buildWorkspaceContext, readWorkspaceScope, snapshotWorkspaceScope, resolveWorkspaceDefaults, workspaceSessionScopeSchema, WORKSPACE_CONTEXT_PREFIX, type FolderSelection, type WorkspaceSessionScope } from '@/lib/workspaces/session-scope'
 import type { WorkspaceDefaults } from '@/lib/workspaces/model'
+import { expandWorkspaceCommand, findWorkspaceCommand } from '@/lib/workspaces/commands'
 import { persistWorktreeTopology, readPersistedWorktreeTopology } from "./worktree-topology-cache"
 import { rememberRuntimeLiveStatus } from "./runtime-live-memory"
 import {
@@ -199,8 +200,10 @@ export async function routeMessage(params: {
    */
   knowledgeSync?: Promise<void>
   workspaceContext?: { text: string }
+  workspaceId?: string
 }): Promise<'command' | 'prompt' | 'shell'> {
   const requestDirectory = params.directory ?? undefined
+  let promptContent = params.content
   // The session carries its own model and agent server-side. Sending them on
   // every turn would switch the session to whatever the composer happens to
   // show, so only a genuine change travels with the prompt.
@@ -251,6 +254,11 @@ export async function routeMessage(params: {
       .find((c) => c.name === cmdName)
     let matchedSkill = selectAvailableSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
       .find((s) => s.name === cmdName)
+    const workspaceState = useWorkspacesStore.getState()
+    const workspaceCommand = params.workspaceId && workspaceState.runtimeKey === getRuntimeKey()
+      && (params.runtimeKey === undefined || params.runtimeKey === workspaceState.runtimeKey)
+      ? findWorkspaceCommand(workspaceState.catalog.workspaces.find((workspace) => workspace.id === params.workspaceId)?.commands, cmdName)
+      : undefined
 
     // The command list is no longer pre-warmed at bootstrap (listing it
     // initializes the directory's whole MCP fleet), so a name known to neither
@@ -262,7 +270,13 @@ export async function routeMessage(params: {
     // directory the store has not loaded yet gets the same live lookup. A
     // failed skills load is a send failure for the same reason. Commands keep
     // precedence when both lookups match.
-    if (!matchedCommand && !matchedSkill) {
+    if (workspaceCommand) {
+      const liveCommands = await opencodeClient.listCommands(requestDirectory)
+      matchedCommand = liveCommands.find((command) => command.name === cmdName)
+      if (!matchedCommand) {
+        promptContent = expandWorkspaceCommand(workspaceCommand.template, tail.join(' '))
+      }
+    } else if (!matchedCommand && !matchedSkill) {
       const [liveCommands, skillsLoaded] = await Promise.all([
         opencodeClient.listCommands(requestDirectory),
         useSkillsStore.getState().loadSkills(requestDirectory),
@@ -308,7 +322,7 @@ export async function routeMessage(params: {
       return 'command'
     }
 
-    if (matchedSkill) {
+    if (matchedSkill && !workspaceCommand) {
       skills = {
         names: [...new Set([matchedSkill.name, ...(params.skills?.names ?? [])])],
         // Callers without a composer (multi-run) pass no builder; the skill
@@ -322,7 +336,7 @@ export async function routeMessage(params: {
   await optimisticSend({
     runtimeKey: params.runtimeKey,
     sessionId: params.sessionId,
-    content: params.content,
+    content: promptContent,
     directory: requestDirectory,
     files: sendFiles,
     context: contextItems,
@@ -334,7 +348,7 @@ export async function routeMessage(params: {
       providerID: params.providerID,
       model: selection.model,
       agent: selection.agent,
-      text: params.content,
+      text: promptContent,
       agentMentions: params.agentMentionName ? [{ name: params.agentMentionName }] : undefined,
       files: sendFiles,
       context: context.length > 0 ? context : undefined,
@@ -2165,6 +2179,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           skills: options?.skills,
           knowledgeSync: draftKnowledgeSync,
           workspaceContext,
+          workspaceId: capturedScope?.workspaceId,
           additionalParts: draftParts?.map((p) => ({
             text: p.text,
             synthetic: p.synthetic,
@@ -2284,6 +2299,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         skills: options?.skills,
         knowledgeSync,
         workspaceContext,
+        workspaceId: capturedScope?.workspaceId,
         additionalParts: additionalParts?.map((p) => ({
           text: p.text,
           synthetic: p.synthetic,

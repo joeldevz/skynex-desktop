@@ -69,6 +69,33 @@ const createTestHelpersWithRealSanitizers = () => {
 };
 
 describe('settings helpers', () => {
+  it('persists optional workspace text commands and validates their shape', () => {
+    const helpers = createTestHelpers();
+    const catalog = {
+      version: 1,
+      workspaces: [{
+        id: 'w1', name: 'Product', description: '', folders: [], defaults: {},
+        commands: [{ name: 'review', description: 'Review changes', template: 'Review $ARGUMENTS' }],
+      }],
+    };
+    expect(helpers.sanitizeSettingsUpdate({ workspaceCatalog: catalog })).toEqual({ workspaceCatalog: catalog });
+    const oldCatalog = { version: 1, workspaces: [{ id: 'w1', name: 'Product', description: '', folders: [], defaults: {} }] };
+    expect(helpers.sanitizeSettingsUpdate({ workspaceCatalog: oldCatalog })).toEqual({ workspaceCatalog: oldCatalog });
+
+    for (const commands of [
+      [{ name: '../run', template: 'text' }],
+      [{ name: 'a'.repeat(65), template: 'text' }],
+      [{ name: 'review', description: 'x'.repeat(501), template: 'text' }],
+      [{ name: 'review', template: 'x'.repeat(10_001) }],
+      [{ name: 'review', template: '  \n  ' }],
+      [{ name: 'review', template: 'one' }, { name: 'review', template: 'two' }],
+    ]) {
+      expect(() => helpers.sanitizeSettingsUpdate({
+        workspaceCatalog: { ...catalog, workspaces: [{ ...catalog.workspaces[0], commands }] },
+      })).toThrow();
+    }
+  });
+
   it('sanitizes the optional GitLab OAuth client ID', () => {
     const helpers = createTestHelpers();
     expect(helpers.sanitizeSettingsUpdate({ gitlabClientId: ' client-id ' })).toEqual({ gitlabClientId: 'client-id' });

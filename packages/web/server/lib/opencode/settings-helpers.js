@@ -56,6 +56,13 @@ const workspacePathSchema = z.string().trim().transform((value) => {
   if (/^[A-Z]:\/+$/u.test(path)) return path.replace(/\/+$/u, '/');
   return path.replace(/\/+$/u, '');
 }).refine((path) => path === '/' || /^(?:\/(?!\/)|\/\/[^/]+\/[^/]+|[A-Z]:\/)/u.test(path));
+const workspaceCommandSchema = z.object({
+  name: z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]*$/u),
+  description: z.string().max(500).optional(),
+  template: z.string().max(10_000).refine((value) => value.trim().length > 0),
+});
+const workspaceCommandsSchema = z.array(workspaceCommandSchema).max(64)
+  .refine((commands) => new Set(commands.map((command) => command.name)).size === commands.length);
 const workspaceCatalogSchema = z.object({
   version: z.literal(1),
   workspaces: z.array(z.object({
@@ -65,6 +72,7 @@ const workspaceCatalogSchema = z.object({
     defaults: z.object({ agent: z.string().min(1).optional(), model: z.object({
       providerID: z.string().min(1), id: z.string().min(1), variant: z.string().nullable().optional(),
     }).optional() }),
+    commands: workspaceCommandsSchema.optional(),
   })).refine((workspaces) => new Set(workspaces.map((workspace) => workspace.id)).size === workspaces.length),
 });
 

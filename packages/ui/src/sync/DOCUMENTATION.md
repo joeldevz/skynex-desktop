@@ -16,6 +16,14 @@ without replacing draft IDs or content. Workspace selection never writes a
 workspace ID into project state; session creation continues through the normal
 workspace-scope access check.
 
+Workspace slash commands are suggestions and text templates captured from the
+draft's or session's workspace ID. Dispatch resolves the directory command list
+live when the name is also a workspace command; a matching directory command
+uses OpenCode's command endpoint. Otherwise the workspace template replaces
+only literal `$ARGUMENTS` markers and follows the normal prompt path with its
+attachments and synthetic context. The captured workspace ID scopes lookup;
+the active project or directory never selects a workspace command.
+
 General workspace retarget preparation is guarded by the draft ID and target
 revision at send and materialization. The first-session request rechecks that
 captured draft and runtime after the startup wait, before creation, after folder

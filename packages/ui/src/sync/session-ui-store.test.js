@@ -19,6 +19,7 @@ import { getDeferredSafeStorage } from '@/stores/utils/safeStorage';
 import { CHAT_DRAFT_PROJECT_ID } from '@/lib/chatDirectories';
 import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
 import { createContextPart } from '@/lib/messages/contextParts';
 
 /**
@@ -1705,6 +1706,7 @@ describe('routeMessage skill invocation', () => {
     // excludes user skills, so a skill is only known to the skills store.
     useCommandsStore.setState({ commands: [], commandsByDirectory: {} });
     useSkillsStore.setState({ skills: [], skillsByDirectory: {} });
+    useWorkspacesStore.setState({ runtimeKey: getRuntimeKey(), catalog: { version: 1, workspaces: [{ id: 'workspace-a', name: 'Workspace A', description: '', folders: [], defaults: {}, commands: [{ name: 'greet', template: 'Write $ARGUMENTS, then repeat $ARGUMENTS.' }] }] } });
 
     originalSendCommand = opencodeClient.sendCommand;
     originalSendMessage = opencodeClient.sendMessage;
@@ -1732,6 +1734,7 @@ describe('routeMessage skill invocation', () => {
     opencodeClient.listCommands = originalListCommands;
     useSkillsStore.setState({ skills: [], skillsByDirectory: {}, loadSkills: originalLoadSkills });
     useCommandsStore.setState({ commands: [], commandsByDirectory: {} });
+    useWorkspacesStore.setState({ runtimeKey: null, catalog: { version: 1, workspaces: [] } });
   });
 
   test('loads skills for an unloaded directory and attaches a skill found there', async () => {
@@ -1754,6 +1757,40 @@ describe('routeMessage skill invocation', () => {
     expect(sendCommandCalls).toHaveLength(0);
     expect(sendMessageCalls).toHaveLength(1);
     expect(sendMessageCalls[0].skills.names).toEqual(['late-skill']);
+  });
+
+  test('expands a workspace command through the ordinary prompt route', async () => {
+    await routeMessage({
+      sessionId: 'session-workspace-command',
+      directory: '/workspace/project',
+      content: '/greet hello $ARGUMENTS',
+      providerID: 'provider-a',
+      modelID: 'model-a',
+      workspaceId: 'workspace-a',
+    });
+
+    expect(liveLookupCalls).toEqual(['/workspace/project']);
+    expect(sendCommandCalls).toHaveLength(0);
+    expect(sendMessageCalls).toHaveLength(1);
+    expect(sendMessageCalls[0].text).toBe('Write hello $ARGUMENTS, then repeat hello $ARGUMENTS.');
+    expect(sendMessageCalls[0].directory).toBe('/workspace/project');
+  });
+
+  test('a live directory command takes precedence over a workspace command', async () => {
+    liveLookup = async () => [{ name: 'greet' }];
+
+    await routeMessage({
+      sessionId: 'session-workspace-command',
+      directory: '/workspace/project',
+      content: '/greet hello',
+      providerID: 'provider-a',
+      modelID: 'model-a',
+      workspaceId: 'workspace-a',
+    });
+
+    expect(sendCommandCalls).toHaveLength(1);
+    expect(sendCommandCalls[0].arguments).toBe('hello');
+    expect(sendMessageCalls).toHaveLength(0);
   });
 
   test('keeps command precedence when the live lookups find both', async () => {

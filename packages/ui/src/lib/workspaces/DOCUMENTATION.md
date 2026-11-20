@@ -8,6 +8,7 @@ This module owns the versioned workspace catalog schema, immutable selected-fold
 
 - A catalog can be missing, valid empty, or invalid. Only missing data permits project-to-workspace migration.
 - Workspace IDs and folder IDs are stable. Folder paths are normalized absolute paths. `ProjectEntry.path` remains singular.
+- Workspace commands are optional, bounded text templates with unique lowercase names. They persist as catalog data and grant no shell or filesystem access.
 - A version 1 folder binding has at least one selected folder and a primary directory among them. Selection follows workspace order and deep-copies its folders.
 - A version 2 general binding has at least one selected folder and a neutral primary directory outside every linked folder. It retains all folder paths and roles as agent context.
 - Unlinking changes future workspace selections. Existing bindings retain their selected paths and unlinked documentation snapshots.

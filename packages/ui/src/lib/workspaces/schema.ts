@@ -6,6 +6,14 @@ export const absoluteDirectorySchema = z.string().transform((value) => normalize
   .refine((value) => value === '/' || /^(?:\/(?!\/)|\/\/[^/]+\/[^/]+|[A-Z]:\/)/u.test(value), 'Expected an absolute directory');
 const identity = z.string().min(1);
 const workspaceFolderSchema = z.object({ id: identity, path: absoluteDirectorySchema, role: z.string() });
+export const workspaceCommandSchema = z.object({
+  name: z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]*$/u),
+  description: z.string().max(500).optional(),
+  template: z.string().max(10_000).refine((value) => value.trim().length > 0, 'Command template must not be blank'),
+});
+const workspaceCommandsSchema = z.array(workspaceCommandSchema).max(64).refine(
+  (commands) => new Set(commands.map((command) => command.name)).size === commands.length, 'Duplicate command name',
+);
 export const workspaceFoldersSchema = z.array(workspaceFolderSchema).refine(
   (folders) => new Set(folders.map((folder) => folder.id)).size === folders.length, 'Duplicate folder ID',
 );
@@ -15,6 +23,7 @@ const workspaceDefaultsSchema = z.object({
 });
 const workspaceSchema = z.object({
   id: identity, name: identity, description: z.string(), folders: workspaceFoldersSchema, defaults: workspaceDefaultsSchema,
+  commands: workspaceCommandsSchema.optional(),
 });
 export const workspaceCatalogSchema = z.object({ version: z.literal(1), workspaces: z.array(workspaceSchema) })
   .refine((catalog) => new Set(catalog.workspaces.map((workspace) => workspace.id)).size === catalog.workspaces.length, 'Duplicate workspace ID');

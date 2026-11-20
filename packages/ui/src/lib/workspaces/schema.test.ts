@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseWorkspaceCatalog, patchWorkspace, putWorkspace, unlinkWorkspaceFolder } from './schema';
-import type { Workspace, WorkspaceCatalog } from './model';
+import type { Workspace, WorkspaceCatalog, WorkspaceCommand } from './model';
 
 const workspace = (): Workspace => ({
   id: 'w1', name: 'Product', description: 'User-authored overview',
@@ -15,6 +15,26 @@ describe('C1 workspace catalog', () => {
     expect(parseWorkspaceCatalog(JSON.stringify(input))).toEqual({ kind: 'valid', value: input });
     expect(parseWorkspaceCatalog(null)).toEqual({ kind: 'missing' });
     expect(parseWorkspaceCatalog('{"version":1,"workspaces":[]}')).toEqual({ kind: 'valid', value: { version: 1, workspaces: [] } });
+  });
+
+  test('round-trips optional text commands and keeps old catalogs unchanged', () => {
+    const oldCatalog = catalog();
+    expect(parseWorkspaceCatalog(JSON.stringify(oldCatalog))).toEqual({ kind: 'valid', value: oldCatalog });
+    const commands = [{ name: 'review', description: 'Review changes', template: 'Review $ARGUMENTS' }];
+    const withCommands = { ...oldCatalog, workspaces: [{ ...oldCatalog.workspaces[0], commands }, oldCatalog.workspaces[1]] };
+    expect(parseWorkspaceCatalog(JSON.stringify(withCommands))).toEqual({ kind: 'valid', value: withCommands });
+  });
+
+  test.each<[string, WorkspaceCommand[]]>([
+    ['invalid name', [{ name: '../run', template: 'text' }]],
+    ['oversized name', [{ name: 'a'.repeat(65), template: 'text' }]],
+    ['oversized description', [{ name: 'review', description: 'x'.repeat(501), template: 'text' }]],
+    ['oversized template', [{ name: 'review', template: 'x'.repeat(10_001) }]],
+    ['blank template', [{ name: 'review', template: '  \n  ' }]],
+    ['duplicate names', [{ name: 'review', template: 'one' }, { name: 'review', template: 'two' }]],
+  ])('rejects workspace commands with %s', (_label, commands) => {
+    expect(parseWorkspaceCatalog(JSON.stringify({ version: 1, workspaces: [{ ...workspace(), commands }] })))
+      .toMatchObject({ kind: 'invalid', reason: expect.any(String) });
   });
 
   test.each([

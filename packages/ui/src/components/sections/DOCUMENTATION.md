@@ -476,6 +476,25 @@ The workspace target selection in `useUIStore` is in-memory. Existing persisted 
 
 `WorkspaceSettingsView` reuses `WorkspaceOverview` for workspace metadata, defaults, folder management and confirmed deletion. Chats reuses the global new-session defaults controls; it adds no preference of its own.
 
+Commands has its own two-step selector (`commands/CommandsScopeSelector.tsx`):
+the workspace first, then either that workspace's shared commands or one of its
+folders. Choosing a workspace opens its shared commands. The selection is
+Settings-local: it never changes the active chat or project, and only a folder
+choice changes the Settings directory. Folder targets still resolve to native
+OpenCode command paths. A folder can belong to several workspaces, so the
+workspace it was picked from is kept in `commandSettingsScope.ts` rather than
+derived from the path. Registered folders outside every workspace form an
+"Other folders" group; managed chat folders are left out. Selecting a catalog
+folder not yet in the project registry registers it with `activate: false`;
+only the latest selection updates the Settings directory. The shared Settings
+project selector used by other pages is unchanged.
+Workspace command edits patch only that workspace's `commands` field, validate
+each command with `workspaceCommandSchema`, and serialize edits by workspace ID
+so stale forms and writes cannot replace other workspace commands. Their form
+contains only name, description and prompt text; `$ARGUMENTS` is literal prompt
+input and no shell, file, agent or model controls are offered. VS Code shows no
+selector, as before.
+
 ## Folder project settings
 
 `projects/ProjectSettingsPanel.tsx` is one folder's project settings, shown by Settings →

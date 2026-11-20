@@ -1,4 +1,5 @@
 import React from 'react';
+import { useStore } from 'zustand';
 import { cn } from '@/lib/utils';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useChatSessionSelection } from './chatColumnSession';
@@ -13,9 +14,14 @@ import { filterCommandSuggestions, mergeCommandAutocompleteItems, rankCommandAut
 import { useGuestCommands } from '@/hooks/useGuestSurfaces';
 import { AutocompleteRowDetail } from './composer/ui/AutocompleteRowParts';
 import { useAutocompleteSelectionScroll } from './composer/ui/useAutocompleteSelectionScroll';
+import { readWorkspaceScope } from '@/lib/workspaces/session-scope';
+import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
+import { openSessionsStore } from '@/stores/useOpenSessionsStore';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import type { WorkspaceCommand } from '@/lib/workspaces/model';
 
 // Skills are not here: they have their own `$` picker.
-type CommandSource = 'openchamber' | 'opencode' | 'extension';
+type CommandSource = 'openchamber' | 'opencode' | 'workspace' | 'extension';
 
 export interface CommandInfo {
   id: string;
@@ -41,6 +47,7 @@ const LOCAL_COMMAND_NAMES = [
 
 // Roll out OpenChamber commands gradually by adding names once their usage is ready to teach.
 const ENABLED_OPENCHAMBER_COMMANDS: ReadonlySet<string> = new Set(['btw', 'compact']);
+const EMPTY_WORKSPACE_COMMANDS: readonly WorkspaceCommand[] = [];
 
 export interface CommandAutocompleteHandle {
   handleKeyDown: (key: string) => void;
@@ -61,8 +68,15 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
 }, ref) => {
   const { t } = useI18n();
   const currentSessionId = useChatSessionSelection().sessionId;
+  const sessionMetadata = useGlobalSessionsStore((state) => currentSessionId ? state.entityById.get(currentSessionId)?.metadata : undefined);
+  const membershipScope = useStore(openSessionsStore, (state) => currentSessionId
+    ? state.sessions.find((session) => session.sessionId === currentSessionId)?.scope
+    : null);
   const hasSession = Boolean(currentSessionId);
   const hasNewSessionDraft = useSessionUIStore((state) => Boolean(state.newSessionDraft?.open));
+  const draftWorkspaceScope = useSessionUIStore((state) => state.newSessionDraft.open ? state.newSessionDraft.workspaceScope : undefined);
+  const workspaceId = (currentSessionId ? readWorkspaceScope(sessionMetadata) ?? membershipScope : draftWorkspaceScope)?.workspaceId;
+  const workspaceCommands = useWorkspacesStore((state) => state.catalog.workspaces.find((workspace) => workspace.id === workspaceId)?.commands ?? EMPTY_WORKSPACE_COMMANDS);
   const canStartSessionCommand = hasSession || hasNewSessionDraft;
   const isMobile = useUIStore((state) => state.isMobile);
   const canUseReviewHandoffFlow = hasSession && !isMobile && !isVSCodeRuntime();
@@ -110,8 +124,9 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
   const reservedCommandNames = React.useMemo(() => {
     const names = new Set<string>(LOCAL_COMMAND_NAMES);
     for (const command of commandsWithMetadata) names.add(command.name.toLowerCase());
+    for (const command of workspaceCommands) names.add(command.name.toLowerCase());
     return names;
-  }, [commandsWithMetadata]);
+  }, [commandsWithMetadata, workspaceCommands]);
   const guestCommands = useGuestCommands(reservedCommandNames);
 
   // The list depends on the registries, not on what is typed: it is built
@@ -126,6 +141,12 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       model: cmd.model ?? undefined,
       isBuiltIn: cmd.name === 'init' || cmd.name === 'review',
       scope: cmd.scope,
+    }));
+    const workspaceCommandItems: CommandInfo[] = workspaceCommands.map((command, index) => ({
+      id: `workspace:${workspaceId}:${command.name}:${index}`,
+      name: command.name,
+      source: 'workspace',
+      description: command.description,
     }));
 
     const builtInCommands: CommandInfo[] = [
@@ -197,11 +218,11 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
     return [
       ...mergeCommandAutocompleteItems(
         filterCommandSuggestions(builtInCommands, ENABLED_OPENCHAMBER_COMMANDS),
-        customCommands,
+        [...customCommands, ...workspaceCommandItems],
       ),
       ...extensionCommands,
     ];
-  }, [hasSession, canStartSessionCommand, canUseReviewHandoffFlow, commandsWithMetadata, guestCommands, t]);
+  }, [hasSession, canStartSessionCommand, canUseReviewHandoffFlow, commandsWithMetadata, workspaceCommands, workspaceId, guestCommands, t]);
   const commands = React.useMemo(
     () => rankCommandAutocompleteItems(allCommands, searchQuery),
     [allCommands, searchQuery],

@@ -33,6 +33,9 @@ import {
   SettingsFieldRow,
   SETTINGS_CUSTOM_TRIGGER_CLASS,
 } from '@/components/sections/shared/SettingsSection';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { useCommandSettingsScope } from './commandSettingsScope';
+import { WorkspaceCommandsPage } from './WorkspaceCommands';
 
 /** Everything the page writes into the command's config file. */
 interface CommandFormState {
@@ -46,7 +49,7 @@ interface CommandFormState {
   template: string;
 }
 
-export const CommandsPage: React.FC = () => {
+const FolderCommandsPage: React.FC = () => {
   const { t } = useI18n();
   const {
     selectedCommandName,
@@ -459,4 +462,10 @@ export const CommandsPage: React.FC = () => {
       </SettingsSection>
     </SettingsPageLayout>
   );
+};
+
+export const CommandsPage: React.FC = () => {
+  const workspaceId = useCommandSettingsScope((state) => state.workspaceId);
+  const workspace = useWorkspacesStore((state) => state.catalog.workspaces.find((entry) => entry.id === workspaceId) ?? null);
+  return workspace ? <WorkspaceCommandsPage workspace={workspace} /> : <FolderCommandsPage />;
 };

@@ -24,18 +24,21 @@ import { useSettingsDirectory } from '@/hooks/useSettingsDirectory';
 import { useShallow } from 'zustand/react/shallow';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { cn } from '@/lib/utils';
-import { SettingsProjectSelector } from '@/components/sections/shared/SettingsProjectSelector';
+import { CommandsScopeSelector } from './CommandsScopeSelector';
 import { SettingsSidebarNoMatches, SettingsSidebarSearch } from '@/components/sections/shared/SettingsSidebarSearch';
 import { matchesRankQuery } from '@/lib/search/fuzzySearch';
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
 import { SETTINGS_SECTION_TITLE_CLASS } from '@/components/sections/shared/SettingsSection';
+import { useWorkspacesStore } from '@/stores/useWorkspacesStore';
+import { useCommandSettingsScope } from './commandSettingsScope';
+import { WorkspaceCommandsSidebar } from './WorkspaceCommands';
 
 interface CommandsSidebarProps {
   onItemSelect?: () => void;
 }
 
-export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }) => {
+const FolderCommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }) => {
   const { t } = useI18n();
   const [query, setQuery] = React.useState('');
   const [renameDialogCommand, setRenameDialogCommand] = React.useState<Command | null>(null);
@@ -239,7 +242,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
     <div className={cn('flex h-full flex-col', bgClass)}>
       <div className="border-b px-3 pt-4 pb-3">
         <h2 className={`${SETTINGS_SECTION_TITLE_CLASS} mb-3`}>{t('settings.commands.sidebar.title')}</h2>
-        <SettingsProjectSelector className="mb-3" />
+        <CommandsScopeSelector className="mb-3" />
         <div className="flex items-center justify-between gap-2">
           <span className="typography-meta text-muted-foreground">{t('settings.commands.sidebar.total', { count: commandOnlyItems.length })}</span>
           <Button size="sm"
@@ -386,6 +389,19 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       </Dialog>
     </div>
   );
+};
+
+export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }) => {
+  const selectedWorkspaceId = useCommandSettingsScope((state) => state.workspaceId);
+  const selectWorkspace = useCommandSettingsScope((state) => state.selectWorkspace);
+  const workspace = useWorkspacesStore((state) => state.catalog.workspaces.find((entry) => entry.id === selectedWorkspaceId) ?? null);
+
+  React.useEffect(() => {
+    if (selectedWorkspaceId && !workspace) selectWorkspace(null);
+  }, [selectedWorkspaceId, selectWorkspace, workspace]);
+
+  if (workspace) return <WorkspaceCommandsSidebar workspace={workspace} onItemSelect={onItemSelect} />;
+  return <FolderCommandsSidebar onItemSelect={onItemSelect} />;
 };
 
 interface CommandListItemProps {
