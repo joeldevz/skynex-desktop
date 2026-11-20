@@ -267,7 +267,7 @@ describe('createParsedStatus', () => {
         test('read the same from inside a Code Mode script', () => {
             expect(statusOf([script([
                 { tool: 'openchamber_web', status: 'completed', input: { action: 'browser.open' } },
-                { tool: 'openchamber_web', status: 'running', input: { action: 'browser.snapshot' } },
+                { tool: 'skynex_web', status: 'running', input: { action: 'browser.snapshot' } },
             ])]).statusText).toBe('reading a page');
         });
     });

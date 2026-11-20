@@ -153,6 +153,7 @@ export const OPENCHAMBER_WORKFLOW_ANSWER_ACTIONS = Object.freeze(
 const ACTIONS_BY_TOOL = Object.freeze({
   openchamber: OPENCHAMBER_AGENT_TOOL_ACTIONS,
   openchamber_schedule: OPENCHAMBER_SCHEDULE_ACTIONS,
+  skynex_web: OPENCHAMBER_WEB_ACTIONS,
   openchamber_web: OPENCHAMBER_WEB_ACTIONS,
   openchamber_notify: OPENCHAMBER_NOTIFY_ACTIONS,
   openchamber_render: OPENCHAMBER_RENDER_ACTIONS,

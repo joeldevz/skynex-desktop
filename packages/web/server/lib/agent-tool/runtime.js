@@ -31,6 +31,8 @@ import { createCallbackAddress } from './callback-address.js';
 
 const TOOL_SCHEMA_VERSION = 1;
 const PLUGIN_ID = 'openchamber-agent-tool';
+const WEB_TOOL_NAME = 'skynex_web';
+const WEB_PERMISSION = 'openchamber_web';
 // Everything either managed tool may ask for; the agent allowlist stays
 // narrower than the full control surface.
 const ACTIONS = new Set([
@@ -440,7 +442,7 @@ const singleActionSchema = (definition) => ({
  * answer with an empty completion instead of an error, and the `oneOf` branches
  * are what carry the per-action descriptions the model reads.
  */
-const createToolEntry = ({ name, description, definitions, parameters, codeMode, answers = false }) => {
+const createToolEntry = ({ name, description, definitions, parameters, codeMode, permission, answers = false }) => {
   const normalizeBooleans = booleanNormalizationBlock(parameters);
   const actionSchema = definitions.length === 1 ? singleActionSchema(definitions[0]) : multiActionSchema(definitions);
   return String.raw`    tools.add({
@@ -450,7 +452,7 @@ const createToolEntry = ({ name, description, definitions, parameters, codeMode,
       // unless told otherwise. There the model sees only a size-limited
       // catalog, and with a few large MCP servers ours dropped out of it, so
       // agents concluded the tool did not exist. Direct is the default.
-      options: { codemode: ${codeMode ? 'true' : 'false'} },
+      options: { codemode: ${codeMode ? 'true' : 'false'}${permission ? `, permission: ${JSON.stringify(permission)}` : ''} },
       input: {
         type: "object",
         properties: {
@@ -491,6 +493,14 @@ ${actionSchema.normalize}${normalizeBooleans}        const actionTitles = ${JSON
           },
         })
         await progress()
+        ${permission ? `await ctx.permission.assert({
+          action: ${JSON.stringify(permission)},
+          resources: ["*"],
+          save: ["*"],
+          source: { type: "tool", messageID: context.messageID, id: context.id },
+          sessionID: context.sessionID,
+          agent: context.agent,
+        })` : ''}
         const endpoint = process.env.OPENCHAMBER_AGENT_TOOL_URL
         const token = process.env.OPENCHAMBER_AGENT_TOOL_TOKEN
         // No output schema is declared, so a result must never carry an output
@@ -571,11 +581,12 @@ const createPluginSource = ({ includeControl, includeSchedule, includeWeb, inclu
   }
   if (includeWeb) {
     entries.push(createToolEntry({
-      name: 'openchamber_web',
+      name: WEB_TOOL_NAME,
       description: WEB_TOOL_DESCRIPTION,
       definitions: OPENCHAMBER_WEB_ACTION_DEFINITIONS,
       parameters: WEB_PARAMETER_PROPERTIES,
       codeMode,
+      permission: WEB_PERMISSION,
     }));
   }
   if (includeNotify) {

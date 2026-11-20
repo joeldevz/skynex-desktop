@@ -55,6 +55,7 @@ const rows = [
   { tool: 'openchamber', input: { action: 'work.name', parameters: { title: 'Tasks inside Session' } }, label: 'Skynex' },
   { tool: 'openchamber', input: { action: 'projects.list' }, label: 'Skynex' },
   { tool: 'openchamber_web', input: { action: 'browser.snapshot' }, label: 'Skynex Browser' },
+  { tool: 'skynex_web', input: { action: 'browser.snapshot' }, label: 'Skynex Browser' },
 ] satisfies { tool: string; input: ToolInput; label: string }[];
 
 for (const { tool, input, label } of rows) {

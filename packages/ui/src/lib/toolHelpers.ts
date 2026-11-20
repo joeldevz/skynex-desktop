@@ -212,7 +212,7 @@ const TOOL_METADATA: Record<string, ToolMetadata> = {
       inputFields: []
     },
 
-    openchamber_web: {
+    skynex_web: {
       displayName: 'Skynex Browser',
       category: 'system',
       outputLanguage: 'json',

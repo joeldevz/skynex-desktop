@@ -1119,7 +1119,7 @@ under a running child.
   directory of every OpenChamber plugin currently switched on. OpenCode's
   built-in browser tools need OpenCode's own desktop app to attach a browser;
   OpenChamber does not, so they would always fail with `browser.disconnected`
-  and steer agents away from `openchamber_web`. A project config listing
+  and steer agents away from `skynex_web`. A project config listing
   `opencode.browser` re-enables it. The fallback path merges the same entry. Its layer sits above the user's
   global `opencode.json` and below their project config.
 - `OPENCODE_CONFIG_CONTENT` is passed through untouched, so whatever the user

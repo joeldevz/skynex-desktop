@@ -384,7 +384,7 @@ export type ToolPart = PartBase & {
   type: "tool"
   /** Tool call id assigned by the model provider. */
   callID: string
-  /** Tool name (`shell`, `edit`, `openchamber_web`, ...); see `./tools`. */
+  /** Tool name (`shell`, `edit`, `skynex_web`, ...); see `./tools`. */
   tool: string
   state: ToolState
   /** The provider actually executed the call (false for replayed/synthetic calls). */

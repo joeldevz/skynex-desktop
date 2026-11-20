@@ -87,6 +87,8 @@ describe("tool row description", () => {
     }, undefined)).toEqual({ kind: "text", value: "session.send · Addition from the maintainer" })
     expect(toolDescription("openchamber_web", { action: "browser.snapshot", parameters: {} }, undefined))
       .toEqual({ kind: "text", value: "browser.snapshot" })
+    expect(toolDescription("skynex_web", { action: "browser.snapshot", parameters: {} }, undefined))
+      .toEqual({ kind: "text", value: "browser.snapshot" })
     expect(toolDescription("openchamber_notify", { title: "Review ready" }, undefined))
       .toEqual({ kind: "text", value: "Review ready" })
   })

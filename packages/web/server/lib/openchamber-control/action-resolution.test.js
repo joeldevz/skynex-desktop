@@ -1,15 +1,26 @@
 import { describe, expect, test } from 'bun:test';
 
-import { resolveAgentToolAction } from './actions.js';
+import { OPENCHAMBER_WEB_ACTIONS, resolveAgentToolAction } from './actions.js';
 
 describe('a namespace the tool name already implies', () => {
   test('resolves a bare action inside the calling tool', () => {
-    expect(resolveAgentToolAction('snapshot', 'openchamber_web')).toEqual({ action: 'browser.snapshot' });
+    expect(resolveAgentToolAction('snapshot', 'skynex_web')).toEqual({ action: 'browser.snapshot' });
     expect(resolveAgentToolAction('create', 'openchamber_schedule')).toEqual({ action: 'schedule.create' });
   });
 
   test('resolves a bare name that is ambiguous only across tools', () => {
     expect(resolveAgentToolAction('delete', 'openchamber_schedule')).toEqual({ action: 'schedule.delete' });
+  });
+
+  test('resolves the same browser actions for the new tool and a skewed legacy callback', () => {
+    for (const tool of ['skynex_web', 'openchamber_web']) {
+      for (const action of OPENCHAMBER_WEB_ACTIONS) {
+        expect(resolveAgentToolAction(action, tool)).toEqual({ action });
+      }
+      for (const action of ['projects.list', 'session.create', 'schedule.list']) {
+        expect(resolveAgentToolAction(action, tool).action).toBeUndefined();
+      }
+    }
   });
 
   test('rejects retired knowledge and memory actions for every caller', () => {
@@ -21,7 +32,7 @@ describe('a namespace the tool name already implies', () => {
   });
 
   test('keeps a fully qualified action as it is', () => {
-    expect(resolveAgentToolAction('browser.snapshot', 'openchamber_web')).toEqual({ action: 'browser.snapshot' });
+    expect(resolveAgentToolAction('browser.snapshot', 'skynex_web')).toEqual({ action: 'browser.snapshot' });
   });
 
   test('does not reach outside the tool that asked', () => {

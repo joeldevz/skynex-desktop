@@ -24,6 +24,7 @@ Use this doc when you ask an agent to change tool/header/description behavior.
   - Renders expandable tool rows (shell/edit/write/question/subagent + fallback).
    - Controls expandable header title/description/diff stats/timer and expanded output body.
    - The `openchamber` tool's `work.name` action is labelled `Skynex` in this fork. Its protocol name stays unchanged, and extension-provided titles still take precedence. Other OpenChamber actions retain their original label.
+   - The browser is labelled `Skynex Browser` for both `skynex_web` and historical `openchamber_web` calls. Presentation normalizes the old name without rewriting the stored call.
    - A running `openchamber` call whose action has not arrived yet shows a translated preparation label until its action is known, so streamed `work.name` calls never flash the generic OpenChamber title.
   - If you want to change expandable tool layout, edit here.
   - A subagent call is an ordinary tool row, rendered through `SubagentToolPartContent`: shine and a live duration while it runs, the final duration (red on failure) once settled, and an open action that shows the child session. Expanded, it shows the prompt and the result. The row never reads the child session's messages; the child's own chat is where its work is shown.

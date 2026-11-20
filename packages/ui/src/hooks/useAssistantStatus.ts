@@ -188,7 +188,7 @@ const OPENCHAMBER_PHRASES = new Map(Object.entries<ToolActionPhrases>({
             'schedule.run': 'running a scheduled task',
         },
     },
-    openchamber_web: {
+    skynex_web: {
         fallback: 'using the browser',
         actions: {
             'browser.open': 'opening a page',

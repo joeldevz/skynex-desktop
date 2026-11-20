@@ -3,6 +3,7 @@ import { Icon } from "@/components/icon/Icon";
 import { GuestIcon } from '@/components/layout/GuestRailIcon';
 import { resolveGuestToolIcon } from '@/lib/guests/icon';
 import type { GuestToolRule } from '@/lib/guests/tool-presentation';
+import { normalizeToolName } from '@/lib/opencode/tools';
 import { getRuntimeUrlResolver } from '@/lib/runtime-url';
 
 /**
@@ -87,7 +88,7 @@ export const getToolIcon = (toolName: string, presentation?: GuestToolRule | nul
     if (tool === 'cloudflare' || tool.startsWith('cloudflare_') || tool === 'claudflare' || tool.startsWith('claudflare_')) {
         return <Icon name="cloudflare" className={iconClass} />;
     }
-    if (tool === 'openchamber_web') {
+    if (normalizeToolName(tool) === 'skynex_web') {
         return <Icon name="global" className={iconClass} />;
     }
     if (tool === 'openchamber_schedule') {

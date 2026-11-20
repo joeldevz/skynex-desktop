@@ -15,7 +15,7 @@ are separate tools for capabilities the user can enable independently:
   (`settings-runtime.js`), so the split hands nobody a tool they turned off.
   Like the control tool, a stale plugin is not refused: the CLI runs the same
   actions, so the service cannot tell an agent call from a CLI one.
-- `openchamber_web` — looking at and interacting with the page in OpenChamber's
+- `skynex_web` — looking at and interacting with the page in the Skynex
   browser panel. Enabled while `agentWebToolEnabled` is not `false`.
 - `openchamber_notify` — `notify.send`, a notification to the user through
   `lib/notifications/emit-route.js` (same limits and rate window as
@@ -97,6 +97,15 @@ both settings are `false`.
   `parameters`, and `additionalProperties: true` at the root lets flattened
   inputs and unknown fields (a stale `wait` or `timeout`) through to the
   adapter.
+
+### Why the browser tool and permission have different names
+
+`skynex_web` is the registered tool name, including `tools.skynex_web` in Code
+Mode. The tool keeps `openchamber_web` as its OpenCode permission action so
+existing agent rules and saved approvals still apply. It uses that action both
+to filter the tool catalog and to check permission before dispatch. The callback
+accepts the old tool name during a plugin reload, with the same browser-only
+allowlist. New scripts use `tools.skynex_web`.
 
 ### Why scheduling is its own tool and not part of `openchamber`
 

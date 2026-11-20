@@ -52,15 +52,17 @@ export type ToolName = string | undefined
 /**
  * Comparable form of a tool name: lowercased, without a trailing `:index`
  * dedup suffix, and reduced to the last segment of a namespaced name
- * (`opencode.session_rename` -> `session_rename`).
+ * (`opencode.session_rename` -> `session_rename`). Historical browser calls
+ * use the same presentation as `skynex_web`.
  */
 export function normalizeToolName(toolName: ToolName): string {
   const trimmed = toolName?.trim().toLowerCase()
   if (!trimmed) return ""
   const withoutIndex = trimmed.replace(/:\d+$/, "")
-  if (!withoutIndex.includes(".")) return withoutIndex
-  const segments = withoutIndex.split(".").filter(Boolean)
-  return segments[segments.length - 1] ?? withoutIndex
+  const name = withoutIndex.includes(".")
+    ? withoutIndex.split(".").filter(Boolean).at(-1) ?? withoutIndex
+    : withoutIndex
+  return name === "openchamber_web" ? "skynex_web" : name
 }
 
 const is = (name: OpencodeToolName) => (toolName: ToolName): boolean => normalizeToolName(toolName) === name
@@ -445,7 +447,7 @@ const OPENCHAMBER_RENDER_TOOL = "openchamber_render"
 const OPENCHAMBER_WORKFLOW_TOOL = "openchamber_workflow"
 
 /** The managed OpenChamber tools a session can call. */
-const OPENCHAMBER_TOOLS = new Set(["openchamber", "openchamber_schedule", "openchamber_web", "openchamber_notify", OPENCHAMBER_RENDER_TOOL, OPENCHAMBER_WORKFLOW_TOOL])
+const OPENCHAMBER_TOOLS = new Set(["openchamber", "openchamber_schedule", "skynex_web", "openchamber_notify", OPENCHAMBER_RENDER_TOOL, OPENCHAMBER_WORKFLOW_TOOL])
 
 // The result envelope the agent tool returns as text (`agent-tool/runtime.js`).
 const proposedWorkflowResultSchema = z.object({

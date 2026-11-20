@@ -48,7 +48,7 @@ itself; it can only ask and wait.
    provider rejects those requests before contacting the extension; use the
    built-in browser for them.
 - `../openchamber-control/service.js` is the only caller. It maps the
-  `browser.*` actions of the `openchamber_web` tool onto the router's
+  `browser.*` actions of the `skynex_web` tool onto the router's
   `request()` (same signature as the broker) and owns their parameter
   validation.
 - The client half is `packages/ui/src/lib/browser/controlClient.ts`. Every

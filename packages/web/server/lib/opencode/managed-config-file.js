@@ -11,7 +11,7 @@ export const MANAGED_CONFIG_FILE_NAME = 'opencode.managed.json';
  * `opencode.browser` only works when OpenCode's own desktop app attaches a
  * browser to the session; OpenChamber does not implement that protocol, so its
  * tools always fail with `browser.disconnected` and agents conclude browsing is
- * unavailable instead of using `openchamber_web`. A project config that lists
+ * unavailable instead of using `skynex_web`. A project config that lists
  * `opencode.browser` still re-enables it, because that layer sits above ours.
  */
 const DISABLED_BUILTIN_PLUGINS = ['-opencode.browser'];

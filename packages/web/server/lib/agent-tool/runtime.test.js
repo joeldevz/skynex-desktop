@@ -57,6 +57,9 @@ const loadTools = async (dataDir, tag, hooks = {}, removed = []) => {
     session: {
       hook: async (name, callback) => { hooks[name] = callback; },
     },
+    permission: {
+      assert: hooks.assertPermission ?? vi.fn(async () => {}),
+    },
   });
   return registered;
 };
@@ -162,28 +165,30 @@ describe('managed agent tool runtime', () => {
     const tool = await loadTools(dataDir, 'both');
 
     const controlActions = tool.openchamber.input.properties.action.oneOf.map((entry) => entry.const);
-    const webActions = tool.openchamber_web.input.properties.action.oneOf.map((entry) => entry.const);
+    const webActions = tool.skynex_web.input.properties.action.oneOf.map((entry) => entry.const);
     expect(webActions).toContain('browser.open');
     expect(webActions).toContain('browser.close');
     expect(webActions).toContain('browser.select');
+    expect(tool.skynex_web.options.permission).toBe('openchamber_web');
     expect(controlActions).not.toContain('browser.open');
     expect(webActions).not.toContain('session.create');
+    expect(tool).not.toHaveProperty('openchamber_web');
 
     // Turning one tool off has to remove its inputs too, not just its actions.
-    expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('url');
+    expect(Object.keys(tool.skynex_web.input.properties.parameters.properties)).toContain('url');
     for (const action of ['browser.wait', 'browser.inspect', 'browser.hover', 'browser.resize', 'browser.capture']) {
-      expect(tool.openchamber_web.description).toContain(action);
+      expect(tool.skynex_web.description).toContain(action);
     }
-    expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('label');
-    expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).toContain('value');
-    const webParameters = tool.openchamber_web.input.properties.parameters.properties;
+    expect(Object.keys(tool.skynex_web.input.properties.parameters.properties)).toContain('label');
+    expect(Object.keys(tool.skynex_web.input.properties.parameters.properties)).toContain('value');
+    const webParameters = tool.skynex_web.input.properties.parameters.properties;
     expect(webParameters.key.type).toBe('string');
     expect(webParameters.timeoutMs).toMatchObject({ type: 'integer', minimum: 100, maximum: 15000 });
     expect(webParameters.fullPage.type).toBe('boolean');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).not.toContain('url');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).toContain('sessionId');
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).toContain('path');
-    expect(Object.keys(tool.openchamber_web.input.properties.parameters.properties)).not.toContain('path');
+    expect(Object.keys(tool.skynex_web.input.properties.parameters.properties)).not.toContain('path');
   });
 
   it('keeps the action schema to one validator keyword', async () => {
@@ -231,12 +236,12 @@ describe('managed agent tool runtime', () => {
 
     try {
       // The shape a model actually produced: url and viewport next to action.
-      await tool.openchamber_web.execute(
+      await tool.skynex_web.execute(
         { action: 'browser.open', url: 'https://example.test', viewport: 'mobile' },
         context,
       );
       // The documented shape must keep working, and win when both are present.
-      await tool.openchamber_web.execute(
+      await tool.skynex_web.execute(
         { action: 'browser.open', url: 'https://ignored.test', parameters: { url: 'https://example.test/nested' } },
         context,
       );
@@ -257,6 +262,68 @@ describe('managed agent tool runtime', () => {
     // v2 tools get no directory; the session id is what OpenChamber resolves from.
     expect(sent[2].sessionID).toBe('ses_1');
     expect(sent[2].contextDirectory).toBeUndefined();
+  });
+
+  it('checks browser permission before dispatch and propagates a denial', async () => {
+    const { runtime, dataDir } = await createRuntime();
+    const prepared = await prepareManagedEnv(runtime, { includeControl: false, includeWeb: true });
+    const permissionError = new Error('Browser access denied');
+    const hooks = { assertPermission: vi.fn(async () => { throw permissionError; }) };
+    const tools = await loadTools(dataDir, 'web-permission-denied', hooks);
+    const browserTool = tools.skynex_web ?? tools.openchamber_web;
+    const previousUrl = process.env.OPENCHAMBER_AGENT_TOOL_URL;
+    const previousToken = process.env.OPENCHAMBER_AGENT_TOOL_TOKEN;
+    process.env.OPENCHAMBER_AGENT_TOOL_URL = prepared.OPENCHAMBER_AGENT_TOOL_URL;
+    process.env.OPENCHAMBER_AGENT_TOOL_TOKEN = prepared.OPENCHAMBER_AGENT_TOOL_TOKEN;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    try {
+      await expect(browserTool.execute(
+        { action: 'browser.open', url: 'https://example.test' },
+        { sessionID: 'ses_1', agent: 'build', messageID: 'msg_1', id: 'call_1', progress: async () => {} },
+      )).rejects.toBe(permissionError);
+      expect(hooks.assertPermission).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'openchamber_web',
+        resources: ['*'],
+        save: ['*'],
+        source: { type: 'tool', messageID: 'msg_1', id: 'call_1' },
+        sessionID: 'ses_1',
+        agent: 'build',
+      }));
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      if (previousUrl === undefined) delete process.env.OPENCHAMBER_AGENT_TOOL_URL;
+      else process.env.OPENCHAMBER_AGENT_TOOL_URL = previousUrl;
+      if (previousToken === undefined) delete process.env.OPENCHAMBER_AGENT_TOOL_TOKEN;
+      else process.env.OPENCHAMBER_AGENT_TOOL_TOKEN = previousToken;
+    }
+  });
+
+  it('keeps the retired browser tool name usable for callback skew only', async () => {
+    const executeAction = vi.fn(async () => ({ tabs: [] }));
+    const { runtime } = await createRuntime({ executeAction });
+
+    const result = await runtime.execute({
+      input: { action: 'browser.snapshot' },
+      sessionID: 'ses_1',
+      tool: 'openchamber_web',
+    });
+
+    expect(result).toMatchObject({ ok: true, action: 'browser.snapshot' });
+    expect(executeAction).toHaveBeenCalledWith(
+      'browser.snapshot',
+      { action: 'browser.snapshot' },
+      undefined,
+      { contextSessionId: 'ses_1' },
+    );
+    const refused = await runtime.execute({
+      input: { action: 'projects.list' },
+      sessionID: 'ses_1',
+      tool: 'openchamber_web',
+    });
+    expect(refused.ok).toBe(false);
+    expect(executeAction).toHaveBeenCalledTimes(1);
   });
 
   it('declares the workflow tool only when asked, with the scripting guide on script', async () => {
@@ -353,14 +420,14 @@ describe('managed agent tool runtime', () => {
       await call('openchamber', { action: 'session.list', withStatus: 'false' });
       // The field names come from the calling tool's own schema, so other
       // tools' booleans normalize there too.
-      await call('openchamber_web', { action: 'browser.type', parameters: { selector: '#q', value: 'x', submit: 'true' } });
+      await call('skynex_web', { action: 'browser.type', parameters: { selector: '#q', value: 'x', submit: 'true' } });
       // Every other spelling or value keeps its identity for the strict check.
       for (const value of ['TRUE', 'False', 'yes', '1', 1, 0, null]) {
         await call('openchamber', { action: 'session.list', parameters: { withStatus: value } });
       }
       // A boolean another tool declares is not a field of this tool, so it is
       // left alone here.
-      await call('openchamber_web', { action: 'browser.type', parameters: { selector: '#q', value: 'x', withStatus: 'true' } });
+      await call('skynex_web', { action: 'browser.type', parameters: { selector: '#q', value: 'x', withStatus: 'true' } });
     } finally {
       globalThis.fetch = originalFetch;
       if (originalUrl === undefined) delete process.env.OPENCHAMBER_AGENT_TOOL_URL;
@@ -380,7 +447,7 @@ describe('managed agent tool runtime', () => {
     await prepareManagedEnv(runtime, { includeControl: false, includeWeb: true, includeMemory: false });
     const tool = await loadTools(dataDir, 'web');
 
-    expect(Object.keys(tool)).toEqual(['openchamber_web']);
+    expect(Object.keys(tool)).toEqual(['skynex_web']);
   });
 
   it('never registers native memory or knowledge, even with obsolete options', async () => {
@@ -476,7 +543,7 @@ describe('managed agent tool runtime', () => {
     await prepareManagedEnv(runtime, { includeSchedule: true, includeKnowledge: true, includeNotify: true, includeRender: true });
     const tools = await loadTools(dataDir, 'description-length');
 
-    expect(Object.keys(tools).sort()).toEqual(['openchamber', 'openchamber_notify', 'openchamber_render', 'openchamber_schedule', 'openchamber_web']);
+    expect(Object.keys(tools).sort()).toEqual(['openchamber', 'openchamber_notify', 'openchamber_render', 'openchamber_schedule', 'skynex_web']);
     for (const tool of Object.values(tools)) {
       // Claude Code before 2.1.296 cuts an MCP tool description at 2048
       // characters, and the plugin runs whichever CLI the user installed.
@@ -544,16 +611,22 @@ describe('managed agent tool runtime', () => {
     const { runtime, dataDir } = await createRuntime();
     await prepareManagedEnv(runtime, { includeControl: true, includeWeb: true, includeMemory: true, includeNotify: true });
     const direct = await loadTools(dataDir, 'direct');
-    for (const tool of Object.values(direct)) {
-      expect(tool.options).toEqual({ codemode: false });
+    for (const [name, tool] of Object.entries(direct)) {
+      expect(tool.options).toEqual(name === 'skynex_web'
+        ? { codemode: false, permission: 'openchamber_web' }
+        : { codemode: false });
     }
+    expect(direct.skynex_web.options.permission).toBe('openchamber_web');
 
     await prepareManagedEnv(runtime, { includeControl: true, includeWeb: true, includeMemory: true, includeNotify: true, includeRender: true, codeMode: true });
     const { openchamber_render: render, ...behindExecute } = await loadTools(dataDir, 'codemode');
     expect(Object.keys(behindExecute).length).toBeGreaterThan(0);
-    for (const tool of Object.values(behindExecute)) {
-      expect(tool.options).toEqual({ codemode: true });
+    for (const [name, tool] of Object.entries(behindExecute)) {
+      expect(tool.options).toEqual(name === 'skynex_web'
+        ? { codemode: true, permission: 'openchamber_web' }
+        : { codemode: true });
     }
+    expect(behindExecute.skynex_web.options.permission).toBe('openchamber_web');
     expect(render.options).toEqual({ codemode: false });
   });
 
@@ -576,7 +649,7 @@ describe('managed agent tool runtime', () => {
       input: { action: 'snapshot' },
       contextDirectory: '/work/project',
       contextSessionId: 'ses_1',
-      tool: 'openchamber_web',
+      tool: 'skynex_web',
     });
 
     expect(result.ok).toBe(true);
@@ -606,7 +679,7 @@ describe('managed agent tool runtime', () => {
   it.each([
     ['session.create', 'openchamber', { prompt: 'x', goal: 'true' }, 'goal'],
     ['session.list', 'openchamber', { withStatus: 'true' }, 'withStatus'],
-    ['browser.type', 'openchamber_web', { selector: '#q', value: 'x', submit: 'yes' }, 'submit'],
+    ['browser.type', 'skynex_web', { selector: '#q', value: 'x', submit: 'yes' }, 'submit'],
     ['notify.send', 'openchamber_notify', { title: 't', showWhenFocused: 1 }, 'showWhenFocused'],
   ])('refuses a %s whose boolean %s field is not a boolean', async (action, tool, input, field) => {
     const { runtime, executeAction } = await createRuntime();

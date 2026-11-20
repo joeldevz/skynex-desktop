@@ -1148,7 +1148,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
     // `execute` renders its script and its call list itself, below.
     const hideToolInputPreview = part.tool === 'openchamber'
         || part.tool === 'openchamber_schedule'
-        || part.tool === 'openchamber_web'
+        || normalizeToolName(part.tool) === 'skynex_web'
         || part.tool === 'openchamber_notify'
         || part.tool === 'openchamber_render'
         || part.tool === 'openchamber_workflow'
