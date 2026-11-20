@@ -9,7 +9,6 @@ import { parseOpenCodeCliVersion, readPinnedOpenCodeCliVersion } from './opencod
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const electronRoot = path.resolve(__dirname, '..');
-const workspaceRoot = path.resolve(electronRoot, '../..');
 const ELF_MACHINE = { x64: 62, arm64: 183 };
 // sherpa-onnx-node loads this Node-API addon from its platform-specific prebuilt
 // package in the separate server worker, so verify its architecture here rather
@@ -160,10 +159,9 @@ const extractAppImage = (appImagePath, destination) => {
 };
 
 const main = () => {
-  const rootPackage = readJson(path.join(workspaceRoot, 'package.json'));
   const electronPackage = readJson(path.join(electronRoot, 'package.json'));
   const target = normalizeTargetArchitecture(process.env.OPENCHAMBER_TARGET_ARCH || process.arch).node;
-  const appImagePath = process.argv[2] ? path.resolve(process.argv[2]) : findAppImage(rootPackage.version, target);
+  const appImagePath = process.argv[2] ? path.resolve(process.argv[2]) : findAppImage(electronPackage.version, target);
   assertElfArchitecture(appImagePath, target, 'AppImage');
 
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'openchamber-appimage-'));
