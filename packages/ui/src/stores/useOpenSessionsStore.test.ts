@@ -372,3 +372,27 @@ describe('forgetting entries that do not belong in the list', () => {
     expect(f.store.getState().sessions.map((entry) => entry.sessionId)).toEqual(['child']);
   });
 });
+
+describe('pinning open sessions', () => {
+  test('pins and unpins a session, and opening it again keeps the pin', async () => {
+    const f = fixture(snapshot([reference('a'), reference('b')]));
+    await f.store.getState().hydrate(null);
+    expect(await f.store.getState().pinSession('b', true)).toEqual({ kind: 'saved' });
+    expect(f.store.getState().sessions[1]).toEqual({ ...reference('b'), pinned: true });
+    expect(JSON.parse(f.disk.get('host-a') ?? 'null').sessions[1].pinned).toBe(true);
+
+    expect(await f.store.getState().openSession({ ...reference('b'), title: 'Renamed' })).toEqual({ kind: 'saved' });
+    expect(f.store.getState().sessions[1]).toEqual({ ...reference('b'), title: 'Renamed', pinned: true });
+
+    expect(await f.store.getState().pinSession('b', false)).toEqual({ kind: 'saved' });
+    expect(f.store.getState().sessions[1]).toEqual({ ...reference('b'), title: 'Renamed' });
+  });
+
+  test('keeps the previous state when the pin cannot be saved', async () => {
+    const f = fixture(snapshot([reference('a')]));
+    await f.store.getState().hydrate(null);
+    f.write(async () => { throw new Error('offline'); });
+    expect(await f.store.getState().pinSession('a', true)).toEqual({ kind: 'retained', reason: 'persistence-failed' });
+    expect(f.store.getState().sessions[0].pinned).toBeUndefined();
+  });
+});

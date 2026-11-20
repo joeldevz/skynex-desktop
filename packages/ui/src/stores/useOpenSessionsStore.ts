@@ -14,6 +14,8 @@ import { createSharedOpenSessionsAdapters } from '../lib/workspaces/shared-open-
 export type OpenSessionReference = Readonly<{
   sessionId: string; title: string; primaryDirectory: string; scope: WorkspaceSessionScope | null;
   workspaceAssignment?: WorkspaceAssignment;
+  /** Only present when true: pinned sessions sit in their own group at the top of the list. */
+  pinned?: true;
 }>;
 export type OpenSessionsSnapshot = Readonly<{ version: 1; migrated: true; sessions: readonly OpenSessionReference[] }>;
 type ViewedSessionSeed = OpenSessionReference | null | { kind: 'lookup'; load: () => Promise<OpenSessionReference | null> };
@@ -30,6 +32,7 @@ export type OpenSessionsState = {
   hydrate(viewedSession: ViewedSessionSeed): Promise<HydrationResult>;
   openSession(reference: OpenSessionReference): Promise<MembershipResult>;
   reorderSession(sessionId: string, overId: string): Promise<MembershipResult>;
+  pinSession(sessionId: string, pinned: boolean): Promise<MembershipResult>;
   closeSession(sessionId: string, confirmation: 'unconfirmed' | 'stop-confirmed'): Promise<SessionCloseResult>;
   /** Removes entries from the list only: never stops their sessions. For entries that do not belong in it. */
   forgetSessions(sessionIds: readonly string[]): Promise<MembershipResult>;
@@ -37,6 +40,7 @@ export type OpenSessionsState = {
 export type MembershipChange = { kind: 'seed'; sessions: readonly OpenSessionReference[] }
   | { kind: 'open'; reference: OpenSessionReference }
   | { kind: 'reorder'; order: readonly string[] }
+  | { kind: 'pin'; sessionId: string; pinned: boolean }
   | { kind: 'close'; sessionId: string };
 export type OpenSessionsAdapters = {
   runtimeKey(): string | null;
@@ -51,6 +55,7 @@ export type OpenSessionsAdapters = {
 const referenceSchema = z.object({ sessionId: z.string().min(1), title: z.string(), primaryDirectory: absoluteDirectorySchema,
   scope: workspaceSessionScopeSchema.nullable(),
   workspaceAssignment: workspaceAssignmentSchema.optional(),
+  pinned: z.literal(true).optional(),
 }).refine((reference) => reference.scope === null || reference.primaryDirectory === reference.scope.primaryDirectory, 'Scope directory mismatch');
 const snapshotSchema = z.object({ version: z.literal(1), migrated: z.literal(true), sessions: z.array(referenceSchema) })
   .refine((snapshot) => new Set(snapshot.sessions.map((reference) => reference.sessionId)).size === snapshot.sessions.length, 'Duplicate session ID');
@@ -65,11 +70,16 @@ export function parseOpenSessionsSnapshot(json: string | null): ParseResult<Open
   }
 }
 type Intent = { kind: 'open'; reference: OpenSessionReference } | { kind: 'reorder'; sessionId: string; overId: string }
+  | { kind: 'pin'; sessionId: string; pinned: boolean }
   | { kind: 'close'; sessionId: string; confirmation: 'unconfirmed' | 'stop-confirmed' }
   | { kind: 'forget'; sessionId: string };
 type Namespace = {
   sessions: readonly OpenSessionReference[]; ready: boolean; tail: Promise<void>;
   loading: Promise<HydrationResult> | null; retry: Intent[];
+};
+const withPin = (reference: OpenSessionReference, pinned: boolean | undefined): OpenSessionReference => {
+  const { pinned: _previous, ...rest } = reference;
+  return pinned ? { ...rest, pinned: true } : rest;
 };
 const serialize = (sessions: readonly OpenSessionReference[]): string => JSON.stringify({ version: 1, migrated: true, sessions });
 const authoritative = (json: string | void): readonly OpenSessionReference[] | null => {
@@ -104,8 +114,9 @@ export function createOpenSessionsStore(adapters: OpenSessionsAdapters): StoreAp
       let next: readonly OpenSessionReference[];
       if (intent.kind === 'open') {
         const index = owner.sessions.findIndex((entry) => entry.sessionId === intent.reference.sessionId);
+        // Opening an open session again refreshes its reference but keeps its pin.
         next = index < 0 ? [...owner.sessions, intent.reference]
-          : owner.sessions.map((entry, i) => i === index ? intent.reference : entry);
+          : owner.sessions.map((entry, i) => i === index ? withPin(intent.reference, intent.reference.pinned ?? entry.pinned) : entry);
       } else if (intent.kind === 'reorder') {
         const from = owner.sessions.findIndex((entry) => entry.sessionId === intent.sessionId);
         const to = owner.sessions.findIndex((entry) => entry.sessionId === intent.overId);
@@ -113,6 +124,8 @@ export function createOpenSessionsStore(adapters: OpenSessionsAdapters): StoreAp
         const moved = [...owner.sessions];
         moved.splice(to, 0, ...moved.splice(from, 1));
         next = moved;
+      } else if (intent.kind === 'pin') {
+        next = owner.sessions.map((entry) => entry.sessionId === intent.sessionId ? withPin(entry, intent.pinned) : entry);
       } else if (intent.kind === 'forget') {
         next = owner.sessions.filter((entry) => entry.sessionId !== intent.sessionId);
       } else {
@@ -144,6 +157,7 @@ export function createOpenSessionsStore(adapters: OpenSessionsAdapters): StoreAp
       if (serialize(next) !== serialize(owner.sessions)) {
         const change: MembershipChange = intent.kind === 'open' ? { kind: 'open', reference: intent.reference }
           : intent.kind === 'reorder' ? { kind: 'reorder', order: next.map((entry) => entry.sessionId) }
+          : intent.kind === 'pin' ? { kind: 'pin', sessionId: intent.sessionId, pinned: intent.pinned }
           : { kind: 'close', sessionId: intent.sessionId };
         try {
           owner.sessions = authoritative(await adapters.write(key, serialize(next), change)) ?? next;
@@ -256,6 +270,18 @@ export function createOpenSessionsStore(adapters: OpenSessionsAdapters): StoreAp
         return enqueue(owner, async (): Promise<MembershipResult> => {
           if (!owner.ready) return { kind: 'retained', reason: 'load-failed' };
           const result = await apply(key, owner, { kind: 'reorder', sessionId, overId });
+          if (result.kind === 'saved') return result;
+          if (result.kind === 'retained' && (result.reason === 'persistence-failed' || result.reason === 'runtime-changed')) return { kind: 'retained', reason: result.reason };
+          return { kind: 'retained', reason: 'load-failed' };
+        });
+      },
+      pinSession: (sessionId, pinned) => {
+        const key = adapters.runtimeKey();
+        if (!key) return Promise.resolve({ kind: 'retained', reason: 'runtime-unavailable' });
+        const owner = prepare(key);
+        return enqueue(owner, async (): Promise<MembershipResult> => {
+          if (!owner.ready) return { kind: 'retained', reason: 'load-failed' };
+          const result = await apply(key, owner, { kind: 'pin', sessionId, pinned });
           if (result.kind === 'saved') return result;
           if (result.kind === 'retained' && (result.reason === 'persistence-failed' || result.reason === 'runtime-changed')) return { kind: 'retained', reason: result.reason };
           return { kind: 'retained', reason: 'load-failed' };

@@ -200,4 +200,31 @@ describe('shared open-session membership', () => {
     })).rejects.toThrow();
     expect(snapshot).toEqual([{ sessionId: 'safe', directory: '/safe', title: 'Session' }]);
   });
+
+  it('pins and unpins a session, and opening it again keeps the pin', async () => {
+    let snapshot = [{ sessionId: 'a', directory: '/a' }, { sessionId: 'b', directory: '/b' }];
+    const membership = await makeMembership({
+      readSnapshot: async () => snapshot,
+      writeSnapshot: async (next) => { snapshot = next; },
+    });
+    const app = express();
+    app.use(express.json());
+    registerSharedOpenSessionsRoutes(app, {
+      membership,
+      tunnelAuthController: { classifyRequestScope: () => 'local', getTunnelSessionFromRequest: () => null },
+      uiAuthController: { resolveAuthContext: async () => ({ type: 'session' }) },
+    });
+
+    const pinned = await request(app).post('/api/openchamber/open-sessions').send({ operation: 'pin', sessionId: 'b', pinned: true });
+    expect(pinned.status).toBe(200);
+    expect(snapshot).toEqual([{ sessionId: 'a', directory: '/a' }, { sessionId: 'b', directory: '/b', pinned: true }]);
+
+    await membership.open({ sessionId: 'b', directory: '/b', title: 'Renamed' });
+    expect(snapshot[1]).toEqual({ sessionId: 'b', directory: '/b', title: 'Renamed', pinned: true });
+
+    await membership.pin('b', false);
+    expect(snapshot[1]).toEqual({ sessionId: 'b', directory: '/b', title: 'Renamed' });
+    await membership.pin('missing', true);
+    expect(snapshot.map(({ sessionId }) => sessionId)).toEqual(['a', 'b']);
+  });
 });

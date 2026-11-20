@@ -12,11 +12,13 @@ type ServerReference = {
   title?: string;
   scope?: WorkspaceSessionScope | null;
   workspaceAssignment?: WorkspaceAssignment;
+  pinned?: boolean;
 };
 export type MembershipRequest = { operation: 'read' }
   | { operation: 'migrate'; references: ServerReference[] }
   | { operation: 'open'; reference: ServerReference }
   | { operation: 'reorder'; order: readonly string[] }
+  | { operation: 'pin'; sessionId: string; pinned: boolean }
   | { operation: 'close'; sessionId: string };
 
 const serverReferenceSchema = z.object({
@@ -25,6 +27,7 @@ const serverReferenceSchema = z.object({
   title: z.string().optional(),
   scope: workspaceSessionScopeSchema.nullable().optional(),
   workspaceAssignment: workspaceAssignmentSchema.optional(),
+  pinned: z.boolean().optional(),
 });
 const serverResponseSchema = z.object({ sessions: z.array(serverReferenceSchema).nullable() });
 
@@ -33,6 +36,7 @@ const toServer = (reference: OpenSessionReference): ServerReference => {
     sessionId: reference.sessionId, directory: reference.primaryDirectory, title: reference.title, scope: reference.scope,
   };
   if (reference.workspaceAssignment) server.workspaceAssignment = reference.workspaceAssignment;
+  if (reference.pinned) server.pinned = true;
   return server;
 };
 
@@ -40,7 +44,8 @@ const fromServer = (server: z.infer<typeof serverReferenceSchema>): OpenSessionR
   const reference = {
     sessionId: server.sessionId, title: server.title ?? server.sessionId, primaryDirectory: server.directory, scope: server.scope ?? null,
   };
-  return server.workspaceAssignment ? { ...reference, workspaceAssignment: server.workspaceAssignment } : reference;
+  const assigned = server.workspaceAssignment ? { ...reference, workspaceAssignment: server.workspaceAssignment } : reference;
+  return server.pinned ? { ...assigned, pinned: true } : assigned;
 };
 
 // The store parses the snapshot it receives, so the JSON here only has to carry the fields.
@@ -53,6 +58,7 @@ const toRequest = (change: MembershipChange): MembershipRequest => {
     case 'seed': return { operation: 'migrate', references: change.sessions.map(toServer) };
     case 'open': return { operation: 'open', reference: toServer(change.reference) };
     case 'reorder': return { operation: 'reorder', order: change.order };
+    case 'pin': return { operation: 'pin', sessionId: change.sessionId, pinned: change.pinned };
     case 'close': return { operation: 'close', sessionId: change.sessionId };
   }
 };

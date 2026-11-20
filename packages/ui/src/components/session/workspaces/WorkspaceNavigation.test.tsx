@@ -305,11 +305,14 @@ test('C3 keyboard drag reorders stable session ids without selecting or closing 
   await withNavigation(async (ui) => {
     const f = await fixture();
     const { useGlobalSessionsStore } = await import('@/stores/useGlobalSessionsStore');
-    useGlobalSessionsStore.getState().upsertSession({
-      id: 'app-session', directory: '/projects/app', projectID: 'app', title: 'App work', cost: 0,
-      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-      time: { created: 1, updated: 1, idle: 10, viewed: 5 },
-    } satisfies Session);
+    // Both rows carry an unread reply, so they share the "Waiting for you" group a drag stays within.
+    for (const { id, directory, title } of [{ id: 'app-session', directory: '/projects/app', title: 'App work' }, { id: 'notes-session', directory: '/elsewhere/notes', title: 'Notes work' }]) {
+      useGlobalSessionsStore.getState().upsertSession({
+        id, directory, projectID: id, title, cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        time: { created: 1, updated: 1, idle: 10, viewed: 5 },
+      } satisfies Session);
+    }
     await ui.render();
     for (const [index, name] of ['App work', 'Notes work'].entries()) {
       const row = ui.button(name).closest('li')!;
@@ -391,5 +394,45 @@ test('C5 touch drag reorders stable session ids after the long-press activation 
     expect(f.reorders).toEqual([['app-session', 'notes-session']]);
     expect(f.sessionSelections).toEqual([]);
     expect(f.closes).toEqual([]);
+  });
+});
+
+test('pinned sessions lead the list, the rest group by state, and the pin button asks the store', async () => {
+  await withNavigation(async (ui) => {
+    const f = await fixture();
+    const { openSessionsStore } = await import('@/stores/useOpenSessionsStore');
+    const { useGlobalSessionsStore } = await import('@/stores/useGlobalSessionsStore');
+    const pins: Array<[string, boolean]> = [];
+    openSessionsStore.setState({
+      sessions: [sessions[0], { ...sessions[1], pinned: true }],
+      pinSession: async (id, pinned) => { pins.push([id, pinned]); return { kind: 'saved' }; },
+    });
+    useGlobalSessionsStore.getState().upsertSession({
+      id: 'app-session', directory: '/projects/app', projectID: 'app', title: 'App work', cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      time: { created: 1, updated: 1, idle: 10, viewed: 5 },
+    } satisfies Session);
+    try {
+      await ui.render();
+      const groups = [...ui.container.querySelectorAll('section[aria-label="Open sessions"] section[aria-label]')].map((node) => node.getAttribute('aria-label'));
+      expect(groups).toEqual(['Pinned', 'Waiting for you']);
+      const rows = [...ui.container.querySelectorAll('li')].map((row) => row.querySelector('button')?.getAttribute('aria-label'));
+      expect(rows).toEqual(['Notes work', 'App work']);
+
+      await act(async () => ui.button('Unpin Notes work').click());
+      await act(async () => ui.button('Pin App work').click());
+      expect(pins).toEqual([['notes-session', false], ['app-session', true]]);
+      expect(f.sessionSelections).toEqual([]);
+
+      const fold = ui.container.querySelector<HTMLButtonElement>('section[aria-label="Waiting for you"] h3 button');
+      expect(fold?.getAttribute('aria-expanded')).toBe('true');
+      await act(async () => fold?.click());
+      expect(fold?.getAttribute('aria-expanded')).toBe('false');
+      expect([...ui.container.querySelectorAll('li')].map((row) => row.querySelector('button')?.getAttribute('aria-label'))).toEqual(['Notes work']);
+      await act(async () => fold?.click());
+      expect([...ui.container.querySelectorAll('li')]).toHaveLength(2);
+    } finally {
+      useGlobalSessionsStore.getState().resetForRuntimeSwitch();
+    }
   });
 });

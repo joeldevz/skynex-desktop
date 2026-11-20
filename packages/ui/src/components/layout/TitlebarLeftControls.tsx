@@ -1,6 +1,5 @@
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { buttonVariants } from '@/components/ui/button-variants';
 import { Icon } from '@/components/icon/Icon';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
@@ -38,8 +37,8 @@ export const TitlebarLeftControls: React.FC = () => {
   const clusterRef = React.useRef<HTMLDivElement | null>(null);
 
   const toggleShortcut = formatShortcutForDisplay(getEffectiveShortcutCombo('toggle_sidebar', shortcutOverrides));
-  // Starting a session shares the titlebar row with the sidebar toggle, so it
-  // stays in one place whether the sidebar is open or collapsed.
+  // Only while the sidebar is collapsed: otherwise New session sits in the
+  // sidebar's Open sessions header.
   const handleNewSession = React.useCallback(() => {
     useUIStore.getState().closeMainSurfaces();
     useSessionUIStore.getState().openNewSessionDraft();
@@ -156,20 +155,7 @@ export const TitlebarLeftControls: React.FC = () => {
           </TooltipContent>
         </Tooltip>
 
-        {isSidebarOpen ? (
-          <button
-            type="button"
-            onClick={handleNewSession}
-            aria-label={t('sessions.sidebar.header.actions.newSession')}
-            className={cn(
-              buttonVariants({ variant: 'default', size: 'xs' }),
-              'app-region-no-drag w-auto min-w-0 shrink',
-            )}
-          >
-            <Icon name="chat-new" className="size-3.5 shrink-0" />
-            <span className="truncate">{t('sessions.sidebar.header.actions.newSession')}</span>
-          </button>
-        ) : (
+        {isSidebarOpen ? null : (
           <Tooltip>
             <TooltipTrigger asChild>
               <button

@@ -145,17 +145,17 @@ export function WorkspaceNavigation({ onSelected, footer, pageButtons, inlineOve
         {status === 'failed' && <Button variant="outline" onClick={() => void useWorkspacesStore.getState().load()}>{t('workspaces.actionFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
       </section>
       <section className="flex h-full min-h-0 flex-col space-y-1 overflow-hidden" aria-label={t('workspaces.openSessions')}>
-        <div className="flex items-center justify-between gap-2 ps-2">
+        <div className="flex items-center justify-between gap-2 ps-2 pt-2 pb-1">
           <h2 className="min-w-0 truncate typography-ui-label text-muted-foreground">{t('workspaces.openSessions')}</h2>
-          <Button variant="ghost" size="xs" className="shrink-0 text-muted-foreground" aria-label={t('sessions.sidebar.header.actions.newSession')} title={t('sessions.sidebar.header.actions.newSession')} onClick={() => {
+          <Button variant="ghost" size="xs" className="shrink-0 text-primary hover:text-primary" aria-label={t('sessions.sidebar.header.actions.newSession')} title={t('sessions.sidebar.header.actions.newSession')} onClick={() => {
             useUIStore.getState().closeMainSurfaces();
             useSessionUIStore.getState().openNewSessionDraft();
           }}>
-            <Icon name="add" className="size-4" />
+            <Icon name="chat-new" className="size-4" />
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <OpenSessionCollection sessions={visibleSessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} onReorder={(id, overId) => openSessionsStore.getState().reorderSession(id, overId)} onReopen={(reference) => openSessionsStore.getState().openSession(reference)} />
+          <OpenSessionCollection sessions={visibleSessions} selectedId={selected ? null : currentId} onSelect={selectSession} onClose={(id, confirmation) => closeSessionTabAndActivateNeighbour(id, confirmation, false)} onReorder={(id, overId) => openSessionsStore.getState().reorderSession(id, overId)} onReopen={(reference) => openSessionsStore.getState().openSession(reference)} onPin={(id, pinned) => openSessionsStore.getState().pinSession(id, pinned)} />
         {hydration === 'failed' && <Button variant="outline" onClick={() => void openSessionsStore.getState().hydrate(null)}>{t('workspaces.closeFailed')} {t('directoryExplorerDialog.browse.retry')}</Button>}
         </div>
       </section>

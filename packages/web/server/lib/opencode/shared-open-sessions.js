@@ -13,6 +13,7 @@ const referenceSchema = z.strictObject({
   title: z.string().optional(),
   scope: z.looseObject({}).nullable().optional(),
   workspaceAssignment: z.looseObject({}).optional(),
+  pinned: z.boolean().optional(),
 });
 
 const snapshotSchema = z.array(referenceSchema).refine(
@@ -25,8 +26,15 @@ const requestSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('open'), reference: z.unknown() }),
   z.object({ operation: z.literal('reorder'), order: z.array(z.string()) }),
   z.object({ operation: z.literal('close'), sessionId: z.string().min(1) }),
+  z.object({ operation: z.literal('pin'), sessionId: z.string().min(1), pinned: z.boolean() }),
   z.object({ operation: z.literal('migrate'), references: z.array(z.unknown()) }),
 ]);
+
+// Only a pinned session carries the field, so unpinned entries keep their stored shape.
+const withPin = (entry, pinned) => {
+  const { pinned: _previous, ...rest } = entry;
+  return pinned ? { ...rest, pinned: true } : rest;
+};
 
 /** A request the client can fix: answered with 400, never with a server fault. */
 class InvalidMembershipRequest extends Error {}
@@ -75,11 +83,16 @@ export const createSharedOpenSessionsRuntime = ({ readSnapshot, writeSnapshot })
       const reference = parseReference(value);
       return mutate((current) => {
         const index = current.findIndex(({ sessionId }) => sessionId === reference.sessionId);
+        // Opening again refreshes the reference; a client that does not know
+        // about pinning must not unpin the session by doing so.
         return index < 0
           ? [...current, reference]
-          : current.map((entry, i) => (i === index ? reference : entry));
+          : current.map((entry, i) => (i === index ? withPin(reference, reference.pinned ?? entry.pinned) : entry));
       });
     },
+    pin: async (sessionId, pinned) => mutate((current) => current.map((entry) => (
+      entry.sessionId === sessionId ? withPin(entry, pinned) : entry
+    ))),
     reorder: async (order) => mutate((current) => {
       const byId = new Map(current.map((entry) => [entry.sessionId, entry]));
       const listed = [...new Set(order)].filter((id) => byId.has(id)).map((id) => byId.get(id));
@@ -115,6 +128,7 @@ const runOperation = (membership, body) => {
     case 'open': return membership.open(request.reference);
     case 'reorder': return membership.reorder(request.order);
     case 'close': return membership.close(request.sessionId);
+    case 'pin': return membership.pin(request.sessionId, request.pinned);
     case 'migrate': return membership.migrate(request.references);
   }
 };

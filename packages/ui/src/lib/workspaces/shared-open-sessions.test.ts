@@ -53,4 +53,19 @@ describe('shared open-session adapters', () => {
     await expect(adapters.read('rt')).rejects.toThrow('500');
     await expect(adapters.write('rt', '', { kind: 'close', sessionId: 'a' })).rejects.toThrow('500');
   });
+
+  test('sends a pin as its own operation and reads the pin back', async () => {
+    const calls: MembershipRequest[] = [];
+    const adapters = createSharedOpenSessionsAdapters({
+      post: async (body) => {
+        calls.push(body);
+        return new Response(JSON.stringify({ sessions: [{ sessionId: 'a', directory: '/work/a', title: 'a', pinned: true }] }), { status: 200 });
+      },
+      storage: memoryStorage,
+      readLocal: () => [],
+    });
+    const json = await adapters.write('rt', '', { kind: 'pin', sessionId: 'a', pinned: true });
+    expect(calls).toEqual([{ operation: 'pin', sessionId: 'a', pinned: true }]);
+    expect(JSON.parse(json ?? 'null').sessions).toEqual([{ ...reference('a'), pinned: true }]);
+  });
 });

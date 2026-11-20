@@ -121,24 +121,13 @@ describe('TitlebarLeftControls', () => {
     expect(overlay!.style.maxWidth).toBe('');
   });
 
-  test('shows the labelled New session button when the sidebar is open and collapses it to an icon when closed', async () => {
+  test('shows New session as an icon only while the sidebar is closed', async () => {
     await act(async () => {
       useUIStore.getState().setSidebarOpen(true);
     });
     await renderControls();
 
-    const openButton = document.querySelector<HTMLButtonElement>('button[aria-label="New session"]');
-    expect(openButton).not.toBeNull();
-    expect(openButton!.classList.contains('shrink-0')).toBe(false);
-    expect(openButton!.classList.contains('min-w-0')).toBe(true);
-
-    const label = openButton!.querySelector<HTMLSpanElement>('span');
-    expect(label).not.toBeNull();
-    expect(label!.classList.contains('truncate')).toBe(true);
-
-    const icon = openButton!.querySelector<SVGElement>('svg');
-    expect(icon).not.toBeNull();
-    expect(icon!.classList.contains('shrink-0')).toBe(true);
+    expect(document.querySelector('button[aria-label="New session"]')).toBeNull();
 
     await act(async () => {
       useUIStore.getState().setSidebarOpen(false);
