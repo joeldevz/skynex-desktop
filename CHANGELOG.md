@@ -4313,6 +4313,18 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.8] - 2026-11-20
+
+### New
+
+- **Open sessions:** Pin sessions at the top of the sidebar. Collapse the groups for sessions that need your attention, are working, or are paused.
+- **Workspaces:** Pick or create a worktree when starting a session in a Git folder. The session stays in its workspace.
+- Commands: Save shared text commands for every session in a workspace.
+
+### Improvements
+
+- Browser: Agents use `skynex_web` to control the integrated browser.
+
 ## [0.1.7] - 2026-11-19
 
 ### Fixes
