@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.9] - 2026-11-23
+
+### New
+
+- **Whiteboards (beta):** Draw diagrams together with Skynex on boards that every session in a workspace shares, and leave comments on them for Skynex to answer. Turn them on in Settings, under Skynex Tools.
+
 ## [0.1.8] - 2026-11-20
 
 ### New

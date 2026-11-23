@@ -7301,6 +7301,26 @@
     "vscode": null
   },
   {
+    "version": "0.1.9",
+    "date": "2026-11-23",
+    "title": "Whiteboards in beta",
+    "intro": null,
+    "app": {
+      "new": [
+        "**Whiteboards (beta):** Draw diagrams together with Skynex on boards that every session in a workspace shares, and leave comments on them for Skynex to answer. Turn them on in Settings, under Skynex Tools."
+      ],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.8",
     "date": "2026-11-20",
     "title": "Pinned sessions and workspace worktrees",
