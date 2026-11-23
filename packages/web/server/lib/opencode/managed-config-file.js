@@ -91,6 +91,8 @@ export const createManagedConfigRuntime = ({
     const includeControl = settings?.agentControlToolEnabled !== false;
     const includeSchedule = settings?.agentScheduleToolEnabled !== false;
     const includeWeb = settings?.agentWebToolEnabled !== false;
+    // Whiteboards are a beta, off unless turned on in Settings; off, the agent has no whiteboard tool.
+    const includeWhiteboard = settings?.whiteboardsEnabled === true;
     const includeNotify = settings?.agentNotifyToolEnabled === true;
     const includeRender = settings?.agentRenderToolEnabled !== false;
     // On by default wherever the build has workflows: the build flag is the opt-in.
@@ -99,8 +101,8 @@ export const createManagedConfigRuntime = ({
 
     const directories = [];
     let permissions = [];
-    if (agentToolRuntime && (includeControl || includeSchedule || includeWeb || includeNotify || includeRender || includeWorkflow)) {
-      directories.push(await agentToolRuntime.materializePlugin({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }));
+    if (agentToolRuntime && (includeControl || includeSchedule || includeWeb || includeWhiteboard || includeNotify || includeRender || includeWorkflow)) {
+      directories.push(await agentToolRuntime.materializePlugin({ includeControl, includeSchedule, includeWeb, includeWhiteboard, includeNotify, includeRender, includeWorkflow, codeMode }));
       permissions = managedPermissionRules({ includeWorkflow });
     }
     // Only while an option is on: otherwise every limit error would cost the

@@ -17,6 +17,9 @@ are separate tools for capabilities the user can enable independently:
   actions, so the service cannot tell an agent call from a CLI one.
 - `skynex_web` — looking at and interacting with the page in the Skynex
   browser panel. Enabled while `agentWebToolEnabled` is not `false`.
+- `skynex_whiteboard` — persistent workspace whiteboards, enabled while
+  `agentWhiteboardToolEnabled` is not `false`. Its edits use revisioned element
+  operations and shared board-level undo (`../whiteboards/DOCUMENTATION.md`).
 - `openchamber_notify` — `notify.send`, a notification to the user through
   `lib/notifications/emit-route.js` (same limits and rate window as
   `POST /api/notifications/emit`). Off by default: enabled only while

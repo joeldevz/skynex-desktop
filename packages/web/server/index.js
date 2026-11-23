@@ -113,6 +113,11 @@ import {
   createSharedOpenSessionsRuntime,
   registerSharedOpenSessionsRoutes,
 } from './lib/opencode/shared-open-sessions.js';
+import { createWhiteboardsFileStore, createWhiteboardsRuntime } from './lib/whiteboards/runtime.js';
+import { createWhiteboardImageStore } from './lib/whiteboards/images.js';
+import { createWhiteboardImageUploads } from './lib/whiteboards/uploads.js';
+import { registerWhiteboardsRoutes } from './lib/whiteboards/routes.js';
+import { createWhiteboardAgentActions } from './lib/whiteboards/agent-actions.js';
 import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { registerWorkspaceGeneralChatRoutes } from './lib/workspaces/general-chat-routes.js';
@@ -184,6 +189,7 @@ import { createFileOpenRequester } from './lib/openchamber-control/file-open.js'
 import { applyConnectAttemptTimeout } from './lib/network-defaults.js';
 import { applyOutboundProxyFromEnv } from './lib/outbound-proxy.js';
 import { readOpenCodeLoad } from './lib/diagnostics/opencode-load.js';
+import { z } from 'zod';
 
 // Background CLI launches enter here in a fresh process, without CLI defaults.
 applyConnectAttemptTimeout();
@@ -386,6 +392,7 @@ const SETTINGS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'settings.json');
 const PUSH_SUBSCRIPTIONS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'push-subscriptions.json');
 const APNS_TOKENS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'apns-tokens.json');
 const OPEN_SESSIONS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'open-sessions.json');
+const WHITEBOARDS_DIR = path.join(OPENCHAMBER_DATA_DIR, 'whiteboards');
 const openCodeTrust = createOpenCodeTrust({
   storePath: path.join(OPENCHAMBER_DATA_DIR, 'opencode-trust.json'),
   // Declared further down; first read on the first check, after startup.
@@ -604,6 +611,39 @@ const broadcastOpenChamberUiEvent = createGlobalUiEventBroadcaster({
   sseClients: uiOpenChamberEventClients,
   wsClients: uiNotificationWsClients,
   writeSseEvent,
+});
+const readWhiteboardWorkspaces = async () => {
+  const settings = await readSettingsFromDiskMigrated();
+  const catalog = z.array(z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    folders: z.array(z.object({ path: z.string().min(1) })).optional(),
+  })).safeParse(settings?.workspaceCatalog?.workspaces);
+  return catalog.success ? catalog.data.map(({ id, name, folders = [] }) => ({ id, name, folders: folders.map(({ path: folderPath }) => folderPath) })) : [];
+};
+const whiteboardsRuntime = createWhiteboardsRuntime({
+  store: createWhiteboardsFileStore({ fsPromises, directory: WHITEBOARDS_DIR, writeFileAtomic }),
+  images: createWhiteboardImageStore({ fsPromises, directory: path.join(WHITEBOARDS_DIR, 'images') }),
+  readWorkspaces: readWhiteboardWorkspaces,
+  onChange: (properties) => broadcastOpenChamberUiEvent({ type: 'openchamber:whiteboard-changed', properties }),
+});
+// Picture uploads stream to a staging folder before they are checked and stored;
+// whatever a previous run left half-sent there is dropped at start.
+const whiteboardImageUploads = createWhiteboardImageUploads({
+  fs,
+  fsPromises,
+  directory: path.join(WHITEBOARDS_DIR, 'uploads'),
+  runtime: whiteboardsRuntime,
+});
+void whiteboardImageUploads.clearStaging();
+// Whiteboards are a beta, on only when turned on in Settings.
+const whiteboardsEnabled = async () => (await readSettingsFromDiskMigrated())?.whiteboardsEnabled === true;
+const whiteboardAgentActions = createWhiteboardAgentActions({
+  isEnabled: whiteboardsEnabled,
+  runtime: whiteboardsRuntime,
+  fsPromises,
+  readWorkspaces: readWhiteboardWorkspaces,
+  broadcast: broadcastOpenChamberUiEvent,
 });
 
 // Permission modes and requests left for the user go where the global events
@@ -1933,6 +1973,7 @@ const openChamberControlService = createOpenChamberControlService({
   isOpenCodeDirectoryTrusted: (directory) => openCodeTrust.isTrusted(directory),
   sessionService: openChamberSessionService,
   scheduledTaskService,
+  whiteboards: whiteboardAgentActions,
   browserControl: browserControlRouter,
   fileOpen: fileOpenRequester,
   isRenderToolEnabled: async () => {
@@ -2782,6 +2823,7 @@ async function main(options = {}) {
         tunnelAuthController,
         uiAuthController,
       });
+      registerWhiteboardsRoutes(routeApp, { runtime: whiteboardsRuntime, uploads: whiteboardImageUploads, tunnelAuthController, uiAuthController, isEnabled: whiteboardsEnabled });
     },
     setupProxy,
     scheduleOpenCodeApiDetection,

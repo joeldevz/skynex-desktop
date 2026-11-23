@@ -40,6 +40,8 @@ type MobileSessionsSheetProps = {
     onOpenSettings: () => void;
     onOpenScheduled: () => void;
     onOpenArchive: () => void;
+    /** Whiteboards; absent while the beta is off in Settings. */
+    onOpenWhiteboards?: () => void;
     onOpenUsage: () => void;
     onOpenIntegrations: () => void;
     onOpenShortcuts: () => void;
@@ -170,6 +172,14 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                       {t('sessions.sidebar.nav.archive')}
                     </span>
                   </DropdownMenuItem>
+                  {footer.onOpenWhiteboards ? (
+                    <DropdownMenuItem onClick={() => { close(); footer.onOpenWhiteboards?.(); }} className={MOBILE_MENU_ITEM_CLASS}>
+                      <span className="flex items-center gap-2">
+                        <Icon name="artboard" className="size-4" />
+                        {t('whiteboards.page.title')}
+                      </span>
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuItem onClick={() => { close(); footer.onOpenUsage(); }} className={MOBILE_MENU_ITEM_CLASS}>
                     <span className="flex items-center gap-2">
                       <Icon name="bar-chart" className="size-4" />

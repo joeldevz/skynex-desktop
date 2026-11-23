@@ -59,7 +59,7 @@ async function withSheet(run: (ui: {
     useConfigStore.setState({ isConnected: false });
     useSessionUIStore.setState({ currentSessionId: null, openSessionFailure: null });
     const closeRequests: boolean[] = [];
-    const footer = { instanceLabel: null, onOpenSettings: () => {}, onOpenScheduled: () => {}, onOpenArchive: () => {}, onOpenUsage: () => {}, onOpenIntegrations: () => {}, onOpenShortcuts: () => {}, onOpenAbout: () => {}, onOpenSourceBoard: () => {} };
+    const footer = { instanceLabel: null, onOpenSettings: () => {}, onOpenScheduled: () => {}, onOpenArchive: () => {}, onOpenWhiteboards: () => {}, onOpenUsage: () => {}, onOpenIntegrations: () => {}, onOpenShortcuts: () => {}, onOpenAbout: () => {}, onOpenSourceBoard: () => {} };
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);

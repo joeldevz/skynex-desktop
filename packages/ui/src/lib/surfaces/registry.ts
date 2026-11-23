@@ -15,6 +15,7 @@ type BuiltInContextSurfaceId =
   | 'context'
   | 'browser'
   | 'workflows'
+  | 'whiteboard'
   | 'chat';
 
 export type ContextSurfaceId = BuiltInContextSurfaceId | `plugin:${string}`;
@@ -114,6 +115,14 @@ export const CONTEXT_SURFACES: readonly ContextSurfaceDescriptor[] = [
     availability: 'always',
   },
   {
+    id: 'whiteboard',
+    descriptionKey: 'whiteboards.panel.description',
+    mode: 'whiteboard',
+    icon: 'artboard',
+    labelKey: 'whiteboards.panel.title',
+    availability: 'always',
+  },
+  {
     id: 'chat',
     descriptionKey: 'contextRail.surface.chat.description',
     mode: 'chat',
@@ -181,6 +190,8 @@ type VisibleRailSurfacesOptions = {
       or a Workflows tab is open, and never in a build without workflows. Runs
       start from the chat, so hiding it removes no entry point. */
   workflowsShown: boolean;
+  /** Whiteboards are a beta turned on in Settings; off, their surface is gone. */
+  whiteboardsShown: boolean;
   /** Installed guest panels. Empty on VS Code and when the catalog has not
       loaded or failed. */
   extras?: readonly ContextSurfaceDescriptor[];
@@ -220,6 +231,9 @@ export const getVisibleContextRailSurfaces = (options: VisibleRailSurfacesOption
       return false;
     }
     if (surface.id === 'workflows' && (options.isVSCode || !options.workflowsShown)) {
+      return false;
+    }
+    if (surface.id === 'whiteboard' && !options.whiteboardsShown) {
       return false;
     }
     if (surface.availability === 'has-content') {

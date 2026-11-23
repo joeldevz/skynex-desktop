@@ -14,6 +14,8 @@ import {
   resolveAgentToolAction,
   OPENCHAMBER_WEB_ACTION_DEFINITIONS,
   OPENCHAMBER_WEB_ACTIONS,
+  OPENCHAMBER_WHITEBOARD_ACTION_DEFINITIONS,
+  OPENCHAMBER_WHITEBOARD_ACTIONS,
   OPENCHAMBER_WORKFLOW_ACTION_DEFINITIONS,
   OPENCHAMBER_WORKFLOW_ACTIONS,
   OPENCHAMBER_WORKFLOW_ANSWER_ACTION_DEFINITIONS,
@@ -32,6 +34,7 @@ import { createCallbackAddress } from './callback-address.js';
 const TOOL_SCHEMA_VERSION = 1;
 const PLUGIN_ID = 'openchamber-agent-tool';
 const WEB_TOOL_NAME = 'skynex_web';
+const WHITEBOARD_TOOL_NAME = 'skynex_whiteboard';
 const WEB_PERMISSION = 'openchamber_web';
 // Everything either managed tool may ask for; the agent allowlist stays
 // narrower than the full control surface.
@@ -39,6 +42,7 @@ const ACTIONS = new Set([
   ...OPENCHAMBER_AGENT_TOOL_ACTIONS,
   ...OPENCHAMBER_SCHEDULE_ACTIONS,
   ...OPENCHAMBER_WEB_ACTIONS,
+  ...OPENCHAMBER_WHITEBOARD_ACTIONS,
   ...OPENCHAMBER_NOTIFY_ACTIONS,
   ...OPENCHAMBER_RENDER_ACTIONS,
   ...OPENCHAMBER_WORKFLOW_ACTIONS,
@@ -49,6 +53,7 @@ const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
     ...OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
     ...OPENCHAMBER_SCHEDULE_ACTION_DEFINITIONS,
     ...OPENCHAMBER_WEB_ACTION_DEFINITIONS,
+    ...OPENCHAMBER_WHITEBOARD_ACTION_DEFINITIONS,
     ...OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS,
     ...OPENCHAMBER_RENDER_ACTION_DEFINITIONS,
     ...OPENCHAMBER_WORKFLOW_ACTION_DEFINITIONS,
@@ -256,6 +261,25 @@ const WEB_TOOL_DESCRIPTION = "OpenChamber's browser panel, to check your work by
   + 'drivable false from browser.open means display-only: no further actions there. '
   + 'Close tabs you opened for your own work with browser.close; leave open the ones you opened to show the user something. The page runs with the user\'s real logins; treat it as their live session.';
 
+const WHITEBOARD_TOOL_DESCRIPTION = 'Workspace whiteboards are persistent boards shared across sessions. Read the board, then apply element ops with the revision you read; reread after a conflict. Board units: blocks about 200x80, notes 180x120, sections around groups with 40 padding. Kinds: block, note, text, section, arrow, image. Colors: gray, red, orange, yellow, green, blue, purple, pink. An element is {id?, kind, x, y, w, h, text, color?}; blocks add form (rect, rounded, diamond, database, pill); blocks, notes and text add size (title, heading, body, small) and align (start, center, end). An arrow is {id?, kind: arrow, from, to, text}. Box text is Markdown: **bold**, *italic*, [label](https://url), "- " or "1. " list lines; a bold first line titles a card. An arrow\'s text sits on its line: leave room between its boxes, side by side about 7 units per character plus 50, stacked at least 60; fix any layoutWarnings before you finish. Give new elements ids so later ops and arrows in one call can name them; keep ids stable. whiteboard.addImage puts a picture from a workspace file on the board; images move, resize, take captions and arrows like any box. A request from a board comment names its commentId: when done, answer in its thread with whiteboard.comment.reply, a sentence or two on what you changed; for a comment on an area, build inside that area first, or the reply is refused. whiteboard.open shows the board beside chat. Never replace a whole board without the user\'s confirmation.';
+
+const WHITEBOARD_PARAMETER_PROPERTIES = {
+  workspaceId: { type: 'string', description: 'Workspace id; defaults to the workspace containing this session directory' },
+  boardId: { type: 'string' },
+  title: { type: 'string', description: 'Whiteboard title, 1 to 120 characters' },
+  revision: { type: 'integer', description: 'Current board revision from whiteboard.read' },
+  ops: { type: 'array', items: { type: 'object' }, description: 'Element ops, applied in order: {op:"add",element}, {op:"update",id,set:{fields}}, {op:"delete",id}; max 400' },
+  elements: { type: 'array', items: { type: 'object' }, description: 'Initial elements for whiteboard.create, max 800' },
+  confirmReplace: { type: 'boolean', description: 'Confirm replacing all board elements' },
+  path: { type: 'string', description: 'whiteboard.addImage: picture file inside the workspace, absolute or relative to this session folder' },
+  x: { type: 'number', description: 'whiteboard.addImage: left edge in board units' },
+  y: { type: 'number', description: 'whiteboard.addImage: top edge in board units' },
+  w: { type: 'number', description: 'whiteboard.addImage: width in board units; height keeps the picture proportions' },
+  caption: { type: 'string', description: 'whiteboard.addImage: caption shown under the picture' },
+  commentId: { type: 'string', description: 'whiteboard.comment.reply: the comment whose thread you answer' },
+  text: { type: 'string', description: 'whiteboard.comment.reply: your answer, a short summary of what you did' },
+};
+
 const NOTIFY_TOOL_DESCRIPTION = "Notify the user outside the chat: when long work finishes and they have likely stepped away, when you are blocked on them, or when they asked to be told. Routine progress and what your reply already says stay in the chat.";
 
 const RENDER_TOOL_DESCRIPTION = "Draw a finished HTML page inline in the chat, above your reply, or ask the user to choose on one (awaitAnswer). "
@@ -273,6 +297,7 @@ const BOOLEAN_PARAMETER_NAMES = [...new Set([
   SCHEDULE_PARAMETER_PROPERTIES,
   NOTIFY_PARAMETER_PROPERTIES,
   RENDER_PARAMETER_PROPERTIES,
+  WHITEBOARD_PARAMETER_PROPERTIES,
   WORKFLOW_PARAMETER_PROPERTIES,
 ].flatMap((properties) => Object.entries(properties)
   .filter(([, schema]) => schema.type === 'boolean')
@@ -555,7 +580,7 @@ ${answers ? ANSWER_WAIT_SETUP : ''}
  */
 const OPENCODE_TOOLS_REPLACED_BY_CONTROL = ['opencode_worktree_create', 'opencode_models'];
 
-const createPluginSource = ({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }) => {
+const createPluginSource = ({ includeControl, includeSchedule, includeWeb, includeWhiteboard, includeNotify, includeRender, includeWorkflow, codeMode }) => {
   const entries = [];
   if (includeControl) {
     entries.push(`    for (const id of ${JSON.stringify(OPENCODE_TOOLS_REPLACED_BY_CONTROL)}) tools.remove(id)
@@ -587,6 +612,15 @@ const createPluginSource = ({ includeControl, includeSchedule, includeWeb, inclu
       parameters: WEB_PARAMETER_PROPERTIES,
       codeMode,
       permission: WEB_PERMISSION,
+    }));
+  }
+  if (includeWhiteboard) {
+    entries.push(createToolEntry({
+      name: WHITEBOARD_TOOL_NAME,
+      description: WHITEBOARD_TOOL_DESCRIPTION,
+      definitions: OPENCHAMBER_WHITEBOARD_ACTION_DEFINITIONS,
+      parameters: WHITEBOARD_PARAMETER_PROPERTIES,
+      codeMode,
     }));
   }
   if (includeNotify) {
@@ -703,13 +737,13 @@ export const createAgentToolRuntime = (dependencies) => {
    * change while it runs, so the source on disk always matches the settings —
    * the running OpenCode reloads the directory it already has configured.
    */
-  const materializePlugin = async ({ includeControl = true, includeSchedule = false, includeWeb = true, includeNotify = false, includeRender = false, includeWorkflow = false, codeMode = false } = {}) => {
-    if (!includeControl && !includeSchedule && !includeWeb && !includeNotify && !includeRender && !includeWorkflow) {
+  const materializePlugin = async ({ includeControl = true, includeSchedule = false, includeWeb = true, includeWhiteboard = true, includeNotify = false, includeRender = false, includeWorkflow = false, codeMode = false } = {}) => {
+    if (!includeControl && !includeSchedule && !includeWeb && !includeWhiteboard && !includeNotify && !includeRender && !includeWorkflow) {
       throw new Error('At least one OpenChamber managed tool must be enabled to inject the plugin');
     }
     await fsPromises.mkdir(pluginDirectory, { recursive: true });
     await fsPromises.writeFile(pluginManifestPath, PLUGIN_PACKAGE_JSON, { mode: 0o600 });
-    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeSchedule, includeWeb, includeNotify, includeRender, includeWorkflow, codeMode }), { mode: 0o600 });
+    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeSchedule, includeWeb, includeWhiteboard, includeNotify, includeRender, includeWorkflow, codeMode }), { mode: 0o600 });
     return pluginDirectory;
   };
 

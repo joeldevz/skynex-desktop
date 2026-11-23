@@ -173,8 +173,31 @@ type SessionMessageContext = {
     excerpt: string;
 };
 
+/**
+ * A request made from a whiteboard: the board and the elements the user had
+ * selected, so the message shows where it came from and opens the board.
+ */
+export type WhiteboardContext = {
+    kind: 'whiteboard';
+    boardId: string;
+    workspaceId: string;
+    title: string;
+    selected: Array<{ id: string; kind: string; text: string }>;
+    /** A comment on the board that asked this: the agent answers in its thread, and the message opens it. */
+    commentId?: string;
+};
+
+/** What the agent is told about a request that came from a board comment: answer in its thread. */
+export const whiteboardCommentInstruction = (commentId: string, area?: { x: number; y: number; w: number; h: number }): string => {
+    const where = area
+        ? ` It marks the area x ${Math.round(area.x)}, y ${Math.round(area.y)}, ${Math.round(area.w)} wide, ${Math.round(area.h)} high: place what you create there, starting at its top-left corner; it may grow past the area, but do not move or cover what is already on the board.`
+        : '';
+    return `This request is the board comment ${commentId}.${where} When you are done, answer in its thread with whiteboard.comment.reply (boardId, commentId, text): a sentence or two on what you changed.`;
+};
+
 export type ContextPartPayload =
     | CodeCommentContext
+    | WhiteboardContext
     | TerminalContextPayload
     | BrowserAnnotationContext
     | PrCommentContext
@@ -277,6 +300,13 @@ export function formatContextText(payload: ContextPartPayload): string {
         }
         case 'pr-check':
             return `Attached failed ${changeRequestCheckSource(payload.provider)} (${payload.label}):\n\`\`\`\n${payload.output}\n\`\`\`${payload.text ? `\n\n${payload.text}` : ''}`;
+        case 'whiteboard': {
+            const lines = [`Whiteboard "${payload.title}" (boardId ${payload.boardId}, workspace ${payload.workspaceId}). Use the skynex_whiteboard tool to read and change it.`];
+            if (payload.selected.length === 0) lines.push('Nothing on the board is selected: the request is about the whole board.');
+            else lines.push('The request is about these selected elements:', ...payload.selected.map((element) => `- ${element.id} (${element.kind})${element.text ? `: ${element.text}` : ''}`));
+            if (payload.commentId) lines.push(whiteboardCommentInstruction(payload.commentId));
+            return lines.join('\n');
+        }
         case 'repository-issue':
         case 'repository-discussion':
         case 'change-request':
@@ -486,6 +516,14 @@ const canonicalContextPayloadSchema = z.discriminatedUnion('kind', [
         messageId: z.string().min(1).optional(),
     }),
     z.object({
+        kind: z.literal('whiteboard'),
+        boardId: z.string().min(1),
+        workspaceId: z.string().min(1),
+        title: z.string(),
+        selected: z.array(z.object({ id: z.string().min(1), kind: z.string(), text: z.string() })),
+        commentId: z.string().regex(/^cm_[a-z0-9]{10}$/).optional(),
+    }),
+    z.object({
         kind: z.literal('session-message'),
         sessionId: z.string().min(1),
         messageId: z.string().min(1),
@@ -673,6 +711,7 @@ export function draftFromContextPayload(
         case 'guest-issue':
         case 'guest-pr':
         case 'session':
+        case 'whiteboard':
         case 'session-message':
             return null;
     }

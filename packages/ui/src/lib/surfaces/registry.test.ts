@@ -14,9 +14,15 @@ const baseOptions = {
   tabs: [],
   sourceControlConnected: true,
   workflowsShown: false,
+  whiteboardsShown: true,
 } as const;
 
 describe('getVisibleContextRailSurfaces', () => {
+  test('shows the Whiteboard surface only while Whiteboards (beta) are on', () => {
+    expect(getVisibleContextRailSurfaces(baseOptions).map((surface) => String(surface.id))).toContain('whiteboard');
+    expect(getVisibleContextRailSurfaces({ ...baseOptions, whiteboardsShown: false }).map((surface) => String(surface.id))).not.toContain('whiteboard');
+  });
+
   test('retires Memory from the registry, saved rail order and recognized modes', () => {
     expect(CONTEXT_SURFACES.map((surface) => String(surface.id))).not.toContain('memory');
     const surfaces = getVisibleContextRailSurfaces({ ...baseOptions, railOrder: ['memory', 'git', 'context'] });

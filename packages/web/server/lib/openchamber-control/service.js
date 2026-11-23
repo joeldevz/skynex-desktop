@@ -233,6 +233,7 @@ export const createOpenChamberControlService = (dependencies) => {
     // Agent workflows (../workflows/runtime.js); absent where they are not
     // available, which is every build without OPENCHAMBER_WORKFLOWS_ENABLE.
     workflowRuntime = null,
+    whiteboards = null,
     // Archive lives in OpenChamber's own store now — v2 has no route that sets
     // Session.time.archived — so an unwired store simply means nothing is archived.
     archiveStore = null,
@@ -892,6 +893,10 @@ export const createOpenChamberControlService = (dependencies) => {
           sessionId: asNonEmptyString(options.contextSessionId),
           directory: asNonEmptyString(contextDirectory),
         });
+      }
+      if (action.startsWith('whiteboard.')) {
+        if (!whiteboards) throw new OpenChamberControlError('Whiteboards are not available on this server', 503);
+        return await whiteboards.execute(action, input, { directory: contextDirectory, sessionId: options.contextSessionId });
       }
       if (action === 'render.page') {
         return await renderPage(input, {

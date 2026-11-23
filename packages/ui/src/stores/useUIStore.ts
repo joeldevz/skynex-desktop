@@ -304,7 +304,7 @@ const buildDefaultContextPanelTabDedupeKey = (mode: ContextPanelMode, targetPath
     return targetPath || mode;
   }
 
-  if (mode === 'browser' || mode === 'pr') {
+  if (mode === 'browser' || mode === 'pr' || mode === 'whiteboard') {
     return targetPath || mode;
   }
 
@@ -951,6 +951,8 @@ interface UIStore {
   isArchivePageOpen: boolean;
   /** The full-screen integrations catalog page, opened from the sidebar header. */
   isIntegrationsCatalogOpen: boolean;
+  /** The workspace whiteboards page, opened from the sidebar header. */
+  isWhiteboardsPageOpen: boolean;
   /** The query the Archive page opened with; empty for a plain open. */
   archivePageSearch: string;
   /** Grows on every open, so a page already on screen restarts with the new query. */
@@ -1120,6 +1122,8 @@ interface UIStore {
   showOpenCodeUpdateNotifications: boolean;
   agentControlToolEnabled: boolean;
   agentScheduleToolEnabled: boolean;
+  /** Whiteboards (beta): the page, the panel tab and the agent's whiteboard tool; off until turned on in Settings. */
+  whiteboardsEnabled: boolean;
   agentWebToolEnabled: boolean;
   /** Full-text message search (server index). Opt-in: off keeps every part of it idle. */
   messageSearchEnabled: boolean;
@@ -1274,6 +1278,7 @@ interface UIStore {
   /** `search` fills the page's search field, for a sidebar search that found nothing. */
   setArchivePageOpen: (open: boolean, search?: string) => void;
   setIntegrationsCatalogOpen: (open: boolean) => void;
+  setWhiteboardsPageOpen: (open: boolean) => void;
   setUsageStatsPageOpen: (open: boolean) => void;
   setSourceBoardOpen: (open: boolean) => void;
   setOverviewOpen: (open: boolean) => void;
@@ -1402,6 +1407,7 @@ interface UIStore {
   setShowOpenCodeUpdateNotifications: (value: boolean) => void;
   setAgentControlToolEnabled: (value: boolean) => void;
   setAgentScheduleToolEnabled: (value: boolean) => void;
+  setWhiteboardsEnabled: (value: boolean) => void;
   setAgentWebToolEnabled: (value: boolean) => void;
   setMessageSearchEnabled: (value: boolean) => void;
   setMessageSearchReasoningEnabled: (value: boolean) => void;
@@ -1519,6 +1525,7 @@ export const useUIStore = create<UIStore>()(
         isScheduledTasksDialogOpen: false,
         isArchivePageOpen: false,
         isIntegrationsCatalogOpen: false,
+        isWhiteboardsPageOpen: false,
         archivePageSearch: '',
         archivePageOpenCount: 0,
         isUsageStatsPageOpen: false,
@@ -1636,6 +1643,7 @@ export const useUIStore = create<UIStore>()(
         showOpenCodeUpdateNotifications: true,
         agentControlToolEnabled: true,
         agentScheduleToolEnabled: true,
+        whiteboardsEnabled: false,
         agentWebToolEnabled: true,
         messageSearchEnabled: false,
         messageSearchReasoningEnabled: false,
@@ -2494,31 +2502,39 @@ export const useUIStore = create<UIStore>()(
 
         setScheduledTasksDialogOpen: (open) => {
           set(open
-            ? { isScheduledTasksDialogOpen: true, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isScheduledTasksDialogOpen: true, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isScheduledTasksDialogOpen: false });
         },
 
         setArchivePageOpen: (open, search = '') => {
           set(open
-            ? { isArchivePageOpen: true, archivePageSearch: search, archivePageOpenCount: get().archivePageOpenCount + 1, isUsageStatsPageOpen: false, isIntegrationsCatalogOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isArchivePageOpen: true, archivePageSearch: search, archivePageOpenCount: get().archivePageOpenCount + 1, isUsageStatsPageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isArchivePageOpen: false });
         },
 
         setIntegrationsCatalogOpen: (open) => {
           set(open
-            ? { isIntegrationsCatalogOpen: true, isArchivePageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isIntegrationsCatalogOpen: true, isWhiteboardsPageOpen: false, isArchivePageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isIntegrationsCatalogOpen: false });
+        },
+
+        setWhiteboardsPageOpen: (open) => {
+          // Whiteboards are a beta: nothing opens them while they are off in Settings.
+          if (open && !get().whiteboardsEnabled) return;
+          set(open
+            ? { isWhiteboardsPageOpen: true, isIntegrationsCatalogOpen: false, isArchivePageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            : { isWhiteboardsPageOpen: false });
         },
 
         setUsageStatsPageOpen: (open) => {
           set(open
-            ? { isUsageStatsPageOpen: true, isSourceBoardOpen: false, isOverviewOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isUsageStatsPageOpen: true, isSourceBoardOpen: false, isOverviewOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isUsageStatsPageOpen: false });
         },
 
         setSourceBoardOpen: (open) => {
           set(open
-            ? { isSourceBoardOpen: true, isOverviewOpen: false, isUsageStatsPageOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isSourceBoardOpen: true, isOverviewOpen: false, isUsageStatsPageOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isSourceBoardOpen: false });
         },
 
@@ -2526,36 +2542,37 @@ export const useUIStore = create<UIStore>()(
           // Without the feature there is no page to open, whatever asks for it.
           if (open && !get().overviewFeatureAvailable) return;
           set(open
-            ? { isOverviewOpen: true, isSourceBoardOpen: false, isUsageStatsPageOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
+            ? { isOverviewOpen: true, isSourceBoardOpen: false, isUsageStatsPageOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isScheduledTasksDialogOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null, openGuestPageId: null }
             : { isOverviewOpen: false });
         },
 
         setWorktreesPageProjectId: (projectId) => {
           set(projectId
-            ? { worktreesPageProjectId: projectId, spacesPageProjectId: null, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, runOverviewKey: null, openGuestPageId: null }
+            ? { worktreesPageProjectId: projectId, spacesPageProjectId: null, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, runOverviewKey: null, openGuestPageId: null }
             : { worktreesPageProjectId: null });
         },
 
         setSpacesPageProjectId: (projectId) => {
           set(projectId
-            ? { spacesPageProjectId: projectId, worktreesPageProjectId: null, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, runOverviewKey: null, openGuestPageId: null }
+            ? { spacesPageProjectId: projectId, worktreesPageProjectId: null, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, runOverviewKey: null, openGuestPageId: null }
             : { spacesPageProjectId: null });
         },
 
         setOpenGuestPage: (id) => {
-          set(id ? { openGuestPageId: id, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null }
+          set(id ? { openGuestPageId: id, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, runOverviewKey: null }
             : { openGuestPageId: null });
         },
 
         closeMainSurfaces: () => {
           const state = get();
-          if (!state.isScheduledTasksDialogOpen && !state.isArchivePageOpen && !state.isIntegrationsCatalogOpen && !state.isUsageStatsPageOpen && !state.isSourceBoardOpen && !state.isOverviewOpen && !state.worktreesPageProjectId && !state.spacesPageProjectId && !state.runOverviewKey && !state.openGuestPageId) {
+          if (!state.isScheduledTasksDialogOpen && !state.isArchivePageOpen && !state.isIntegrationsCatalogOpen && !state.isWhiteboardsPageOpen && !state.isUsageStatsPageOpen && !state.isSourceBoardOpen && !state.isOverviewOpen && !state.worktreesPageProjectId && !state.spacesPageProjectId && !state.runOverviewKey && !state.openGuestPageId) {
             return;
           }
           set({
             isScheduledTasksDialogOpen: false,
             isArchivePageOpen: false,
             isIntegrationsCatalogOpen: false,
+            isWhiteboardsPageOpen: false,
             isUsageStatsPageOpen: false,
             isSourceBoardOpen: false,
             isOverviewOpen: false,
@@ -3177,7 +3194,7 @@ export const useUIStore = create<UIStore>()(
         // opening it closes the other surfaces and vice versa.
         setRunOverviewKey: (runKey) => {
           set(runKey
-            ? { runOverviewKey: runKey, isSessionSwitcherOpen: false, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, openGuestPageId: null }
+            ? { runOverviewKey: runKey, isSessionSwitcherOpen: false, isScheduledTasksDialogOpen: false, isArchivePageOpen: false, isIntegrationsCatalogOpen: false, isWhiteboardsPageOpen: false, isUsageStatsPageOpen: false, isSourceBoardOpen: false, isOverviewOpen: false, worktreesPageProjectId: null, spacesPageProjectId: null, openGuestPageId: null }
             : { runOverviewKey: null });
         },
 
@@ -3258,6 +3275,18 @@ export const useUIStore = create<UIStore>()(
         },
         setAgentScheduleToolEnabled: (value) => {
           set({ agentScheduleToolEnabled: value });
+        },
+        setWhiteboardsEnabled: (value) => {
+          if (value) {
+            set({ whiteboardsEnabled: true });
+            return;
+          }
+          // Turned off, the Whiteboards page and every board tab close with it.
+          set({ whiteboardsEnabled: false, isWhiteboardsPageOpen: false });
+          for (const [directory, panel] of Object.entries(get().contextPanelByDirectory)) {
+            const boardTabs = (panel?.tabs ?? []).filter((tab) => tab.mode === 'whiteboard').map((tab) => tab.id);
+            if (boardTabs.length > 0) get().closeContextPanelTabs(directory, boardTabs);
+          }
         },
         setAgentWebToolEnabled: (value) => {
           set({ agentWebToolEnabled: value });
@@ -3800,6 +3829,7 @@ export const useUIStore = create<UIStore>()(
           showOpenCodeUpdateNotifications: state.showOpenCodeUpdateNotifications,
           agentControlToolEnabled: state.agentControlToolEnabled,
           agentScheduleToolEnabled: state.agentScheduleToolEnabled,
+          whiteboardsEnabled: state.whiteboardsEnabled,
           agentWebToolEnabled: state.agentWebToolEnabled,
           messageSearchEnabled: state.messageSearchEnabled,
           messageSearchReasoningEnabled: state.messageSearchReasoningEnabled,

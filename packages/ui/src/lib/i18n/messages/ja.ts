@@ -8,6 +8,7 @@ import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
 import { surfacePanelI18n } from './surface-panel.i18n';
+import { whiteboardsI18n } from './whiteboards.i18n';
 import { fileArtifactsI18n } from './file-artifacts.i18n';
 import { fileContentSearchI18n } from './file-content-search.i18n';
 import { fileEditorAidsI18n } from './file-editor-aids.i18n';
@@ -234,6 +235,7 @@ export const dict: Record<I18nKey, string> = {
   ...routingI18n.ja,
   ...pluginPanelI18n.ja,
   ...surfacePanelI18n.ja,
+  ...whiteboardsI18n.ja,
   ...fileArtifactsI18n.ja,
   ...fileContentSearchI18n.ja,
   ...fileEditorAidsI18n.ja,

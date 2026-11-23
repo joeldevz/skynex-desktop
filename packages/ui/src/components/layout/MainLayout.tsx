@@ -7,6 +7,7 @@ import { useLayoutAnimationMs } from '@/hooks/useLayoutAnimationMs';
 import { TitlebarLeftControls } from './TitlebarLeftControls';
 import { ContextPanel } from './ContextPanel';
 import { ContextSurfacePanes } from './ContextSurfacePanes';
+import { useWhiteboardEvents } from '@/lib/whiteboards/useWhiteboardEvents';
 import { ZoneDropOverlay } from './ZoneDropOverlay';
 import { ZoneFitArbiter } from './ZoneFitArbiter';
 import { followZonePlacementOfOtherWindows } from './zoneSync';
@@ -52,6 +53,7 @@ const loadRunOverview = () => import('@/components/multirun/RunOverview').then((
 const loadScheduledTasksDialog = () => import('@/components/session/ScheduledTasksDialog').then((m) => m.ScheduledTasksDialog);
 const loadArchiveView = () => import('@/components/views/ArchiveView').then((m) => m.ArchiveView);
 const loadIntegrationsCatalogView = () => import('@/components/views/IntegrationsCatalogView').then((m) => m.IntegrationsCatalogView);
+const loadWhiteboardsView = () => import('@/components/whiteboards/WhiteboardsView').then((m) => m.WhiteboardsView);
 const loadUsageStatsView = () => import('@/components/views/usage/UsageStatsView').then((m) => m.UsageStatsView);
 const loadSourceBoardView = () => import('@/components/sourceBoard/SourceBoardView').then((m) => m.SourceBoardView);
 const loadOverviewView = () => import('@/components/overview/OverviewView').then((m) => m.OverviewView);
@@ -119,6 +121,7 @@ export const MainLayout: React.FC = () => {
     const isScheduledTasksPageOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
     const isArchivePageOpen = useUIStore((state) => state.isArchivePageOpen);
     const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
+    const isWhiteboardsPageOpen = useUIStore((state) => state.isWhiteboardsPageOpen);
     const isUsageStatsPageOpen = useUIStore((state) => state.isUsageStatsPageOpen);
     const isSourceBoardOpen = useUIStore((state) => state.isSourceBoardOpen);
     const isOverviewOpen = useUIStore((state) => state.isOverviewOpen);
@@ -144,7 +147,7 @@ export const MainLayout: React.FC = () => {
     // Any full-page surface replacing the chat area. While open, the chat is
     // fully hidden (not just covered) so none of its floating chrome bleeds
     // through, and selecting a session or draft anywhere closes the surface.
-    const isSurfacePageOpen = selectedWorkspaceId !== null || isScheduledTasksPageOpen || isArchivePageOpen || isIntegrationsCatalogOpen || isUsageStatsPageOpen || isSourceBoardOpen || isOverviewOpen || Boolean(worktreesPageProjectId) || isSpacesPageOpen || isRunOverviewOpen || Boolean(guestPage);
+    const isSurfacePageOpen = selectedWorkspaceId !== null || isScheduledTasksPageOpen || isArchivePageOpen || isIntegrationsCatalogOpen || isWhiteboardsPageOpen || isUsageStatsPageOpen || isSourceBoardOpen || isOverviewOpen || Boolean(worktreesPageProjectId) || isSpacesPageOpen || isRunOverviewOpen || Boolean(guestPage);
     // The work-status card sits in the right slot, outside the hidden chat,
     // so the slot is told to hide it with the chat.
     React.useLayoutEffect(() => {
@@ -168,6 +171,7 @@ export const MainLayout: React.FC = () => {
     const { isMobile } = useDeviceInfo();
 
     useUpdatePolling();
+    useWhiteboardEvents();
 
 
     React.useEffect(() => {
@@ -230,6 +234,7 @@ export const MainLayout: React.FC = () => {
                                             <ErrorBoundary><OnDemand needed={isScheduledTasksPageOpen} load={loadScheduledTasksDialog} onFailure={closeMainSurfaces} /></ErrorBoundary>
                                             <ErrorBoundary><OnDemand needed={isArchivePageOpen} load={loadArchiveView} onFailure={closeMainSurfaces} /></ErrorBoundary>
                                             <ErrorBoundary><OnDemand needed={isIntegrationsCatalogOpen} load={loadIntegrationsCatalogView} onFailure={closeMainSurfaces} /></ErrorBoundary>
+                                            <ErrorBoundary><OnDemand needed={isWhiteboardsPageOpen} load={loadWhiteboardsView} onFailure={closeMainSurfaces} /></ErrorBoundary>
                                             {isUsageStatsPageOpen && (
                                                 <div className="absolute inset-0 z-10 bg-background">
                                                     <ErrorBoundary><OnDemand needed load={loadUsageStatsView} onFailure={closeMainSurfaces} /></ErrorBoundary>

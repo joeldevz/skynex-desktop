@@ -70,6 +70,8 @@ const ensureNotificationTemplateShape = (templates) => {
 const MANAGED_PLUGIN_SETTINGS_KEYS = new Set([
   'agentControlToolEnabled',
   'agentScheduleToolEnabled',
+  // Whiteboards (beta) bring the whiteboard tool.
+  'whiteboardsEnabled',
   'agentWebToolEnabled',
   'agentNotifyToolEnabled',
   'agentRenderToolEnabled',

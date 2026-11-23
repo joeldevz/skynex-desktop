@@ -159,6 +159,9 @@
     "agentScheduleToolEnabled": {
       "scope": "instance"
     },
+    "whiteboardsEnabled": {
+      "scope": "instance"
+    },
     "agentWebToolEnabled": {
       "scope": "instance"
     },

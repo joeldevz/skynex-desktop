@@ -559,6 +559,7 @@ export const useKeyboardShortcuts = () => {
             tabs: panel?.tabs ?? [],
             sourceControlConnected: Object.values(useSourceControlAuthStore.getState().entries).some((entry) => entry.status?.status === 'connected'),
             workflowsShown: isWorkflowsSurfaceShown(panel?.tabs ?? [], effectiveDirectory),
+            whiteboardsShown: state.whiteboardsEnabled,
             extras: enabledGuestSurfaces(useGuestsStore.getState().guests, getRuntimeUrlResolver().authenticatedAsset),
           });
           const target = visibleSurfaces[switchSurfaceDigit - 1];

@@ -9,6 +9,7 @@ const BUILT_IN_CONTEXT_PANEL_MODES = [
   'pr',
   'terminal',
   'workflows',
+  'whiteboard',
 ] as const;
 
 type BuiltInContextPanelMode = (typeof BUILT_IN_CONTEXT_PANEL_MODES)[number];

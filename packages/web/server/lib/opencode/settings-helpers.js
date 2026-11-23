@@ -795,6 +795,10 @@ export const createSettingsHelpers = (dependencies) => {
     if (candidate.agentScheduleToolEnabled === true || candidate.agentScheduleToolEnabled === false) {
       result.agentScheduleToolEnabled = candidate.agentScheduleToolEnabled;
     }
+    // Whiteboards are a beta: off unless turned on in Settings.
+    if (candidate.whiteboardsEnabled === true || candidate.whiteboardsEnabled === false) {
+      result.whiteboardsEnabled = candidate.whiteboardsEnabled;
+    }
     if (candidate.agentWorkflowToolEnabled === true || candidate.agentWorkflowToolEnabled === false) {
       result.agentWorkflowToolEnabled = candidate.agentWorkflowToolEnabled;
     }

@@ -3,14 +3,14 @@
 ## Purpose
 
 This module owns the typed control contract shared by the OpenChamber CLI and
-the managed OpenCode `openchamber` tool. Both adapters delegate to
+the managed OpenCode tools. Both adapters delegate to
 `createOpenChamberControlService()`; neither adapter may call or spawn the
 other.
 
 ## Boundaries
 
-- `service.js` validates and executes the fixed project, model, session, and
-  scheduled-task action allowlist. `actions.js` marks CLI-only actions with
+- `service.js` validates and executes the fixed project, model, session,
+  scheduled-task and whiteboard action allowlist. `actions.js` marks CLI-only actions with
   `agentExposed: false` (currently `schedule.status`); the agent tool consumes
   the filtered `OPENCHAMBER_AGENT_TOOL_*` exports. `schedule.toggle` requires
   the `disabled` boolean and replaces separate enable/disable actions; its

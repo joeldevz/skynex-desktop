@@ -85,6 +85,24 @@ type SessionFoldersChangedEvent = { type: 'session-folders-changed' } & z.infer<
 const sessionDraftsChangedSchema = z.object({ updatedAt: z.number().finite() });
 type SessionDraftsChangedEvent = { type: 'session-drafts-changed' } & z.infer<typeof sessionDraftsChangedSchema>;
 
+/** A board was stored, by the user on any client or by the agent; `deleted` when it is gone. */
+const whiteboardChangedSchema = z.object({
+  boardId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  revision: z.number().int(),
+  actor: z.enum(['user', 'agent']),
+  deleted: z.boolean(),
+});
+type WhiteboardChangedEvent = { type: 'whiteboard-changed' } & z.infer<typeof whiteboardChangedSchema>;
+
+/** The agent asked to show a board beside a session's chat. */
+const whiteboardOpenSchema = z.object({
+  boardId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  sessionID: z.string().min(1).nullable().optional(),
+});
+type WhiteboardOpenEvent = { type: 'whiteboard-open' } & z.infer<typeof whiteboardOpenSchema>;
+
 /**
  * The extension chosen as browser provider can no longer serve (paused,
  * removed, or approval withdrawn), so the server put the in-app browser back.
@@ -226,7 +244,9 @@ type OpenChamberEvent =
   | SourceControlProvidersChangedEvent
   | LimitFailoverEvent
   | SessionFoldersChangedEvent
-  | SessionDraftsChangedEvent;
+  | SessionDraftsChangedEvent
+  | WhiteboardChangedEvent
+  | WhiteboardOpenEvent;
 type Listener = (event: OpenChamberEvent) => void;
 
 const worktreeChangedPropertiesSchema = z.object({
@@ -501,6 +521,18 @@ const dispatchFromEnvelope = (envelope: { type: string; properties: unknown }) =
   if (envelope.type === 'openchamber:limit-failover') {
     const parsed = limitFailoverSchema.safeParse(envelope.properties);
     if (parsed.success) for (const listener of listeners) listener({ type: 'limit-failover', failover: parsed.data });
+    return;
+  }
+
+  if (envelope.type === 'openchamber:whiteboard-changed') {
+    const parsed = whiteboardChangedSchema.safeParse(envelope.properties);
+    if (parsed.success) for (const listener of listeners) listener({ type: 'whiteboard-changed', ...parsed.data });
+    return;
+  }
+
+  if (envelope.type === 'openchamber:whiteboard-open') {
+    const parsed = whiteboardOpenSchema.safeParse(envelope.properties);
+    if (parsed.success) for (const listener of listeners) listener({ type: 'whiteboard-open', ...parsed.data });
     return;
   }
 

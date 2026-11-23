@@ -54,6 +54,7 @@ function formatContext(payload: ContextPartPayload, originalText: string, fieldL
     case 'guest-pr':
     case 'session':
     case 'session-message':
+    case 'whiteboard':
       return fieldLimit ? excerptMarkdown(originalText, fieldLimit) : originalText;
   }
 }

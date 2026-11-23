@@ -12,6 +12,9 @@ import { legacyChatQuoteAnchor } from '@/lib/chatQuoteAnchor';
 import { useChatQuoteHighlightApi } from '../../hooks/chatQuoteHighlightStore';
 import { fileWithDiffCommentOrigin } from '@/lib/diffCommentOrigin';
 import { isWholeFileComment } from '@/components/comments/wholeFileComment';
+import { openWhiteboard } from '@/lib/whiteboards/opener';
+import { useUIStore } from '@/stores/useUIStore';
+import { useWhiteboardsStore } from '@/stores/useWhiteboardsStore';
 
 /**
  * A context item attached to a user message: an inline code comment, a
@@ -42,7 +45,7 @@ const ContextCard: React.FC<{
     collapsed?: boolean;
     onExpand?: () => void;
     /** Scroll to where the quote came from, with the button's label. */
-    reveal?: { label: string; onReveal: () => void };
+    reveal?: { label: string; onReveal: () => void; icon?: IconName };
     /** The message's file names: `[name]` in the user's comment renders as a file chip. */
     attachmentFilenames: readonly string[];
 }> = ({ icon, summary, title, body, text, mono, collapsed, onExpand, reveal, attachmentFilenames }) => {
@@ -77,7 +80,22 @@ const ContextCard: React.FC<{
                         <span className="text-sm text-[var(--surface-foreground)]">{withAttachmentChips(comment, attachmentFilenames, 'comment')}</span>
                     ) : null}
                 </span>
-                <Icon name="arrow-down-s" className="ms-auto h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                {reveal ? (
+                    <button
+                        type="button"
+                        className="ms-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full hover:bg-interactive-hover hover:text-foreground"
+                        style={{ minHeight: 0, minWidth: 0 }}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            reveal.onReveal();
+                        }}
+                        aria-label={reveal.label}
+                        title={reveal.label}
+                    >
+                        <Icon name={reveal.icon ?? 'arrow-up'} className="h-3.5 w-3.5" />
+                    </button>
+                ) : null}
+                <Icon name="arrow-down-s" className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground/70', !reveal && 'ms-auto')} />
             </div>
         );
     }
@@ -104,7 +122,7 @@ const ContextCard: React.FC<{
                             aria-label={reveal.label}
                             title={reveal.label}
                         >
-                            <Icon name="arrow-up" className="h-3.5 w-3.5" />
+                            <Icon name={reveal.icon ?? 'arrow-up'} className="h-3.5 w-3.5" />
                         </button>
                     ) : null}
                 </div>
@@ -234,6 +252,48 @@ const UserContextPart: React.FC<{
                             onReveal: () => quoteHighlights.reveal(sourceMessageId, payload.anchor ?? legacyChatQuoteAnchor(payload.quote)),
                         }
                         : undefined}
+                    {...shared}
+                />
+            );
+        }
+        case 'whiteboard': {
+            const board = { id: payload.boardId, title: payload.title, workspaceId: payload.workspaceId };
+            // Whiteboards are a beta: while off in Settings the card stays, without a way into the board.
+            const boardsOn = useUIStore.getState().whiteboardsEnabled;
+            const commentId = payload.commentId;
+            if (commentId) {
+                // A comment from the board: the words are the message; the card says where it lives and opens its thread.
+                return (
+                    <ContextCard
+                        icon="chat-3"
+                        summary={t('whiteboards.message.comment', { title: payload.title })}
+                        body=""
+                        text=""
+                        reveal={boardsOn ? {
+                            label: t('whiteboards.message.viewThread'),
+                            icon: 'arrow-right-s',
+                            onReveal: () => {
+                                useWhiteboardsStore.getState().focusComment({ boardId: payload.boardId, commentId });
+                                openWhiteboard(board);
+                            },
+                        } : undefined}
+                        {...shared}
+                    />
+                );
+            }
+            return (
+                <ContextCard
+                    icon="artboard"
+                    summary={payload.selected.length > 0
+                        ? t('whiteboards.message.contextSelection', { title: payload.title, count: String(payload.selected.length) })
+                        : t('whiteboards.message.context', { title: payload.title })}
+                    body={payload.selected.map((element) => `• ${element.text || element.id}`).join('\n')}
+                    text=""
+                    reveal={boardsOn ? {
+                        label: t('whiteboards.message.open'),
+                        icon: 'external-link',
+                        onReveal: () => openWhiteboard(board),
+                    } : undefined}
                     {...shared}
                 />
             );

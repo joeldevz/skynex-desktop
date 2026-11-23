@@ -46,6 +46,8 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
   const isIntegrationsCatalogOpen = useUIStore((state) => state.isIntegrationsCatalogOpen);
   const isScheduledTasksOpen = useUIStore((state) => state.isScheduledTasksDialogOpen);
+  const isWhiteboardsOpen = useUIStore((state) => state.isWhiteboardsPageOpen);
+  const whiteboardsEnabled = useUIStore((state) => state.whiteboardsEnabled);
   const enterpriseMode = useEnterpriseMode();
   return (
     <div className="flex items-center gap-1">
@@ -64,6 +66,11 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
           <Icon name="store-2" className={iconClassName} />
         </SidebarPageButton>
       )}
+      {whiteboardsEnabled ? (
+        <SidebarPageButton label={t('whiteboards.page.title')} pressed={isWhiteboardsOpen} onClick={() => useUIStore.getState().setWhiteboardsPageOpen(!isWhiteboardsOpen)} className={buttonClassName}>
+          <Icon name="artboard" className={iconClassName} />
+        </SidebarPageButton>
+      ) : null}
       <SidebarPageButton label={t('sessions.sidebar.header.actions.scheduledTasks')} pressed={isScheduledTasksOpen} onClick={() => useUIStore.getState().setScheduledTasksDialogOpen(!isScheduledTasksOpen)} className={buttonClassName}>
         <Icon name="calendar-schedule" className={iconClassName} />
       </SidebarPageButton>

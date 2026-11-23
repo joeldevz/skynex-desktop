@@ -1,5 +1,5 @@
 /**
- * Two capabilities, two tools.
+ * Capabilities with separate intents or settings use separate tools.
  *
  * Controlling sessions and driving a page are different intents, and a single
  * tool description covering both is vaguer than either — which is how a model
@@ -82,6 +82,21 @@ export const OPENCHAMBER_WEB_ACTIONS = Object.freeze(
   OPENCHAMBER_WEB_ACTION_DEFINITIONS.map(({ action }) => action),
 );
 
+export const OPENCHAMBER_WHITEBOARD_ACTION_DEFINITIONS = Object.freeze([
+  { action: 'whiteboard.list', title: 'List workspace whiteboards', description: 'Optional workspaceId; otherwise uses the workspace containing this session' },
+  { action: 'whiteboard.read', title: 'Read a whiteboard', description: 'Requires boardId; returns its current revision and elements' },
+  { action: 'whiteboard.create', title: 'Create a whiteboard', description: 'Requires title; optional workspaceId and initial elements' },
+  { action: 'whiteboard.apply', title: 'Edit a whiteboard', description: 'Requires boardId, base revision and element ops' },
+  { action: 'whiteboard.undo', title: 'Undo the latest whiteboard edit', description: 'Requires boardId' },
+  { action: 'whiteboard.open', title: 'Open a whiteboard beside chat', description: 'Requires boardId' },
+  { action: 'whiteboard.addImage', title: 'Put a picture on a whiteboard', description: 'Requires boardId and path of a PNG, JPEG, GIF or WebP file in the workspace; optional x, y, w, caption' },
+  { action: 'whiteboard.comment.reply', title: 'Answer in a whiteboard comment thread', description: 'Requires boardId, commentId and text' },
+]);
+
+export const OPENCHAMBER_WHITEBOARD_ACTIONS = Object.freeze(
+  OPENCHAMBER_WHITEBOARD_ACTION_DEFINITIONS.map(({ action }) => action),
+);
+
 /**
  * Notify is its own tool so it can stay off by default and disappear
  * completely: an agent that can page the user is a choice the user makes.
@@ -155,6 +170,7 @@ const ACTIONS_BY_TOOL = Object.freeze({
   openchamber_schedule: OPENCHAMBER_SCHEDULE_ACTIONS,
   skynex_web: OPENCHAMBER_WEB_ACTIONS,
   openchamber_web: OPENCHAMBER_WEB_ACTIONS,
+  skynex_whiteboard: OPENCHAMBER_WHITEBOARD_ACTIONS,
   openchamber_notify: OPENCHAMBER_NOTIFY_ACTIONS,
   openchamber_render: OPENCHAMBER_RENDER_ACTIONS,
   openchamber_workflow: OPENCHAMBER_WORKFLOW_ACTIONS,
@@ -205,6 +221,7 @@ export const resolveAgentToolAction = (requested, toolName) => {
 export const OPENCHAMBER_ALL_ACTIONS = Object.freeze([
   ...OPENCHAMBER_CONTROL_ACTIONS,
   ...OPENCHAMBER_WEB_ACTIONS,
+  ...OPENCHAMBER_WHITEBOARD_ACTIONS,
   ...OPENCHAMBER_NOTIFY_ACTIONS,
   ...OPENCHAMBER_RENDER_ACTIONS,
   ...OPENCHAMBER_WORKFLOW_ACTIONS,

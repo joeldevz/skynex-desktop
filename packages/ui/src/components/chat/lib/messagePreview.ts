@@ -76,6 +76,8 @@ const contextSummary = (payload: ContextPartPayload, t: Translate, descriptorOf:
             return payload.title;
         case 'session-message':
             return payload.excerpt;
+        case 'whiteboard':
+            return t('whiteboards.message.context', { title: payload.title });
     }
 };
 
@@ -104,6 +106,8 @@ const contextBody = (payload: ContextPartPayload): string => {
         case 'session':
         case 'session-message':
             return '';
+        case 'whiteboard':
+            return payload.selected.map((element) => element.text).filter(Boolean).join(', ');
     }
 };
 

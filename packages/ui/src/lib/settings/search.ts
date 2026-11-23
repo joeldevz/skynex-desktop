@@ -815,6 +815,14 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isVSCode,
   },
   {
+    id: 'sessions.whiteboards',
+    page: 'general',
+    titleKey: 'whiteboards.settings.title',
+    descriptionKey: 'whiteboards.settings.info',
+    keywords: ['whiteboard', 'whiteboards', 'board', 'diagram', 'canvas', 'beta', 'pizarra', 'skynex'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
     id: 'sessions.agent-web-tool',
     page: 'general',
     titleKey: 'settings.openchamber.tools.field.agentWebTool',

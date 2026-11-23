@@ -255,6 +255,7 @@ import { ComposerFooter } from './composer/ui/ComposerFooter';
 import { MobilePillComposer } from './composer/ui/MobilePillComposer';
 import { ComposerContextChips } from './composer/ui/ComposerContextChips';
 import { LargeTextPasteChoice, type LargeTextPasteChoiceAction } from './composer/ui/LargeTextPasteChoice';
+import { PendingWhiteboardChips } from './composer/ui/PendingWhiteboardChips';
 import { LinkedReferenceRow } from './composer/ui/LinkedReferenceRow';
 import { usePlaceholderFitsOneLine } from './composer/ui/usePlaceholderFitsOneLine';
 import { RevertedMessagesStrip } from './RevertedMessagesStrip';
@@ -4650,6 +4651,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                                 <AttachedFilesList draftIdentity={chatDraftIdentity} onShowPopup={handleShowAttachmentPreview} className="pt-2" />
                                 {linkedReferenceChips}
                                 {contextChips}
+                                <PendingWhiteboardChips target={mailboxTarget} />
                             </div>
                         )}
                         bottomRow={mobileModelAgentRow}
@@ -4773,6 +4775,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                             <AttachedFilesList draftIdentity={chatDraftIdentity} onShowPopup={handleShowAttachmentPreview} className="pt-2" />
                             {!isBtwActive ? linkedReferenceChips : null}
                             {contextChips}
+                            <PendingWhiteboardChips target={mailboxTarget} />
                             <AttachedVSCodeFileChips draftIdentity={chatDraftIdentity} onShowPopup={handleShowAttachmentPreview} />
                             {!isBtwActive ? <ActiveEditorFileSuggestion /> : null}
                         </div>

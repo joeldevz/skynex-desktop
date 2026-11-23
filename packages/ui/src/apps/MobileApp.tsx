@@ -67,6 +67,10 @@ import { MobileSessionsSheet } from './MobileSessionsSheet';
 import { MobileFullscreenSurface } from './MobileFullscreenSurface';
 import { UsageStatsView } from '@/components/views/usage/UsageStatsView';
 import { ArchiveSessionsView } from '@/components/views/ArchiveView';
+import { MobileWhiteboards } from '@/components/whiteboards/WhiteboardsView';
+import { useWhiteboardEvents } from '@/lib/whiteboards/useWhiteboardEvents';
+import { setWhiteboardOpener } from '@/lib/whiteboards/opener';
+import { useWhiteboardsStore } from '@/stores/useWhiteboardsStore';
 import { MobileSourceBoard } from '@/components/sourceBoard/SourceBoardView';
 import { OverviewPage } from '@/components/overview/OverviewView';
 import { ScheduledTasksView, type ScheduledTasksLeaveReason } from '@/components/session/ScheduledTasksDialog';
@@ -126,7 +130,7 @@ const NATIVE_RESUME_SYNC_EVENT_THROTTLE_MS = 1_000;
     footer. Exactly one can be open at a time — opening another replaces it,
     closing returns to the chat. The sessions drawer and the workspace drawer
     (Status / Changes / Files / Terminal / Notes) are separate layers. */
-type MobileSurface = 'archive' | 'board' | 'integrations' | 'overview' | 'instances' | 'scheduled' | 'settings' | 'update' | 'usage';
+type MobileSurface = 'archive' | 'board' | 'whiteboards' | 'integrations' | 'overview' | 'instances' | 'scheduled' | 'settings' | 'update' | 'usage';
 
 const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onActiveConnectionDeleted }) => {
   const { t, direction } = useI18n();
@@ -374,6 +378,11 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
     if (activeSurface === 'settings' && settingsBackRef.current?.()) {
       return true;
     }
+    // Back from an open board goes to the gallery first, like the page's own back arrow.
+    if (activeSurface === 'whiteboards' && useWhiteboardsStore.getState().pageBoardId) {
+      useWhiteboardsStore.getState().setPageBoard(null);
+      return true;
+    }
     if (activeSurface) {
       closeSurface();
       return true;
@@ -405,6 +414,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   // App-level footer of the sessions list — the same on a phone drawer and a
   // tablet sidebar: connected instance, pending web update, settings.
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
+  const whiteboardsEnabled = useUIStore((state) => state.whiteboardsEnabled);
   const sessionsFooter = React.useMemo(
     () => ({
       instanceLabel: showCapacitorOnlyFeatures ? getAutoConnectTargetLabel() : null,
@@ -421,11 +431,12 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       },
       onOpenScheduled: () => openSurface('scheduled'),
       onOpenArchive: () => openSurface('archive'),
+      onOpenWhiteboards: whiteboardsEnabled ? () => openSurface('whiteboards') : undefined,
       onOpenOverview: overviewAvailable ? () => openSurface('overview') : undefined,
       onOpenSourceBoard: () => openSurface('board'),
       onOpenUpdate: showUpdateItem ? () => openSurface('update') : undefined,
     }),
-    [openSettingsSurface, openSurface, overviewAvailable, setSettingsPage, showCapacitorOnlyFeatures, showUpdateItem],
+    [openSettingsSurface, openSurface, overviewAvailable, setSettingsPage, showCapacitorOnlyFeatures, showUpdateItem, whiteboardsEnabled],
   );
 
   // A started run or a loop file to edit replaces the page: back to the chat,
@@ -448,6 +459,21 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
     setSessionsSheetOpen(false);
     if (isTabletLayout && !roomyForPanels) setSidebarOpen(false);
   }, [closeSurface, isTabletLayout, roomyForPanels]);
+
+  // A request from a board that went into a new chat: back to the chat to send it.
+  const leaveWhiteboards = React.useCallback(() => {
+    closeSurface();
+    setSessionsSheetOpen(false);
+    if (isTabletLayout && !roomyForPanels) setSidebarOpen(false);
+  }, [closeSurface, isTabletLayout, roomyForPanels]);
+
+  // A board opened from outside it (the agent showing it, a message that came
+  // from it) opens as the Whiteboards page: a phone has no panel beside the chat.
+  useWhiteboardEvents();
+  React.useEffect(() => setWhiteboardOpener((board) => {
+    useWhiteboardsStore.getState().setPageBoard(board.id);
+    openSurface('whiteboards');
+  }), [openSurface]);
 
   // An opened archived session replaces the page: back to the chat, the same
   // way picking a session from the list gives the space back.
@@ -718,6 +744,22 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
           >
             <ErrorBoundary>
               <OverviewPage layout="mobile" onLeave={leaveOverview} />
+            </ErrorBoundary>
+          </MobileFullscreenSurface>
+        ) : null}
+
+        {activeSurface === 'whiteboards' && whiteboardsEnabled ? (
+          <MobileFullscreenSurface
+            open
+            variant={surfaceVariant}
+            dialogAlign="app"
+            onClose={closeSurface}
+            ariaLabel={t('whiteboards.page.title')}
+            headerless
+            disableEscapeDismiss
+          >
+            <ErrorBoundary>
+              <MobileWhiteboards onClose={closeSurface} onLeave={leaveWhiteboards} />
             </ErrorBoundary>
           </MobileFullscreenSurface>
         ) : null}

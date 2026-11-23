@@ -37,7 +37,7 @@ const pluginDirectoryFor = (dataDir) => path.join(dataDir, 'agent-tool', 'opench
 
 /** What a managed OpenCode child start does: write the plugin, mint a token. */
 const prepareManagedEnv = async (runtime, options) => {
-  const pluginDirectory = await runtime.materializePlugin(options);
+  const pluginDirectory = await runtime.materializePlugin({ includeWhiteboard: false, ...options });
   return { pluginDirectory, ...runtime.createChildEnv() };
 };
 
@@ -157,6 +157,16 @@ describe('managed agent tool runtime', () => {
     // Nothing resolves from the generated directory, so the file must not import.
     expect(source).not.toMatch(/\bimport\b/);
     expect(source).not.toContain(preparedEnv.OPENCHAMBER_AGENT_TOOL_TOKEN);
+  });
+
+  it('registers the persistent whiteboard tool by default without a permission gate', async () => {
+    const { runtime, dataDir } = await createRuntime();
+    await runtime.materializePlugin({ includeControl: false, includeSchedule: false, includeWeb: false, includeNotify: false, includeRender: false, includeWorkflow: false });
+    const tool = (await loadTools(dataDir, 'whiteboard')).skynex_whiteboard;
+    expect(tool.description.length).toBeLessThan(1500);
+    expect(tool.description).toContain('revision');
+    expect(tool.permission).toBeUndefined();
+    expect(tool.input.properties.parameters.properties.confirmReplace.type).toBe('boolean');
   });
 
   it('emits both tools, each carrying only its own actions and inputs', async () => {
@@ -503,7 +513,7 @@ describe('managed agent tool runtime', () => {
     await loadTools(dataDir, 'replaced', {}, removed);
     expect(removed).toEqual(['opencode_worktree_create', 'opencode_models']);
 
-    await runtime.materializePlugin({ includeControl: false, includeWeb: true });
+    await runtime.materializePlugin({ includeControl: false, includeWeb: true, includeWhiteboard: false });
     const kept = [];
     await loadTools(dataDir, 'replaced-off', {}, kept);
     expect(kept).toEqual([]);
@@ -525,7 +535,7 @@ describe('managed agent tool runtime', () => {
     }
     expect(scheduleParameters.disabled.type).toBe('boolean');
 
-    await runtime.materializePlugin({ includeControl: true, includeSchedule: false });
+    await runtime.materializePlugin({ includeControl: true, includeSchedule: false, includeWhiteboard: false });
     expect(await loadTools(dataDir, 'schedule-disabled')).not.toHaveProperty('openchamber_schedule');
   });
 

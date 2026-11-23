@@ -32,12 +32,24 @@ interface ToolRowProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   settingsItem: string;
+  /** Marks a feature still in beta. */
+  beta?: boolean;
 }
 
 /** Icon column width plus gap, so a nested row lines up with the tool text. */
 const TOOL_ROW_TEXT_INSET_CLASS = 'ps-[3.75rem]';
 
-const ToolRow: React.FC<ToolRowProps> = ({ icon, title, summary, info, ariaLabel, checked, onChange, settingsItem }) => (
+/** Marks a feature still being tried out, as the External tunnel page is in the Settings list. */
+const BetaBadge: React.FC = () => {
+  const { t } = useI18n();
+  return (
+    <span className="shrink-0 typography-micro px-1 rounded leading-none pb-px text-[var(--status-warning)] bg-[var(--status-warning)]/10">
+      {t('settings.view.badge.beta')}
+    </span>
+  );
+};
+
+const ToolRow: React.FC<ToolRowProps> = ({ icon, title, summary, info, ariaLabel, checked, onChange, settingsItem, beta = false }) => (
   <div data-settings-item={settingsItem} className="flex items-center gap-3 px-4 py-3">
     {/* The switch alone says "off": dimming the row would read as disabled. */}
     <span className="flex size-8 shrink-0 items-center justify-center oc-tile-inset rounded-lg text-foreground">
@@ -46,6 +58,7 @@ const ToolRow: React.FC<ToolRowProps> = ({ icon, title, summary, info, ariaLabel
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+        {beta ? <BetaBadge /> : null}
         <SettingsInfoHint>{info}</SettingsInfoHint>
       </div>
       <p className="typography-meta text-muted-foreground">{summary}</p>
@@ -77,6 +90,8 @@ export const OpenChamberToolsSettings: React.FC = () => {
   const setAgentControlToolEnabled = useUIStore((state) => state.setAgentControlToolEnabled);
   const agentScheduleToolEnabled = useUIStore((state) => state.agentScheduleToolEnabled);
   const setAgentScheduleToolEnabled = useUIStore((state) => state.setAgentScheduleToolEnabled);
+  const whiteboardsEnabled = useUIStore((state) => state.whiteboardsEnabled);
+  const setWhiteboardsEnabled = useUIStore((state) => state.setWhiteboardsEnabled);
   const agentWebToolEnabled = useUIStore((state) => state.agentWebToolEnabled);
   const setAgentWebToolEnabled = useUIStore((state) => state.setAgentWebToolEnabled);
   const browserProvider = useUIStore((state) => state.browserProvider);
@@ -102,6 +117,11 @@ export const OpenChamberToolsSettings: React.FC = () => {
     setAgentScheduleToolEnabled(enabled);
     void updateDesktopSettings({ agentScheduleToolEnabled: enabled });
   }, [setAgentScheduleToolEnabled]);
+
+  const handleWhiteboardsChange = React.useCallback((enabled: boolean) => {
+    setWhiteboardsEnabled(enabled);
+    void updateDesktopSettings({ whiteboardsEnabled: enabled });
+  }, [setWhiteboardsEnabled]);
 
   const handleAgentWebToolChange = React.useCallback((enabled: boolean) => {
     setAgentWebToolEnabled(enabled);
@@ -169,6 +189,18 @@ export const OpenChamberToolsSettings: React.FC = () => {
           summary={t('settings.openchamber.tools.field.agentScheduleToolSummary')}
           info={t('settings.openchamber.tools.field.agentScheduleToolInfo')}
           ariaLabel={t('settings.openchamber.tools.field.agentScheduleToolAria')}
+        />
+
+        <ToolRow
+          icon="artboard"
+          settingsItem="sessions.whiteboards"
+          beta
+          checked={whiteboardsEnabled}
+          onChange={handleWhiteboardsChange}
+          title={t('whiteboards.settings.title')}
+          summary={t('whiteboards.settings.summary')}
+          info={t('whiteboards.settings.info')}
+          ariaLabel={t('whiteboards.settings.aria')}
         />
 
         {/* One group, so no divider separates the web tool from its own setting. */}

@@ -20,6 +20,7 @@ import { getDisambiguatingFolders } from '@/lib/path-utils';
 const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView').then((m) => ({ default: m.GitView })));
 import { areTitleMapsEqual, buildSessionTitleMap, EMPTY_SESSION_TITLE_MAP, getSessionIDFromDedupeKey } from './contextPanelSessionTitles';
 import { WorkflowsPanel } from '@/components/chat/workflows/WorkflowsPanel';
+import { WhiteboardPanel } from '@/components/whiteboards/WhiteboardPanel';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useRepositoryReferenceProvider } from '@/components/references/referenceSources';
 import { useGuestSurfaces } from '@/hooks/useGuestSurfaces';
@@ -125,6 +126,7 @@ const getModeLabel = (
   if (mode === 'pr') return t('contextPanel.mode.pr');
   if (mode === 'terminal') return t('layout.mainTab.terminal');
   if (mode === 'workflows') return t('contextPanel.mode.workflows');
+  if (mode === 'whiteboard') return t('whiteboards.panel.title');
   if (isPluginContextPanelMode(mode)) {
     const guest = useGuestsStore.getState().guests.find((entry) => entry.id === pluginIdFromMode(mode));
     return guest?.name ?? t('contextRail.surface.plugin');
@@ -255,6 +257,10 @@ const getTabIcon = (
     return <Icon name="donut-chart-fill" className="h-3.5 w-3.5" />;
   }
 
+  if (tab.mode === 'whiteboard') {
+    return <Icon name="artboard" className="h-3.5 w-3.5" />;
+  }
+
   if (tab.mode === 'workflows') {
     return <Icon name="flow-chart" className="h-3.5 w-3.5" />;
   }
@@ -338,7 +344,7 @@ const HEADER_DRAG_EXCLUDED = 'button, a, input, textarea, select, label, [role="
 // Surfaces rendered by the zone itself and remounted on every switch; the
 // rest stay alive in ContextSurfacePanes.
 const isRemountedSurface = (mode: ContextPanelMode): boolean => (
-  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'workflows'
+  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'workflows' || mode === 'whiteboard'
 );
 
 const CONTEXT_PANEL_DEFAULT_HEIGHT = 320;
@@ -820,6 +826,8 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
                     : <PullRequestView />)
             : activeTab?.mode === 'workflows'
                 ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><WorkflowsPanel directory={effectiveDirectory || null} /></ContextPanelHeaderSlotProvider>
+            : activeTab?.mode === 'whiteboard'
+                ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><WhiteboardPanel key={activeTab.id} boardId={activeTab.targetPath} directory={effectiveDirectory || null} tabId={activeTab.id} /></ContextPanelHeaderSlotProvider>
         : null;
 
   const isFileTabActive = activeTab?.mode === 'file';
