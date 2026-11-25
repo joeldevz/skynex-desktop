@@ -1340,12 +1340,11 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const previousSessionId = get().currentSessionId
     const directoryState = useDirectoryStore.getState()
 
-    const sessionDir = resolveSessionDirectory(
-      id,
-      (sid) => get().worktreeMetadata.get(sid),
-    )
+    const sessionDir = id ? getAuthoritativeSessionDirectory(id) : null
     const fallbackDir = opencodeClient.getDirectory() ?? directoryState.currentDirectory ?? null
-    const knownDir = (directoryHint ? normalizePath(directoryHint) : null) ?? sessionDir
+    const knownDir = sessionDir
+      ?? (directoryHint ? normalizePath(directoryHint) : null)
+      ?? resolveSessionDirectory(id, (sid) => get().worktreeMetadata.get(sid))
     const resolvedDir = knownDir ?? fallbackDir
     // `fallbackDir` is the active directory, not this session's directory. It
     // keeps routing usable while the owning directory store bootstraps, but it

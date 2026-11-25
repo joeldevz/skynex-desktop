@@ -863,6 +863,10 @@ Rules:
 5. A disagreement between sources is logged once per session, and `__opencodeDebug.diagnoseSessionDirectory()` reports every source in precedence order.
 6. Opening a session by id (`?session=` routes, deep links, in-chat session links) can select it twice: first with a guessed directory, then with the real one after `ensureGlobalSessionsLoaded`. The directory is part of the chat's session key, so the timeline remounts, and the first timeline may already have shown the target. Work tied to the entry must survive the second entry: a message-link request (`lib/router/messageFocus.ts`) ends on a user gesture, on entering another session, on a missing message, or after 60 s, never because the message was shown once.
 
+### Why session selection resolves ownership before its directory hint
+
+An open-session membership entry can retain the project directory after its session moves into a worktree. `setCurrentSession` uses the indexed session's authoritative directory before the caller's hint for message loading, chat selection, runtime memory, and the client directory. A hint remains the fallback for a session that is not indexed yet, including a newly created session. Membership and workspace folder scope stay unchanged; selecting an existing conversation must not replace its original folder selection.
+
 ## AI session titles
 
 `use-session-ai-rename.ts` connects the shared menus to Small Model and the

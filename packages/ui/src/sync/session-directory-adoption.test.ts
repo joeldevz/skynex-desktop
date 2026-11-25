@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, test } from "bun:test"
 
 import { ChildStoreManager } from "./child-store"
 import { setSyncRefs } from "./sync-refs"
-import { useSessionUIStore } from "./session-ui-store"
+import { getRememberedSessionDirectory, useSessionUIStore } from "./session-ui-store"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+import { opencodeClient } from "@/lib/opencode/client"
 
 /**
  * Selecting a session whose directory this client has not indexed yet routes it
@@ -40,6 +41,20 @@ beforeEach(() => {
 })
 
 describe("adoptAuthoritativeSessionDirectory", () => {
+  test("restores a moved session in its owning worktree despite stale membership", () => {
+    indexSessionIn(manager, PARENT, WORKTREE)
+
+    for (let visit = 0; visit < 2; visit += 1) {
+      useSessionUIStore.getState().setCurrentSession("ses_other", PARENT)
+      useSessionUIStore.getState().setCurrentSession(SESSION_ID, PARENT, undefined, "restore")
+
+      expect(useSessionUIStore.getState().currentSessionDirectory).toBe(WORKTREE)
+      expect(useSessionUIStore.getState().getDirectoryForSession(SESSION_ID)).toBe(WORKTREE)
+      expect(opencodeClient.getDirectory()).toBe(WORKTREE)
+      expect(getRememberedSessionDirectory(SESSION_ID).runtime).toBe(WORKTREE)
+    }
+  })
+
   test("opens a globally indexed Windows worktree session before its child store bootstraps", () => {
     const sessionId = "ses_windows_global_directory"
     useGlobalSessionsStore.getState().upsertSession({
@@ -52,7 +67,7 @@ describe("adoptAuthoritativeSessionDirectory", () => {
       time: { created: 1, updated: 1 },
     })
     try {
-      useSessionUIStore.getState().setCurrentSession(sessionId)
+      useSessionUIStore.getState().setCurrentSession(sessionId, PARENT, undefined, "restore")
 
       expect(useSessionUIStore.getState().currentSessionDirectory).toBe("C:/repo/.worktrees/feature")
       expect(useSessionUIStore.getState().getDirectoryForSession(sessionId)).toBe("C:/repo/.worktrees/feature")
