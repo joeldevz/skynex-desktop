@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.10] - 2026-11-26
+
+### Fixes
+
+- Chat: switching back to a conversation moved into a worktree keeps its folder and new messages in sync.
+
 ## [0.1.9] - 2026-11-23
 
 ### New

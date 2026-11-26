@@ -7301,6 +7301,26 @@
     "vscode": null
   },
   {
+    "version": "0.1.10",
+    "date": "2026-11-26",
+    "title": "Worktree chats stay in sync",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [],
+      "fixes": [
+        "Chat: switching back to a conversation moved into a worktree keeps its folder and new messages in sync."
+      ],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.9",
     "date": "2026-11-23",
     "title": "Whiteboards in beta",
