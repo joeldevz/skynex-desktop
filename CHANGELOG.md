@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.11] - 2026-11-27
+
+### New
+
+- **Desktop/Browser: dictate your annotations.** The annotation bubble beside the element you mark has a microphone: speak, confirm, edit the text, and attach it with the screenshot to your chat draft.
+
 ## [0.1.10] - 2026-11-26
 
 ### Fixes

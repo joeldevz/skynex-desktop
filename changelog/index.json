@@ -7301,6 +7301,26 @@
     "vscode": null
   },
   {
+    "version": "0.1.11",
+    "date": "2026-11-27",
+    "title": "Dictate page annotations",
+    "intro": null,
+    "app": {
+      "new": [
+        "**Desktop/Browser: dictate your annotations.** The annotation bubble beside the element you mark has a microphone: speak, confirm, edit the text, and attach it with the screenshot to your chat draft."
+      ],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.10",
     "date": "2026-11-26",
     "title": "Worktree chats stay in sync",
