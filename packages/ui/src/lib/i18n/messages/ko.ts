@@ -1640,6 +1640,7 @@ export const dict: Record<I18nKey, string> = {
   'contextPanel.browser.annotate.tool.draw': '그리기',
   'contextPanel.browser.annotate.commentPlaceholder': '변경 사항을 설명하세요...',
   'contextPanel.browser.annotate.submit': '첨부',
+  'contextPanel.browser.annotate.transcribe': '텍스트로 변환',
   'contextPanel.browser.trustNotice': '여기서 여는 페이지는 Skynex에 대한 전체 액세스 권한으로 실행됩니다 — 검사와 스크린샷에 필요합니다. 신뢰하는 사이트만 여세요: 악성 페이지가 데이터를 읽거나 사용자를 대신해 동작할 수 있습니다.',
   'contextPanel.preview.actions.reload': '미리보기 새로고침',
   'contextPanel.preview.actions.openExternal': '브라우저에서 열기',

@@ -3,11 +3,14 @@ import { Window } from 'happy-dom';
 import { describe, expect, test } from 'bun:test';
 
 import {
+  ANNOTATION_ANCHOR_SCRIPT,
+  ANNOTATION_ATTACH_SCRIPT,
   ANNOTATION_TEARDOWN_SCRIPT,
   buildAnnotationOverlayScript,
   type BrowserAnnotationOverlayLabels,
   type BrowserAnnotationOverlayTheme,
 } from './annotationOverlay';
+import { annotationAnchorSchema, positionAnnotationBubble } from './annotationAnchor';
 
 const theme: BrowserAnnotationOverlayTheme = {
   colorScheme: 'dark',
@@ -49,6 +52,68 @@ const parses = (source: string): boolean => {
 
 describe('annotation overlay script', () => {
   const script = buildAnnotationOverlayScript(theme, labels);
+
+  test('reports the desktop selection geometry through scroll, deselection and teardown', async () => {
+    const win = new Window({ url: 'http://annotation.test' });
+    const evaluate = (code: string) => new Function('window', 'document', 'requestAnimationFrame', 'Event', 'CustomEvent', `return ${code}`)(
+      win, win.document, (callback: FrameRequestCallback) => callback(0), win.Event, win.CustomEvent,
+    );
+    try {
+      const button = win.document.createElement('button');
+      win.document.body.appendChild(button);
+      let y = 200;
+      button.getBoundingClientRect = () => new win.DOMRect(80, y, 120, 40);
+      win.document.elementFromPoint = () => button;
+      const completion = evaluate(buildAnnotationOverlayScript(theme, labels, true));
+      const select = () => button.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+
+      expect(evaluate(ANNOTATION_ANCHOR_SCRIPT)).toBeNull();
+      select();
+      expect(evaluate(ANNOTATION_ANCHOR_SCRIPT)).toEqual([80, 200, 120, 40, win.innerWidth, win.innerHeight]);
+      y = 100;
+      win.dispatchEvent(new win.Event('scroll'));
+      expect(evaluate(ANNOTATION_ANCHOR_SCRIPT)).toEqual([80, 100, 120, 40, win.innerWidth, win.innerHeight]);
+      select();
+      expect(evaluate(ANNOTATION_ANCHOR_SCRIPT)).toBeNull();
+      select();
+      evaluate(ANNOTATION_TEARDOWN_SCRIPT);
+      expect(await completion).toBeNull();
+      expect(evaluate(ANNOTATION_ANCHOR_SCRIPT)).toBeNull();
+    } finally {
+      await win.happyDOM.close();
+    }
+  });
+
+  test('centers the bubble below the mark and flips and clamps it near viewport edges', () => {
+    expect(positionAnnotationBubble([300, 80, 100, 40, 800, 600], 46)).toEqual({ left: 140, top: 130 });
+    expect(positionAnnotationBubble([745, 550, 40, 20, 800, 600], 46)).toEqual({ left: 372, top: 494 });
+    expect(positionAnnotationBubble([-80, 10, 40, 20, 270, 300], 46)).toEqual({ left: 8, top: 40 });
+    expect(positionAnnotationBubble([40, 400, 40, 20, 270, 300], 46)).toEqual({ left: 8, top: 246 });
+  });
+
+  test('accepts only finite, bounded selection geometry and a positive viewport', () => {
+    expect(annotationAnchorSchema.safeParse([-10, 40, 100, 20, 800, 600]).success).toBe(true);
+    expect(annotationAnchorSchema.safeParse([0, NaN, 100, 20, 800, 600]).success).toBe(false);
+    expect(annotationAnchorSchema.safeParse([0, 0, 100, 20, 0, 600]).success).toBe(false);
+    expect(annotationAnchorSchema.safeParse([0, 0, 100, 20, 800, 600, 'text']).success).toBe(false);
+  });
+
+  test('a host editor keeps annotation open when asked to attach without a target', async () => {
+    const win = new Window({ url: 'http://annotation.test' });
+    const evaluate = (code: string) => new Function('window', 'document', 'requestAnimationFrame', 'Event', `return ${code}`)(
+      win, win.document, (callback: FrameRequestCallback) => callback(0), win.Event,
+    );
+    try {
+      const completion = evaluate(buildAnnotationOverlayScript(theme, labels, true));
+      expect(evaluate(ANNOTATION_ATTACH_SCRIPT)).toBe(false);
+      expect(win.document.querySelector('[data-openchamber-annotation]')).not.toBeNull();
+      evaluate(ANNOTATION_TEARDOWN_SCRIPT);
+      expect(await completion).toBeNull();
+      expect(win.document.querySelector('[data-openchamber-annotation]')).toBeNull();
+    } finally {
+      await win.happyDOM.close();
+    }
+  });
 
   test('parses as JavaScript', () => {
     expect(parses(`return ${script}`)).toBe(true);
@@ -172,7 +237,7 @@ describe('annotation overlay script', () => {
     const handler = source.slice(start, end);
     const guard = handler.indexOf("if (isIMECompositionEvent(event) || event.key !== 'Escape') return;");
     expect(guard).toBeGreaterThan(-1);
-    expect(handler.indexOf('cancelAnnotationSession(annotationHost)')).toBeGreaterThan(guard);
+    expect(handler.indexOf('cancelAnnotation()')).toBeGreaterThan(guard);
   });
 
   test('escapes a label that would otherwise close the script', () => {

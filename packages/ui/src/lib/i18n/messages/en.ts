@@ -1639,6 +1639,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'Draw',
   'contextPanel.browser.annotate.commentPlaceholder': 'Describe the change...',
   'contextPanel.browser.annotate.submit': 'Attach',
+  'contextPanel.browser.annotate.transcribe': 'Transcribe',
   'contextPanel.browser.trustNotice': 'Pages opened here run with full access to Skynex — needed for inspect and screenshots. Only open sites you trust: a malicious page could read your data or act on your behalf.',
   'contextPanel.tab.closeTabAria': 'Close {label} tab',
   'contextPanel.tab.menu.close': 'Close',

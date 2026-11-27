@@ -153,11 +153,13 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
     }, [config.onPcmSegment, config.onError]);
 
     const graphRef = useRef<CaptureGraph>(emptyGraph());
+    const generationRef = useRef(0);
 
     const start = useCallback(async () => {
         if (graphRef.current.started) {
             return;
         }
+        const generation = ++generationRef.current;
 
         if (
             typeof navigator === 'undefined' ||
@@ -172,19 +174,38 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
             throw new Error('AudioContext unavailable');
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                noiseSuppression: true,
-                echoCancellation: true,
-                autoGainControl: true,
-            },
-        });
-
-        const context = new AudioContextCtor();
+        let stream: MediaStream;
         try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    noiseSuppression: true,
+                    echoCancellation: true,
+                    autoGainControl: true,
+                },
+            });
+        } catch (error) {
+            if (generation !== generationRef.current) return;
+            throw error;
+        }
+
+        if (generation !== generationRef.current) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+        }
+
+        let context: AudioContext | null = null;
+        const graph = emptyGraph();
+        graph.stream = stream;
+        graphRef.current = graph;
+        try {
+            context = new AudioContextCtor();
+            graph.context = context;
             if (context.state === 'suspended') {
                 await context.resume().catch(() => undefined);
+            }
+            if (generation !== generationRef.current) {
+                return;
             }
 
             const source = context.createMediaStreamSource(stream);
@@ -192,19 +213,10 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
             const gain = context.createGain();
             gain.gain.value = 0;
 
-            graphRef.current = {
-                stream,
-                context,
-                source,
-                processor,
-                gain,
-                pending: new Int16Array(0),
-                started: true,
-            };
+            Object.assign(graph, { source, processor, gain, started: true });
 
             processor.onaudioprocess = (event) => {
-                const graph = graphRef.current;
-                if (!graph.started) {
+                if (!graph.started || graph !== graphRef.current) {
                     return;
                 }
                 const input = event.inputBuffer.getChannelData(0);
@@ -216,7 +228,7 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
                 const rms = Math.sqrt(sumSquares / Math.max(1, input.length));
                 emitLevel(Math.min(1, Math.max(0, rms * 2)));
 
-                const next = resampleToPcm16(input, context.sampleRate, OUTPUT_RATE);
+                const next = resampleToPcm16(input, context!.sampleRate, OUTPUT_RATE);
                 graph.pending = concatInt16(graph.pending, next);
 
                 while (graph.pending.length >= CHUNK_SAMPLES) {
@@ -238,16 +250,22 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
                 }
             });
             try {
-                await context.close();
+                await context?.close();
             } catch {
                 // no-op
             }
-            graphRef.current = emptyGraph();
+            if (graphRef.current === graph) {
+                graphRef.current = emptyGraph();
+            }
+            if (generation !== generationRef.current) {
+                return;
+            }
             throw error instanceof Error ? error : new Error(String(error));
         }
     }, [emitLevel]);
 
     const stop = useCallback(async () => {
+        generationRef.current += 1;
         const graph = graphRef.current;
         graph.started = false;
         emitLevel(0);
@@ -294,6 +312,7 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
 
     useEffect(() => {
         return () => {
+            graphRef.current.pending = new Int16Array(0);
             void stop().catch((err) => {
                 onErrorRef.current?.(err instanceof Error ? err : new Error(String(err)));
             });

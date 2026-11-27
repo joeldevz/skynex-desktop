@@ -1997,6 +1997,7 @@ export const dict: Record<I18nKey, string> = {
   'contextPanel.browser.annotate.tool.draw': 'Rysuj',
   'contextPanel.browser.annotate.commentPlaceholder': 'Opisz zmianę...',
   'contextPanel.browser.annotate.submit': 'Dołącz',
+  'contextPanel.browser.annotate.transcribe': 'Transkrybuj',
   'contextPanel.browser.trustNotice': 'Strony otwierane tutaj działają z pełnym dostępem do Skynex — jest to wymagane do inspekcji i zrzutów ekranu. Otwieraj tylko zaufane witryny: złośliwa strona może odczytać Twoje dane lub działać w Twoim imieniu.',
   'contextPanel.preview.actions.openExternal': 'Otwórz w przeglądarce',
   'contextPanel.preview.actions.reload': 'Odśwież podgląd',

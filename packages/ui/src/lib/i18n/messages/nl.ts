@@ -1634,6 +1634,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'Tekenen',
   'contextPanel.browser.annotate.commentPlaceholder': 'Beschrijf de wijziging...',
   'contextPanel.browser.annotate.submit': 'Toevoegen',
+  'contextPanel.browser.annotate.transcribe': 'Transcriberen',
   'contextPanel.browser.trustNotice': 'Pagina\'s die hier worden geopend draaien met volledige toegang tot Skynex — nodig voor inspectie en schermafbeeldingen. Open alleen sites die u vertrouwt: een kwaadaardige pagina kan uw gegevens lezen of namens u handelen.',
   'contextPanel.tab.closeTabAria': 'Tabblad {label} sluiten',
   'contextPanel.tab.menu.close': 'Sluiten',

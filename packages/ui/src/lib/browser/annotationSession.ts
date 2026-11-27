@@ -70,12 +70,14 @@ export const runAnnotationSession = async ({
   host,
   theme,
   labels,
+  hostEditor = false,
 }: {
   host: AnnotationHost;
   theme: BrowserAnnotationOverlayTheme;
   labels: BrowserAnnotationOverlayLabels;
+  hostEditor?: boolean;
 }): Promise<AnnotationSessionResult | null> => {
-  const script = buildAnnotationOverlayScript(theme, labels);
+  const script = buildAnnotationOverlayScript(theme, labels, hostEditor);
   const raw = await host.executeJavaScript(script, true);
 
   // Cancelled from inside the page.

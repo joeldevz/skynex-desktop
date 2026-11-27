@@ -1381,6 +1381,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'Zeichnen',
   'contextPanel.browser.annotate.commentPlaceholder': 'Änderung beschreiben...',
   'contextPanel.browser.annotate.submit': 'Anhängen',
+  'contextPanel.browser.annotate.transcribe': 'Transkribieren',
   'contextPanel.browser.trustNotice': 'Seiten, die hier geöffnet werden, laufen mit vollständigem Zugriff auf Skynex — erforderlich für Inspect und Screenshots. Öffnen Sie nur Seiten, denen Sie vertrauen: Eine bösartige Seite könnte Ihre Daten lesen oder in Ihrem Namen handeln.',
   'contextPanel.tab.closeTabAria': '{label}-Registerkarte schließen',
   'contextPanel.tab.menu.close': 'Schließen',

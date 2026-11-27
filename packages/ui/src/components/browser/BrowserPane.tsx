@@ -40,6 +40,8 @@ import {
 } from '@/lib/browser/devTunnel';
 import { spaceIdOfDirectory } from '@/lib/spaces/space-route';
 import { useSpaceMarkLabel } from '@/lib/spaces/space-mark';
+import { ANNOTATION_ATTACH_SCRIPT } from '@/lib/browser/annotationOverlay';
+import { useSessionUIStore } from '@/sync/session-ui-store';
 import { Icon } from '@/components/icon/Icon';
 import {
   buildClickScript,
@@ -68,6 +70,7 @@ import {
   type BrowserViewport,
 } from '@/lib/browser/viewport';
 import { BrowserEmptyState } from './BrowserEmptyState';
+import { BrowserAnnotationEditor } from './BrowserAnnotationEditor';
 import { useAnnotationAttach, useAnnotationOverlayLabels } from './useAnnotationAttach';
 import { readEventPayload, useWebviewNavigation } from './useWebviewNavigation';
 import { isStageShown, requireWebviewKeyboardFocus, useWebviewFocusGuard, type HoldPageFocus } from './useWebviewFocusGuard';
@@ -105,6 +108,9 @@ const isChromiumHost = (): boolean => (
 );
 
 /** Chromium's zoom is exponential: factor = 1.2 ^ level. */
+/** The comment is set once the user attaches; until then the run is only marking. */
+type AnnotationRun = { comment: string | null };
+
 const ZOOM_STEP = 0.5;
 const ZOOM_MIN = -3;
 const ZOOM_MAX = 4;
@@ -199,6 +205,9 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
 
   const [address, setAddress] = React.useState(startUrl);
   const [isAnnotating, setIsAnnotating] = React.useState(false);
+  const annotationRun = React.useRef<AnnotationRun | null>(null);
+  const annotationSessionId = useSessionUIStore((state) => state.currentSessionId);
+  const annotationDraftId = useSessionUIStore((state) => state.newSessionDraft.draftId);
   const [isWaitingForServer, setIsWaitingForServer] = React.useState(false);
   const [zoomLevel, setZoomLevel] = React.useState(0);
   const zoomLevelRef = React.useRef(0);
@@ -355,10 +364,16 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
     },
   }), []);
 
+  const cancelAnnotation = React.useCallback(() => {
+    if (!annotationRun.current) return;
+    annotationRun.current = null;
+    setIsAnnotating(false);
+    void cancelAnnotationSession(annotationHost);
+  }, [annotationHost]);
+
   const handleAnnotate = React.useCallback(() => {
-    if (isAnnotating) {
-      setIsAnnotating(false);
-      void cancelAnnotationSession(annotationHost);
+    if (annotationRun.current) {
+      cancelAnnotation();
       return;
     }
     if (!navigation.url) {
@@ -370,22 +385,46 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
       currentTheme.metadata.variant === 'light' ? 'light' : 'dark',
     );
 
+    const run: AnnotationRun = { comment: null };
+    annotationRun.current = run;
     setIsAnnotating(true);
     void runAnnotationSession({
       host: annotationHost,
       theme,
       labels: overlayLabels,
+      hostEditor: true,
     })
       .then(async (result) => {
+        if (annotationRun.current !== run) return;
+        annotationRun.current = null;
         setIsAnnotating(false);
-        if (!result) return;
-        await attachAnnotation(result);
+        if (!result || run.comment === null) return;
+        await attachAnnotation({ ...result, payload: { ...result.payload, comment: run.comment } });
       })
       .catch(() => {
-        setIsAnnotating(false);
+        if (annotationRun.current === run) cancelAnnotation();
+        else if (run.comment === null) return;
         toast.error(t('contextPanel.browser.annotate.failed'));
       });
-  }, [annotationHost, attachAnnotation, currentTheme, isAnnotating, navigation.url, overlayLabels, t]);
+  }, [annotationHost, attachAnnotation, cancelAnnotation, currentTheme, navigation.url, overlayLabels, t]);
+
+  const submitAnnotation = React.useCallback(async (comment: string): Promise<boolean> => {
+    const run = annotationRun.current;
+    if (!run || run.comment !== null) return false;
+    run.comment = comment;
+    try {
+      if (await annotationHost.executeJavaScript(ANNOTATION_ATTACH_SCRIPT, false) === true) return true;
+    } catch {
+      if (annotationRun.current === run) cancelAnnotation();
+    }
+    if (annotationRun.current === run) {
+      run.comment = null;
+      toast.error(t('contextPanel.browser.annotate.failed'));
+    }
+    return false;
+  }, [annotationHost, cancelAnnotation, t]);
+
+  React.useLayoutEffect(() => cancelAnnotation, [cancelAnnotation, visible, navigation.url, annotationSessionId, annotationDraftId, webviewElement]);
 
   // Escape leaves annotation mode from the app side too: the overlay owns the
   // in-page Escape, but the panel can be focused instead.
@@ -395,12 +434,11 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
       if (isIMECompositionEvent(event) || event.key !== 'Escape') return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      setIsAnnotating(false);
-      void cancelAnnotationSession(annotationHost);
+      cancelAnnotation();
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [annotationHost, isAnnotating]);
+  }, [cancelAnnotation, isAnnotating]);
 
   // A tab woken for an agent action mounts its view first and its page a
   // moment later; scripts cannot run in the page until its document exists.
@@ -725,12 +763,6 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
     }),
     [describeTab, ownerSessionId, runControlAction, tabDirectory, tabID],
   );
-
-  // Leaving the tab must not strand an overlay or live style overrides on the page.
-  React.useEffect(() => {
-    const host = annotationHost;
-    return () => { void cancelAnnotationSession(host); };
-  }, [annotationHost]);
 
   React.useEffect(() => {
     if (!webviewElement) return;
@@ -1088,6 +1120,9 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory: tab
               }
               : { width: '100%', height: '100%', border: 'none' }}
           />
+        ) : null}
+        {visible && isAnnotating && webviewElement ? (
+          <BrowserAnnotationEditor host={annotationHost} webview={webviewElement} onAttach={submitAnnotation} />
         ) : null}
         {initialSrc !== null && !startUrl && !navigation.url && !isLoading ? (
           <BrowserEmptyState onOpen={loadUrlFromUser} directory={directory} visible={visible} />

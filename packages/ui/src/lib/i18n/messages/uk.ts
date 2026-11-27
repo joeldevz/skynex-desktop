@@ -1631,6 +1631,7 @@ export const dict: Record<I18nKey, string> = {
   "contextPanel.browser.annotate.tool.draw": "Малювання",
   "contextPanel.browser.annotate.commentPlaceholder": "Опишіть зміну...",
   "contextPanel.browser.annotate.submit": "Додати",
+  "contextPanel.browser.annotate.transcribe": "Транскрибувати",
   "contextPanel.browser.trustNotice": "Сторінки, відкриті тут, працюють із повним доступом до Skynex — це потрібно для inspect і скріншотів. Відкривайте лише сайти, яким довіряєте: шкідлива сторінка може прочитати ваші дані чи діяти від вашого імені.",
   "contextPanel.tab.closeTabAria": "Закрити вкладку {label}",
   "contextPanel.tab.menu.close": "Закрити",

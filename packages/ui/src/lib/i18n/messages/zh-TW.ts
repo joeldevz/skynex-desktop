@@ -1659,6 +1659,7 @@ export const dict: Record<I18nKey, string> = {
   'contextPanel.browser.annotate.tool.draw': '繪製',
   'contextPanel.browser.annotate.commentPlaceholder': '描述所需變更...',
   'contextPanel.browser.annotate.submit': '附加',
+  'contextPanel.browser.annotate.transcribe': '轉錄',
   'contextPanel.browser.trustNotice': '在此開啟的頁面以對 Skynex 的完整存取權限執行 — 檢查與截圖需要此權限。僅開啟你信任的網站：惡意頁面可能讀取你的資料或以你的身分執行操作。',
   'contextPanel.tab.closeTabAria': '關閉 {label} 分頁',
   'contextPanel.tab.menu.close': '關閉',

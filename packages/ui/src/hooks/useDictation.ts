@@ -86,6 +86,7 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
     const latestPartialRef = useRef('');
     const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const actionGateRef = useRef({ starting: false, confirming: false, cancelling: false });
+    const generationRef = useRef(0);
 
     const onTranscriptRef = useRef(onTranscript);
     const onErrorRef = useRef(onError);
@@ -159,15 +160,18 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             if (statusRef.current !== 'recording') {
                 return;
             }
+            const generation = generationRef.current;
             void senderRef.current?.restartStream().catch((err) => {
-                reportError(err);
+                if (generation === generationRef.current) reportError(err);
             });
         });
     }, [reportError]);
 
     const audio = useDictationAudioSource({
         onPcmSegment: (audioData) => {
-            senderRef.current?.enqueueSegment(audioData);
+            if (statusRef.current === 'recording' || statusRef.current === 'uploading') {
+                senderRef.current?.enqueueSegment(audioData);
+            }
         },
         onError: (err) => {
             onErrorRef.current?.(err);
@@ -218,6 +222,7 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
         }
 
         gate.starting = true;
+        const generation = ++generationRef.current;
         clearError();
         setPartialTranscript('');
         setDuration(0);
@@ -227,6 +232,7 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
 
         try {
             await audio.start();
+            if (generation !== generationRef.current) return;
             startDurationTracking();
             // Open the stream eagerly so audio uploads while the user speaks
             // and only the tail is left to transcribe on stop.
@@ -234,10 +240,12 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
                 // Non-fatal: segments buffer locally and finish() retries the
                 // start, but surface the reason (e.g. model downloading) so
                 // the overlay can show it.
-                reportError(err);
+                if (generation === generationRef.current) reportError(err);
             });
         } catch (err) {
+            if (generation !== generationRef.current) return;
             await audio.stop().catch(() => undefined);
+            if (generation !== generationRef.current) return;
             stopDurationTracking();
             setStatus('idle');
             statusRef.current = 'idle';
@@ -256,6 +264,7 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             return;
         }
         gate.cancelling = true;
+        generationRef.current += 1;
         stopDurationTracking();
         setDuration(0);
         clearError();
@@ -291,11 +300,13 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
         }
 
         gate.confirming = true;
+        const generation = ++generationRef.current;
         clearError();
         stopDurationTracking();
 
         try {
             await audio.stop();
+            if (generation !== generationRef.current) return null;
             setStatus('uploading');
             statusRef.current = 'uploading';
 
@@ -305,9 +316,10 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             }
 
             const result = await senderRef.current!.finish(finalSeq);
+            if (generation !== generationRef.current) return null;
             return handleSuccess(result.text);
         } catch (err) {
-            handleFailure(err);
+            if (generation === generationRef.current) handleFailure(err);
             return null;
         } finally {
             gate.confirming = false;
@@ -319,6 +331,7 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             return null;
         }
         clearError();
+        const generation = generationRef.current;
         setStatus('uploading');
         statusRef.current = 'uploading';
 
@@ -326,9 +339,10 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             senderRef.current.resetStreamForReplay();
             const finalSeq = senderRef.current.getFinalSeq();
             const result = await senderRef.current.finish(finalSeq);
+            if (generation !== generationRef.current) return null;
             return handleSuccess(result.text);
         } catch (err) {
-            handleFailure(err);
+            if (generation === generationRef.current) handleFailure(err);
             return null;
         }
     }, [clearError, handleFailure, handleSuccess]);
@@ -378,10 +392,11 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
             if (statusRef.current !== 'recording' || senderRef.current?.getDictationId()) {
                 return;
             }
+            const generation = generationRef.current;
             senderRef.current?.restartStream().then(() => {
-                clearError();
+                if (generation === generationRef.current) clearError();
             }).catch((err) => {
-                reportError(err);
+                if (generation === generationRef.current) reportError(err);
             });
         }, 3000);
         return () => clearInterval(interval);
@@ -389,6 +404,8 @@ export function useDictation(options: UseDictationOptions = {}): UseDictationRes
 
     useEffect(() => {
         return () => {
+            generationRef.current += 1;
+            statusRef.current = 'idle';
             stopDurationTracking();
             void audioStopRef.current().catch(() => undefined);
             senderRef.current?.cancel();

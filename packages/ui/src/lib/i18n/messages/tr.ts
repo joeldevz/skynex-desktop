@@ -1514,6 +1514,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'Çiz',
   'contextPanel.browser.annotate.commentPlaceholder': 'Değişikliği açıkla...',
   'contextPanel.browser.annotate.submit': 'Ekle',
+  'contextPanel.browser.annotate.transcribe': 'Yazıya dök',
   'contextPanel.browser.trustNotice': 'Burada açılan sayfalar Skynex\'e tam erişimle çalışır — inceleme ve ekran görüntüleri için gereklidir. Yalnızca güvendiğiniz siteleri açın: kötü niyetli bir sayfa verilerinizi okuyabilir veya sizin adınıza hareket edebilir.',
   'contextPanel.tab.closeTabAria': '{label} sekmesini kapat',
   'contextPanel.tab.menu.close': 'Kapat',

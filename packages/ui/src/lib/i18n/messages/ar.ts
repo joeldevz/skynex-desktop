@@ -1593,6 +1593,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'رسم',
   'contextPanel.browser.annotate.commentPlaceholder': 'صف التغيير…',
   'contextPanel.browser.annotate.submit': 'إرفاق',
+  'contextPanel.browser.annotate.transcribe': 'تحويل إلى نص',
   'contextPanel.browser.trustNotice': 'تعمل الصفحات المفتوحة هنا بوصول كامل إلى Skynex — وهو أمر لازم للفحص ولقطات الشاشة. لا تفتح إلا المواقع التي تثق بها: قد تقرأ صفحة خبيثة بياناتك أو تتصرف نيابة عنك.',
   'contextPanel.tab.closeTabAria': 'إغلاق علامة التبويب {label}',
   'contextPanel.tab.menu.close': 'إغلاق',

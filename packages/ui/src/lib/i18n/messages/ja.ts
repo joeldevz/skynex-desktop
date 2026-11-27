@@ -1636,6 +1636,7 @@ export const dict: Record<I18nKey, string> = {
   'contextPanel.browser.annotate.tool.draw': '描画',
   'contextPanel.browser.annotate.commentPlaceholder': '変更内容を記述...',
   'contextPanel.browser.annotate.submit': '添付',
+  'contextPanel.browser.annotate.transcribe': '文字起こし',
   'contextPanel.browser.trustNotice': 'ここで開かれたページはSkynexへの完全なアクセス権を持ちます — 検査とスクリーンショットに必要です。信頼できるサイトのみを開いてください: 悪意のあるページがデータを読み取ったりあなたの代わりに行動したりする可能性があります。',
   'contextPanel.tab.closeTabAria': '{label}タブを閉じる',
   'contextPanel.tab.menu.close': '閉じる',

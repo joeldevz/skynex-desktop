@@ -3402,6 +3402,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'Dessin',
   'contextPanel.browser.annotate.commentPlaceholder': 'Décrivez le changement...',
   'contextPanel.browser.annotate.submit': 'Joindre',
+  'contextPanel.browser.annotate.transcribe': 'Transcrire',
   'contextPanel.browser.trustNotice': 'Les pages ouvertes ici s’exécutent avec un accès complet à Skynex — nécessaire pour l’inspection et les captures d’écran. N’ouvrez que des sites de confiance : une page malveillante pourrait lire vos données ou agir en votre nom.',
   'filesView.diagram.closeDiagramView': 'Fermer la vue diagramme',
   'filesView.diagram.saveDiagram': 'Enregistrer le diagramme',

@@ -49,9 +49,25 @@ export type BrowserAnnotationOverlayLabels = {
 };
 
 const ANNOTATION_ACTIVE_FLAG = '__openchamberBrowserAnnotationActive';
+const ANNOTATION_ATTACH_EVENT = 'openchamber:annotation-attach';
+const ANNOTATION_CANCEL_EVENT = 'openchamber:annotation-cancel';
+const ANNOTATION_ANCHOR_EVENT = 'openchamber:annotation-anchor';
+
+export const ANNOTATION_ATTACH_SCRIPT = `!window.dispatchEvent(new Event('${ANNOTATION_ATTACH_EVENT}', {cancelable:true}))`;
+export const ANNOTATION_ANCHOR_SCRIPT = `(() => {
+  const detail = { anchor: null };
+  window.dispatchEvent(new CustomEvent('${ANNOTATION_ANCHOR_EVENT}', { detail }));
+  const anchor = detail.anchor;
+  if (!Array.isArray(anchor) || anchor.length !== 6) return null;
+  const [x, y, width, height, viewportWidth, viewportHeight] = [anchor[0], anchor[1], anchor[2], anchor[3], anchor[4], anchor[5]];
+  return typeof x === 'number' && typeof y === 'number' && typeof width === 'number' &&
+    typeof height === 'number' && typeof viewportWidth === 'number' && typeof viewportHeight === 'number'
+    ? [x, y, width, height, viewportWidth, viewportHeight] : null;
+})()`;
 
 /** Cancels an overlay left behind by an earlier session. Safe when none is active. */
 export const ANNOTATION_TEARDOWN_SCRIPT = `(() => {
+  window.dispatchEvent(new Event('${ANNOTATION_CANCEL_EVENT}'));
   try {
     var host = document.querySelector('[data-openchamber-annotation]');
     if (host && host.parentNode) host.parentNode.removeChild(host);
@@ -66,8 +82,9 @@ export const ANNOTATION_TEARDOWN_SCRIPT = `(() => {
 export const buildAnnotationOverlayScript = (
   theme: BrowserAnnotationOverlayTheme,
   labels: BrowserAnnotationOverlayLabels,
+  hostEditor = false,
 ): string => {
-  const config = JSON.stringify({ theme, labels });
+  const config = JSON.stringify({ theme, labels, hostEditor });
   return String.raw`new Promise((resolve) => {
   var CONFIG = ${config};
   var THEME = CONFIG.theme;
@@ -317,7 +334,7 @@ export const buildAnnotationOverlayScript = (
 
   /** Places the comment box under whatever was just marked, kept on screen. */
   var positionEditor = function () {
-    if (!lastTargetRect) {
+    if (CONFIG.hostEditor || !lastTargetRect) {
       editor.style.display = 'none';
       return;
     }
@@ -339,6 +356,7 @@ export const buildAnnotationOverlayScript = (
 
   /** Focus after layout: focusing a zero-height field puts the caret nowhere. */
   var focusComment = function () {
+    if (CONFIG.hostEditor) return;
     requestAnimationFrame(function () {
       try {
         comment.focus({ preventScroll: true });
@@ -692,6 +710,9 @@ export const buildAnnotationOverlayScript = (
     window.removeEventListener('resize', onScrollOrResize, true);
     window.removeEventListener('keydown', onKeyDown, true);
     comment.removeEventListener('keydown', onCommentKeyDown);
+    window.removeEventListener('${ANNOTATION_ATTACH_EVENT}', onHostAttach);
+    window.removeEventListener('${ANNOTATION_CANCEL_EVENT}', onHostCancel);
+    window.removeEventListener('${ANNOTATION_ANCHOR_EVENT}', onHostAnchor);
     topLayerObserver.disconnect();
     document.removeEventListener('toggle', onToggle, true);
     setCursor('');
@@ -732,6 +753,22 @@ export const buildAnnotationOverlayScript = (
   };
 
   submit.addEventListener('click', attach);
+  var onHostAttach = function (event) {
+    if (!hasTargets() || settled) return;
+    event.preventDefault();
+    attach();
+  };
+  var onHostCancel = function () { finish(null); };
+  var onHostAnchor = function (event) {
+    if (!event.detail || !hasTargets() || !lastTargetRect || settled || !host.isConnected) return;
+    var rect = lastTargetRect;
+    event.detail.anchor = [rect.x, rect.y, rect.width, rect.height, window.innerWidth, window.innerHeight];
+  };
+  if (CONFIG.hostEditor) {
+    window.addEventListener('${ANNOTATION_ATTACH_EVENT}', onHostAttach);
+    window.addEventListener('${ANNOTATION_CANCEL_EVENT}', onHostCancel);
+    window.addEventListener('${ANNOTATION_ANCHOR_EVENT}', onHostAnchor);
+  }
 
   startTopLayer();
   setTool('select');

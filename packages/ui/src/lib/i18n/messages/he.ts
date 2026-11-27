@@ -1593,6 +1593,7 @@ export const dict = {
   'contextPanel.browser.annotate.tool.draw': 'ציור',
   'contextPanel.browser.annotate.commentPlaceholder': 'תאר את השינוי…',
   'contextPanel.browser.annotate.submit': 'צרף',
+  'contextPanel.browser.annotate.transcribe': 'תמלול',
   'contextPanel.browser.trustNotice': 'דפים שנפתחים כאן רצים עם גישה מלאה ל-Skynex — זה נדרש לבדיקת רכיבים ולצילומי מסך. יש לפתוח רק אתרים מהימנים: דף זדוני עלול לקרוא את הנתונים שלך או לפעול בשמך.',
   'contextPanel.tab.closeTabAria': 'סגור את הכרטיסייה {label}',
   'contextPanel.tab.menu.close': 'סגור',
