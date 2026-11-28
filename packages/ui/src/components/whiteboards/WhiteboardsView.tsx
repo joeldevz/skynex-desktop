@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { dropdownTriggerVariants } from '@/components/ui/dropdown-trigger';
 import { useI18n } from '@/lib/i18n';
+import { recordDesktopFeature } from '@/lib/desktop';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 import { getCurrentIntlLocale } from '@/lib/i18n/intl';
 import { cn } from '@/lib/utils';
 import { askAgentAboutBoard } from '@/lib/whiteboards/ask';
@@ -236,9 +238,11 @@ function WhiteboardGallery({ mobile, onCreated }: { mobile?: MobileFrame; onCrea
     ?? workspaces[0];
 
   const create = async (workspaceId: string, request: string): Promise<boolean> => {
+    const runtimeKey = getRuntimeKey();
     setCreating(true);
     try {
       const board = await createBoard(workspaceId, request ? boardTitleFrom(request) : t('whiteboards.page.untitled'));
+      if (getRuntimeKey() === runtimeKey) recordDesktopFeature('whiteboards', 'used');
       // The agent is told plainly what to do; the title alone would read as a topic, not a request.
       onCreated(board.id, request ? t('whiteboards.page.drawRequest', { request }) : null);
       return true;

@@ -40,10 +40,7 @@ const themeJsonHmrPlugin = () => ({
 export default defineConfig({
   root: path.resolve(__dirname, '.'),
   plugins: [
-    // Native Oxc React Compiler instead of the Babel one: same memoization output
-    // and bundle size, but ~9s less build time (12.0s -> 3.0s). The Oxc compiler
-    // is still marked experimental upstream; if it breaks a component, the Babel
-    // path is `react()` plus `babel({ presets: [reactCompilerPreset()] })`.
+    // The experimental native compiler keeps React memoization and cuts about 9 seconds from the web build.
     react({ compiler: true }),
     {
       name: 'inject-react-scan-script',

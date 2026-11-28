@@ -90,7 +90,7 @@
     },
     "packages/electron": {
       "name": "@openchamber/electron",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "dependencies": {
         "@openchamber/web": "workspace:*",
         "electron-context-menu": "^4.1.2",
@@ -128,7 +128,7 @@
     },
     "packages/sdk": {
       "name": "@openchamber/sdk",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "bin": {
         "openchamber-guest-bundle": "./scripts/bundle-guest.ts",
       },
@@ -208,7 +208,7 @@
     },
     "packages/ui": {
       "name": "@openchamber/ui",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "dependencies": {
         "@aparajita/capacitor-secure-storage": "^8.0.0",
         "@base-ui/react": "^1.4.0",
@@ -315,7 +315,7 @@
     },
     "packages/web": {
       "name": "@openchamber/web",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "bin": {
         "skynex-app": "./bin/cli.js",
         "openchamber": "./bin/cli.js",
@@ -324,7 +324,7 @@
         "@clack/prompts": "^1.1.0",
         "@gitbeaker/rest": "43.8.0",
         "@octokit/rest": "^22.0.1",
-        "@openchamber/sdk": "workspace:0.1.11",
+        "@openchamber/sdk": "workspace:0.1.12",
         "@opencode/client": "2.1.4",
         "@opencode/schema": "2.1.4",
         "@simplewebauthn/server": "13.3.3",

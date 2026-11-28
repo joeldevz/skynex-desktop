@@ -1686,6 +1686,59 @@ describe("optimisticSend target directory", () => {
     replyCalls.length = 0
   })
 
+  test.each(["accepted", "confirmed after a lost response", "unconfirmed", "runtime changed"] as const)(
+    "reports skills and chat only for a confirmed local prompt: %s", async (outcome) => {
+      const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window")
+      const previousRuntime = runtimeKey
+      const calls: Array<{ command: string; args: { event: string } | { feature: string; action: string } }> = []
+      Object.defineProperty(globalThis, "window", { configurable: true, value: {
+        location: { origin: "openchamber-ui://app" },
+        __OPENCHAMBER_ELECTRON__: { runtime: "electron" },
+        __OPENCHAMBER_DESKTOP__: { invoke: async (command: string, args: typeof calls[number]["args"]) => {
+          calls.push({ command, args })
+          return true
+        } },
+      } })
+      runtimeKey = "local"
+      const sessionId = "session-analytics"
+      try {
+        const { optimisticSend, setActionRefs, setOptimisticRefs } = await import("./session-actions")
+        setActionRefs(createChildStores([["/target/project", createStore({})]]), () => "/target/project")
+        setOptimisticRefs(() => { expect(calls).toEqual([]) }, () => {})
+        const send = optimisticSend({
+          sessionId,
+          directory: "/target/project",
+          content: "synthetic prompt",
+          requestedSkills: true,
+          send: async (messageID) => {
+            expect(calls).toEqual([])
+            if (outcome === "runtime changed") runtimeKey = "remote"
+            if (outcome === "accepted" || outcome === "runtime changed") return
+            if (outcome === "confirmed after a lost response") {
+              sessionMessageRecords.set(sessionId, [{
+                info: { id: messageID, role: "user", sessionID: sessionId, time: { created: 1 } },
+                parts: [],
+              }])
+            }
+            throw Object.assign(new Error("gateway timeout"), { status: 504 })
+          },
+        })
+        if (outcome === "unconfirmed") await expect(send).rejects.toThrow("gateway timeout")
+        else await send
+        expect(calls).toEqual(outcome === "unconfirmed" || outcome === "runtime changed" ? [] : [
+          { command: "desktop_record_product_analytics_interaction", args: { event: "prompt_sent" } },
+          { command: "desktop_record_product_analytics_feature", args: { feature: "chat", action: "used" } },
+          { command: "desktop_record_product_analytics_feature", args: { feature: "skills", action: "used" } },
+        ])
+      } finally {
+        sessionMessageRecords.delete(sessionId)
+        runtimeKey = previousRuntime
+        if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow)
+        else Reflect.deleteProperty(globalThis, "window")
+      }
+    },
+  )
+
   test("passes the prompt directory to optimistic state during session switch races", async () => {
     const currentStore = createStore({})
     const targetStore = createStore({})

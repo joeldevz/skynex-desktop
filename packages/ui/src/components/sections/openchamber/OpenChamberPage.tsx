@@ -16,6 +16,7 @@ import { IsolatedSpacesSettings } from './IsolatedSpacesSettings';
 import { OpenChamberToolsSettings } from './OpenChamberToolsSettings';
 import { DesktopNetworkSettings } from './DesktopNetworkSettings';
 import { DesktopAppSettings } from './DesktopAppSettings';
+import { ProductAnalyticsSettings } from './ProductAnalyticsSettings';
 import { ChatSettings } from './ChatSettings';
 import { GeneralConnectionAndPrivacySettings, GeneralWorkspaceSettings } from './GeneralWorkspaceSettings';
 import { KeyboardShortcutsSettings } from './KeyboardShortcutsSettings';
@@ -138,6 +139,7 @@ const GeneralSectionContent: React.FC = () => {
             {/* Remounts on a runtime switch: the names come from that server. */}
             {!isVSCode && <EnvironmentVariablesSettings key={runtimeEndpointEpoch} />}
             {!isVSCode && <OpenChamberToolsSettings />}
+            {isLocalDesktop && <ProductAnalyticsSettings />}
             <GeneralConnectionAndPrivacySettings />
         </>
     );

@@ -1,12 +1,11 @@
 {
   "name": "@openchamber/ui",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "type": "module",
   "main": "src/main.tsx",
   "scripts": {
     "dev": "tsc -b --watch",
-    "build": "tsc -b",
     "build:ghostty-wasm": "bash scripts/build-libghostty-wasm.sh",
     "type-check": "tsc -b",
     "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
@@ -46,7 +45,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@legendapp/list": "3.6.0",
     "@lezer/highlight": "^1.2.3",
-    "@openchamber/sdk": "workspace:0.1.11",
+    "@openchamber/sdk": "workspace:0.1.12",
     "@opencode/client": "2.1.4",
     "@opencode/schema": "2.1.4",
     "@pierre/diffs": "1.6.1",

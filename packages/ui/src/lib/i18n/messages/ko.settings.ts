@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "제품 분석",
+  "settings.productAnalytics.label": "제품 분석 공유",
+  "settings.productAnalytics.disclosure": "사용 분석을 설정하면 앱 실행, 대화 생성, 수락된 프롬프트, 기능 열기 및 사용 이벤트가 PostHog EU로 전송됩니다. 각 이벤트에는 무작위 설치 ID, Skynex 버전, 운영 체제 종류가 포함됩니다. 대화 내용과 코드는 전송되지 않습니다.",
+  "settings.productAnalytics.inactive": "구성이 없거나 기업 정책으로 차단되어 비활성 상태입니다. 선택은 나중을 위해 저장됩니다.",
   'settings.sourceControl.ssh.title': 'SSH 키',
   'settings.sourceControl.ssh.load': '키 보기',
   'settings.sourceControl.ssh.discover': '~/.ssh에서 키 찾기',

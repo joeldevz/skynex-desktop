@@ -7301,6 +7301,26 @@
     "vscode": null
   },
   {
+    "version": "0.1.12",
+    "date": "2026-11-28",
+    "title": "Desktop analytics controls",
+    "intro": null,
+    "app": {
+      "new": [
+        "**Desktop: product analytics controls.** In official Windows and Linux builds, Settings explains which usage events Skynex shares with PostHog EU and lets you turn sharing off. Conversation content and code are excluded. Enterprise Mode blocks sharing."
+      ],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.11",
     "date": "2026-11-27",
     "title": "Dictate page annotations",

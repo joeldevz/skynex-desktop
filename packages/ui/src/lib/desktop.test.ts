@@ -1,6 +1,72 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import { clearDesktopSessionNotifications, isBrowserClientRuntime, isDesktopLocalOriginActive, openSessionInOwningHostWindow, takePendingDesktopSessionLinks } from './desktop';
+import { clearDesktopSessionNotifications, getDesktopProductAnalyticsSettings, setDesktopProductAnalyticsEnabled, isBrowserClientRuntime, isDesktopLocalOriginActive, openSessionInOwningHostWindow, recordDesktopFeature, recordDesktopProductInteraction, takePendingDesktopSessionLinks } from './desktop';
+
+describe('desktop product analytics settings', () => {
+  afterEach(() => { Reflect.deleteProperty(globalThis, 'window'); });
+
+  test('reads and saves the preference even when analytics is unavailable', async () => {
+    const calls: Array<{ command: string; args: { enabled?: boolean } }> = [];
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+      location: { origin: 'openchamber-ui://app' },
+      __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+      __OPENCHAMBER_LOCAL_ORIGIN__: 'http://127.0.0.1:51761',
+      __OPENCHAMBER_API_BASE_URL__: 'http://127.0.0.1:51761',
+      __OPENCHAMBER_DESKTOP__: { invoke: async (command: string, args: { enabled?: boolean }) => {
+        calls.push({ command, args });
+        return { enabled: command === 'desktop_get_product_analytics_settings', available: false };
+      } },
+    } });
+    expect(await getDesktopProductAnalyticsSettings()).toEqual({ enabled: true, available: false });
+    expect(await setDesktopProductAnalyticsEnabled(false)).toEqual({ enabled: false, available: false });
+    expect(calls).toEqual([
+      { command: 'desktop_get_product_analytics_settings', args: {} },
+      { command: 'desktop_set_product_analytics_enabled', args: { enabled: false } },
+    ]);
+  });
+
+  test('rejects remote desktop access before invoking the bridge', async () => {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+      location: { origin: 'openchamber-ui://app' },
+      __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+      __OPENCHAMBER_LOCAL_ORIGIN__: 'http://127.0.0.1:51761',
+      __OPENCHAMBER_API_BASE_URL__: 'http://127.0.0.1:3000',
+      __OPENCHAMBER_DESKTOP__: { invoke: () => { throw new Error('unexpected invoke'); } },
+    } });
+    await expect(getDesktopProductAnalyticsSettings()).rejects.toThrow('unavailable');
+  });
+
+  test('attributes interactions to the current runtime rather than the packaged page origin', () => {
+    type InteractionArgs = { event: string } | { feature: string; action: string };
+    const calls: Array<{ command: string; args: InteractionArgs }> = [];
+    const localOrigin = 'http://127.0.0.1:51761';
+    const renderer = {
+      location: { origin: 'openchamber-ui://app' },
+      __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+      __OPENCHAMBER_LOCAL_ORIGIN__: localOrigin,
+      __OPENCHAMBER_API_BASE_URL__: localOrigin,
+      __OPENCHAMBER_DESKTOP__: { invoke: async (command: string, args: InteractionArgs) => {
+        calls.push({ command, args });
+        return true;
+      } },
+    };
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: renderer });
+
+    recordDesktopProductInteraction('conversation_created');
+    recordDesktopFeature('browser', 'opened');
+    renderer.__OPENCHAMBER_API_BASE_URL__ = 'http://127.0.0.1:3000';
+    recordDesktopProductInteraction('prompt_sent');
+    recordDesktopFeature('chat', 'used');
+    renderer.__OPENCHAMBER_API_BASE_URL__ = localOrigin;
+    recordDesktopProductInteraction('prompt_sent');
+
+    expect(calls).toEqual([
+      { command: 'desktop_record_product_analytics_interaction', args: { event: 'conversation_created' } },
+      { command: 'desktop_record_product_analytics_feature', args: { feature: 'browser', action: 'opened' } },
+      { command: 'desktop_record_product_analytics_interaction', args: { event: 'prompt_sent' } },
+    ]);
+  });
+});
 
 describe('clearing session notifications', () => {
   const originalWindow = globalThis.window;

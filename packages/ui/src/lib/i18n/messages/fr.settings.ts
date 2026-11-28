@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Analyse du produit",
+  "settings.productAnalytics.label": "Partager les données d’analyse",
+  "settings.productAnalytics.disclosure": "Lorsque l’analyse est configurée, les ouvertures de l’application, les créations de conversations, les prompts acceptés et l’ouverture et l’utilisation des fonctionnalités sont envoyés à PostHog EU. Chaque événement inclut un identifiant d’installation aléatoire, la version de Skynex et la famille du système d’exploitation. Le contenu des conversations et le code ne sont pas envoyés.",
+  "settings.productAnalytics.inactive": "Inactif car la configuration manque ou une règle de l’entreprise bloque la collecte. Votre préférence est conservée.",
   'settings.sourceControl.ssh.title': 'Clés SSH',
   'settings.sourceControl.ssh.load': 'Afficher les clés',
   'settings.sourceControl.ssh.discover': 'Chercher des clés dans ~/.ssh',

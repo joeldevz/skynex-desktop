@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icon } from '@/components/icon/Icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { recordDesktopFeature } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useEnterpriseMode } from '@/stores/useEnterprisePolicyStore';
@@ -62,12 +63,20 @@ export function SidebarPageButtons({ showSourceBoard, buttonClassName, iconClass
         </SidebarPageButton>
       ) : null}
       {enterpriseMode ? null : (
-        <SidebarPageButton label={t('integrationsCatalog.sidebar.open')} pressed={isIntegrationsCatalogOpen} onClick={() => useUIStore.getState().setIntegrationsCatalogOpen(!isIntegrationsCatalogOpen)} className={buttonClassName}>
+        <SidebarPageButton label={t('integrationsCatalog.sidebar.open')} pressed={isIntegrationsCatalogOpen} onClick={() => {
+          const state = useUIStore.getState();
+          state.setIntegrationsCatalogOpen(!state.isIntegrationsCatalogOpen);
+          if (!state.isIntegrationsCatalogOpen && useUIStore.getState().isIntegrationsCatalogOpen) recordDesktopFeature('integrations', 'opened');
+        }} className={buttonClassName}>
           <Icon name="store-2" className={iconClassName} />
         </SidebarPageButton>
       )}
       {whiteboardsEnabled ? (
-        <SidebarPageButton label={t('whiteboards.page.title')} pressed={isWhiteboardsOpen} onClick={() => useUIStore.getState().setWhiteboardsPageOpen(!isWhiteboardsOpen)} className={buttonClassName}>
+        <SidebarPageButton label={t('whiteboards.page.title')} pressed={isWhiteboardsOpen} onClick={() => {
+          const state = useUIStore.getState();
+          state.setWhiteboardsPageOpen(!state.isWhiteboardsPageOpen);
+          if (!state.isWhiteboardsPageOpen && useUIStore.getState().isWhiteboardsPageOpen) recordDesktopFeature('whiteboards', 'opened');
+        }} className={buttonClassName}>
           <Icon name="artboard" className={iconClassName} />
         </SidebarPageButton>
       ) : null}

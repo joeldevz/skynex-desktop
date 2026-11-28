@@ -4,6 +4,16 @@ import { Window } from 'happy-dom';
 
 test('horizontal toolbar retains panel selection and commits a horizontal reorder only on drop', async () => {
   const win = new Window({ url: 'http://localhost' });
+  const analytics: Array<{ command: string; args: { feature: string; action: string } }> = [];
+  Object.assign(win, {
+    __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+    __OPENCHAMBER_LOCAL_ORIGIN__: 'http://localhost',
+    __OPENCHAMBER_API_BASE_URL__: 'http://localhost',
+    __OPENCHAMBER_DESKTOP__: { invoke: async (command: string, args: typeof analytics[number]['args']) => {
+      if (command === 'desktop_record_product_analytics_feature') analytics.push({ command, args });
+      return null;
+    } },
+  });
   const values = {
     window: win, document: win.document, navigator: win.navigator, location: win.location,
     Node: win.Node, Element: win.Element, HTMLElement: win.HTMLElement,
@@ -36,7 +46,7 @@ test('horizontal toolbar retains panel selection and commits a horizontal reorde
   const directory = '/toolbar-test';
   const initialOrder = CONTEXT_SURFACES.map((surface) => surface.id);
   useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: directory, preserveDirectoryOverride: true });
-  useUIStore.setState({ contextRailOrder: initialOrder, contextRailHiddenSurfaces: [], contextPanelByDirectory: {} });
+  useUIStore.setState({ contextRailOrder: initialOrder, contextRailHiddenSurfaces: [], contextPanelByDirectory: {}, whiteboardsEnabled: true });
   const sdk = OpenCode.make({ baseUrl: 'http://toolbar.test', fetch: () => new Promise<Response>(() => {}) });
   const apis = createWebAPIs();
   const container = document.createElement('div');
@@ -57,6 +67,19 @@ test('horizontal toolbar retains panel selection and commits a horizontal reorde
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape', code: 'Escape' })));
     expect(buttons.length).toBeGreaterThan(2);
+    expect(analytics).toEqual([]);
+    for (const [surface, feature] of [['terminal', 'terminal'], ['browser', 'browser'], ['whiteboard', 'whiteboards']]) {
+      const button = container.querySelector<HTMLButtonElement>(`button[data-context-surface="${surface}"]`);
+      if (!button) throw new Error(`Expected ${surface} button`);
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('false');
+      expect(analytics.at(-1)).toEqual({
+        command: 'desktop_record_product_analytics_feature', args: { feature, action: 'opened' },
+      });
+    }
+    expect(analytics).toHaveLength(3);
     const first = buttons[0];
     const second = buttons[1];
     if (!first || !second) throw new Error('Expected two surface buttons');

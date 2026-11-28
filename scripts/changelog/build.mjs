@@ -2,7 +2,7 @@
 // Render the changelog outputs from `changelog/*.md`. `oc-dev create-release`
 // is the normal caller; agents only edit `changelog/unreleased.md`.
 //
-//   node scripts/changelog/build.mjs                 write packages/vscode/CHANGELOG.md, changelog/index.json (and CHANGELOG.md while it exists)
+//   node scripts/changelog/build.mjs                 write changelog/index.json (and CHANGELOG.md while it exists)
 //   node scripts/changelog/build.mjs --check         exit 1 when any output differs from what is committed
 //   node scripts/changelog/build.mjs --release 1.2.3 [--date YYYY-MM-DD]
 //                                                    move unreleased.md to 1.2.3.md (dated today by default), then write

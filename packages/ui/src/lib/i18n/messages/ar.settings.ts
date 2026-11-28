@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "تحليلات المنتج",
+  "settings.productAnalytics.label": "مشاركة تحليلات المنتج",
+  "settings.productAnalytics.disclosure": "عند تهيئة التحليلات، تُرسل أحداث فتح التطبيق وإنشاء المحادثات والطلبات المقبولة وفتح الميزات واستخدامها إلى PostHog EU. يتضمن كل حدث معرّف تثبيت عشوائيًا وإصدار Skynex وعائلة نظام التشغيل. لا يُرسل محتوى المحادثات أو الشيفرة.",
+  "settings.productAnalytics.inactive": "غير نشط لغياب الإعداد أو بسبب سياسة المؤسسة. يُحفظ تفضيلك للمستقبل.",
   'settings.sourceControl.ssh.title': 'مفاتيح SSH',
   'settings.sourceControl.ssh.load': 'إظهار المفاتيح',
   'settings.sourceControl.ssh.discover': 'البحث عن مفاتيح في ~/.ssh',

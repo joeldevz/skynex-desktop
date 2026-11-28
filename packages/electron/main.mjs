@@ -1,4 +1,7 @@
 import { canReuseManagedOpenCodePreflight } from './opencode-readiness.mjs';
+import { createDesktopProductAnalytics } from './product-analytics-runtime.mjs';
+import { isEnterpriseMode } from '@openchamber/web/server/lib/enterprise-mode.js';
+import { isPlainObject } from '@openchamber/web/server/lib/shared/guards.js';
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net as electronNet, Notification, powerMonitor, powerSaveBlocker, protocol, screen, session, shell, webContents } from 'electron';
 import contextMenu from 'electron-context-menu';
 import log from 'electron-log/main.js';
@@ -686,6 +689,51 @@ const mutateSettingsRoot = (mutator) => {
 };
 
 const writeSettingsRoot = async (root) => writeJsonFile(settingsFilePath(), root);
+
+const readAnalyticsSettings = () => {
+  try {
+    const value = JSON.parse(fs.readFileSync(settingsFilePath(), 'utf8'));
+    if (!isPlainObject(value)) throw new Error('Invalid settings');
+    return value;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return {};
+    throw error;
+  }
+};
+
+const desktopAnalyticsProjectToken = (() => {
+  try {
+    return __SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN__ ?? null;
+  } catch (error) {
+    if (error instanceof ReferenceError) return null;
+    throw error;
+  }
+})();
+let desktopAnalytics = null;
+const initializeDesktopAnalytics = (recordStartup = false) => {
+  let preference;
+  try { preference = readAnalyticsSettings().desktopProductAnalyticsEnabled; } catch { preference = false; }
+  desktopAnalytics = createDesktopProductAnalytics({
+    projectToken: desktopAnalyticsProjectToken, version: APP_VERSION, platform: process.platform, recordStartup,
+    isEnterpriseMode, readPreference: () => preference,
+    writePreference: (enabled) => mutateSettingsRoot(() => {
+      const root = readAnalyticsSettings();
+      root.desktopProductAnalyticsEnabled = enabled;
+      return root;
+    }),
+    getInstallationId: async (eligible) => {
+      let id;
+      await mutateSettingsRoot(() => {
+        const root = readAnalyticsSettings();
+        if (!eligible() || root.desktopProductAnalyticsEnabled === false) throw new Error('Analytics disabled');
+        if (root.desktopProductAnalyticsId === undefined) root.desktopProductAnalyticsId = globalThis.crypto.randomUUID();
+        id = root.desktopProductAnalyticsId;
+        return root;
+      });
+      return id;
+    },
+  });
+};
 
 // Stable per-install identifier for this desktop, persisted in settings. Used as
 // the client dedupe key on remote hosts so re-authenticating (e.g. after a login
@@ -4377,6 +4425,14 @@ const closeAllDevTunnels = () => {
 
 const handleInvoke = async (browserWindow, command, args = {}) => {
   switch (command) {
+    case 'desktop_get_product_analytics_settings':
+      return desktopAnalytics.settings();
+    case 'desktop_set_product_analytics_enabled':
+      return desktopAnalytics.setEnabled(args?.enabled);
+    case 'desktop_record_product_analytics_interaction':
+      return desktopAnalytics.recordInteraction(args?.event);
+    case 'desktop_record_product_analytics_feature':
+      return desktopAnalytics.recordFeature(args);
     case 'desktop_collect_local_diagnostics':
       {
         const ssh = collectSshBufferDiagnostics(sshManager.diagnosticLogSnapshots());
@@ -6099,6 +6155,8 @@ ipcMain.handle('openchamber:invoke', async (event, command, args) => {
   }
   const local = isLocalSender(event.sender);
   const browserWindow = BrowserWindow.fromWebContents(event.sender);
+  if ((command === 'desktop_record_product_analytics_interaction' || command === 'desktop_record_product_analytics_feature')
+    && (!local || !browserWindow || !event.senderFrame || event.senderFrame !== event.sender.mainFrame)) return false;
   const result = await handleInvoke(browserWindow, command, args);
   return !local && command === 'desktop_hosts_get' ? redactHostsConfigForRemote(result) : result;
 });
@@ -6406,6 +6464,7 @@ app.on('before-quit', (event) => {
   closeAllDevTunnels();
 
   if (state.installingUpdate) {
+    desktopAnalytics?.stop();
     return;
   }
 
@@ -6415,6 +6474,7 @@ app.on('before-quit', (event) => {
     return;
   }
 
+  desktopAnalytics?.stop();
   if (!state.backgroundShutdownComplete) {
     event.preventDefault();
     performConfirmedQuit();
@@ -6551,6 +6611,7 @@ app.whenReady().then(async () => {
 
   if (isBackgroundStart) {
     const { localOrigin, bootOutcome, apiBaseUrl, clientToken, requestHeaders } = await resolveInitialUrl();
+    if (!state.quitInProgress) initializeDesktopAnalytics();
     state.localOrigin = localOrigin;
     state.apiBaseUrl = apiBaseUrl;
     state.clientToken = clientToken;
@@ -6573,6 +6634,9 @@ app.whenReady().then(async () => {
   const { initialUrl, localOrigin, bootOutcome, apiBaseUrl, clientToken, requestHeaders } = await resolveInitialUrl({
     onPlainLocalBoot: startEarlyMainNavigation,
   });
+  if (!state.quitInProgress) {
+    initializeDesktopAnalytics(Boolean(localOrigin && apiBaseUrl === state.sidecarUrl && bootOutcome?.target !== 'remote'));
+  }
   await activateMainWindow(initialUrl, localOrigin, bootOutcome, { apiBaseUrl, clientToken, requestHeaders });
   replayDeferredAppEvents();
   scheduleCompileCacheSettle();

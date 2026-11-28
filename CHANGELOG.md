@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.12] - 2026-11-28
+
+### New
+
+- **Desktop: product analytics controls.** In official Windows and Linux builds, Settings explains which usage events Skynex shares with PostHog EU and lets you turn sharing off. Conversation content and code are excluded. Enterprise Mode blocks sharing.
+
 ## [0.1.11] - 2026-11-27
 
 ### New

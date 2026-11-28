@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "产品分析",
+  "settings.productAnalytics.label": "分享产品分析数据",
+  "settings.productAnalytics.disclosure": "配置使用分析后，应用打开、创建对话、已接受的提示词以及功能打开和使用事件会发送至 PostHog EU。每条事件都包含随机安装 ID、Skynex 版本和操作系统类型。不会发送对话内容或代码。",
+  "settings.productAnalytics.inactive": "由于缺少配置或企业策略阻止，当前未启用。您的选择会保存以供将来使用。",
   'settings.sourceControl.ssh.title': 'SSH 密钥',
   'settings.sourceControl.ssh.load': '显示密钥',
   'settings.sourceControl.ssh.discover': '在 ~/.ssh 中查找密钥',

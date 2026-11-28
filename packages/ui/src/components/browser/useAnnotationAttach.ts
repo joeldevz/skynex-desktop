@@ -2,6 +2,8 @@ import React from 'react';
 
 import { focusChatInput } from '@/components/chat/composer/editor/dom';
 import { toast } from '@/components/ui';
+import { recordDesktopFeature } from '@/lib/desktop';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useI18n } from '@/lib/i18n';
 import { useInlineCommentDraftStore } from '@/stores/useInlineCommentDraftStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
@@ -25,6 +27,7 @@ export const useAnnotationAttach = (directory: string, intro?: string) => {
   const addAttachedFile = useInputStore((state) => state.addAttachedFile);
 
   return React.useCallback(async (result: AnnotationSessionResult): Promise<void> => {
+    const runtimeKey = getRuntimeKey();
     const sessionKey = currentSessionId ?? (newSessionDraftOpen ? 'draft' : null);
     if (!sessionKey) {
       toast.error(t('contextPanel.browser.annotate.noSession'));
@@ -54,6 +57,8 @@ export const useAnnotationAttach = (directory: string, intro?: string) => {
       language: 'markdown',
       text: '',
     });
+
+    if (getRuntimeKey() === runtimeKey) recordDesktopFeature('browser', 'used');
 
     toast.success(t('contextPanel.browser.annotate.attached'));
     // Focus leaves the page for the composer so Enter sends the prompt.

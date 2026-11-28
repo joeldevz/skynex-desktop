@@ -38,12 +38,6 @@
       "name": "Android run APK",
       "command": "bun run oc-dev mobile-tools --mobile-task android-run",
       "icon": "play"
-    },
-    {
-      "id": "oc-vscode-install",
-      "name": "Install VS Code ext",
-      "command": "bun run oc-dev install-vscode-extension-local --vsix-cleanup keep",
-      "icon": "code"
     }
   ],
   "plansDir": ".opencode/plans"

@@ -24,6 +24,11 @@ only literal `$ARGUMENTS` markers and follows the normal prompt path with its
 attachments and synthetic context. The captured workspace ID scopes lookup;
 the active project or directory never selects a workspace command.
 
+Desktop prompt analytics belong to the send confirmation path. A lost response
+counts only if the server returns the submitted message in reconciliation.
+The router passes only whether the prompt requests skills; the event does not
+claim a skill executed and carries no skill names or message identifiers.
+
 General workspace retarget preparation is guarded by the draft ID and target
 revision at send and materialization. The first-session request rechecks that
 captured draft and runtime after the startup wait, before creation, after folder

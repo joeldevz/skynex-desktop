@@ -6,6 +6,10 @@ Desktop uses `dev.skynex.desktop` and Linux identifies the app as `skynex-app`. 
 
 This package owns the native shell: windows, menus, deep links, native notifications, auto-updates, host switching, SSH connections, tunnel helpers, and packaged desktop builds. The web UI and OpenChamber server logic still live in `packages/web` and shared React UI lives in `packages/ui`.
 
+Desktop product analytics is inactive in default builds. To enable it in an approved Electron build, supply the PostHog Cloud EU project ingestion token as `SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN` when bundling the main process. The token is embedded in the resulting application. Never use a private API key here. Builds with an unset or invalid token send nothing.
+
+Configured builds report local foreground launches, confirmed conversation creation, accepted prompts, and explicit feature interactions. Launch reporting waits for the login-shell policy and initial runtime to resolve. Remote and background launches do not report an opening. Web, VS Code, hosted mobile, and Capacitor do not use this sender. Conversation content and identifiers are excluded. The preference can be turned off in Settings before or after configuration. Enterprise mode blocks events and installation identifiers.
+
 ## How It Runs
 
 Desktop starts the OpenChamber web server in the same Electron main process. There is no separate sidecar subprocess for the OpenChamber server.

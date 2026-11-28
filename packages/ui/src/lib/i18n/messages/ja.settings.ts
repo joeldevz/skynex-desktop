@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "製品分析",
+  "settings.productAnalytics.label": "製品分析を共有",
+  "settings.productAnalytics.disclosure": "利用状況分析を設定すると、アプリの起動、会話の作成、受け付けたプロンプト、機能の起動と使用を PostHog EU に送信します。各イベントには、ランダムなインストール ID、Skynex のバージョン、OS の種類が含まれます。会話の内容やコードは送信しません。",
+  "settings.productAnalytics.inactive": "設定がないか企業ポリシーでブロックされているため無効です。設定は将来に備えて保存されます。",
   'settings.sourceControl.ssh.title': 'SSH キー',
   'settings.sourceControl.ssh.load': 'キーを表示',
   'settings.sourceControl.ssh.discover': '~/.ssh でキーを探す',

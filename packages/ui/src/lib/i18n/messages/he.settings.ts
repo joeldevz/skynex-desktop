@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "ניתוח מוצר",
+  "settings.productAnalytics.label": "שיתוף נתוני ניתוח מוצר",
+  "settings.productAnalytics.disclosure": "כאשר ניתוח השימוש מוגדר, פתיחות האפליקציה, יצירת שיחות, פרומפטים שהתקבלו ופתיחה ושימוש בתכונות נשלחים אל PostHog EU. כל אירוע כולל מזהה התקנה אקראי, את גרסת Skynex ואת משפחת מערכת ההפעלה. תוכן השיחות והקוד אינם נשלחים.",
+  "settings.productAnalytics.inactive": "לא פעיל כי חסרה הגדרה או שמדיניות הארגון חוסמת זאת. ההעדפה נשמרת לעתיד.",
   'settings.sourceControl.ssh.title': 'מפתחות SSH',
   'settings.sourceControl.ssh.load': 'הצג מפתחות',
   'settings.sourceControl.ssh.discover': 'חפש מפתחות ב-~/.ssh',

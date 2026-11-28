@@ -48,6 +48,14 @@ export const shortcutSearchItemId = (actionId: string): string => `shortcuts.act
 
 const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
   {
+    id: 'general.product-analytics',
+    page: 'general',
+    titleKey: 'settings.productAnalytics.label',
+    descriptionKey: 'settings.productAnalytics.disclosure',
+    keywords: ['analytics', 'telemetry', 'privacy', 'posthog'],
+    isAvailable: (ctx) => ctx.isDesktop && ctx.isDesktopLocalOrigin && !ctx.isVSCode,
+  },
+  {
     id: 'chat.activity-default',
     page: 'chat',
     titleKey: 'settings.openchamber.visual.section.activityDefault',

@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Produktanalyse",
+  "settings.productAnalytics.label": "Produktanalyse teilen",
+  "settings.productAnalytics.disclosure": "Wenn die Nutzungsanalyse eingerichtet ist, werden App-Starts, das Erstellen von Gesprächen, angenommene Prompts sowie das Öffnen und Nutzen von Funktionen an PostHog EU gesendet. Jedes Ereignis enthält eine zufällige Installationskennung, die Skynex-Version und die Betriebssystemfamilie. Gesprächsinhalte und Code werden nicht gesendet.",
+  "settings.productAnalytics.inactive": "Inaktiv, da die Konfiguration fehlt oder eine Unternehmensrichtlinie die Erfassung blockiert. Die Einstellung bleibt gespeichert.",
   'settings.sourceControl.ssh.title': 'SSH-Schlüssel',
   'settings.sourceControl.ssh.load': 'Schlüssel anzeigen',
   'settings.sourceControl.ssh.discover': 'Schlüssel in ~/.ssh suchen',

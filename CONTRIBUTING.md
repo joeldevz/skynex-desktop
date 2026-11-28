@@ -103,7 +103,6 @@ No standalone app server. This is a source-level library used by Web and Desktop
 Useful package commands:
 
 ```bash
-bun run build:ui
 bun run type-check:ui
 bun run lint:ui
 ```
@@ -112,9 +111,9 @@ bun run lint:ui
 
 | Command | What it does |
 |---------|--------------|
-| `bun run build` | Build all workspaces |
+| `bun run build` | Build workspace artifacts and prepare mobile web assets. Run `bun run type-check` separately. |
 | `bun run build:web` | Build only `packages/web` |
-| `bun run build:ui` | Build only `packages/ui` |
+| `bun run build:ui` | Alias for `bun run type-check:ui`. Shared UI is bundled from source by the web build. |
 | `bun run build:electron` | Run Electron package build script without full packaging |
 | `bun run electron:build` | Build packaged desktop app for the current OS |
 | `bun run pack:web` | Create a package archive for `@openchamber/web` |
