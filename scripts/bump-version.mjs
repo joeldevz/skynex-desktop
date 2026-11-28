@@ -15,7 +15,6 @@ export const RELEASE_PACKAGE_FILES = [
   'packages/web/package.json',
   'packages/sdk/package.json',
   'packages/electron/package.json',
-  'packages/vscode/package.json',
 ];
 
 const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

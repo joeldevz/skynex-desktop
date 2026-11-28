@@ -36,7 +36,7 @@ Write mode: the OpenChamber text people read, from product docs, READMEs, and re
 - Repository text is in English unless the task names another language (a translation, a reply to someone writing in Ukrainian).
 - Text for people describes what they see and do. Internal names, file paths, and mechanisms appear only in text written for developers.
 - Never name other apps used as references.
-- Edit only the text files the task is about. Code, configs, and generated changelogs (`CHANGELOG.md`, `packages/vscode/CHANGELOG.md`, `changelog/index.json`) stay untouched.
+- Edit only the text files the task is about. Code, configs, and generated changelogs (`CHANGELOG.md`, `changelog/index.json`) stay untouched.
 - Publishing is the maintainer's: you never post, comment, push, or send.
 
 ## Report

@@ -6,7 +6,7 @@ Skynex is a fork of [OpenChamber](https://github.com/openchamber/openchamber). U
 
 ## Run agent work. Keep control. Ship from anywhere.
 
-Skynex is an open-source workspace for running and reviewing AI coding work on desktop, web, VS Code, and mobile.
+Skynex is an open-source workspace for running and reviewing AI coding work on desktop, web, and mobile.
 
 Start agent work, see what changed, and take it through review and release. Your projects and sessions remain available when you switch devices or step away.
 
@@ -34,7 +34,7 @@ Start a session from a GitHub issue or pull request with its context attached. S
 
 ### Continue on another device
 
-Open the same projects and sessions from Desktop, Web/PWA, VS Code, iOS, or Android. Check progress, answer questions, review changes, and reattach to a running terminal.
+Open the same projects and sessions from Desktop, Web/PWA, iOS, or Android. Check progress, answer questions, review changes, and reattach to a running terminal.
 
 ### Private remote access
 
@@ -54,7 +54,6 @@ Run a prompt once, daily, weekly, or on a cron schedule. Scheduled tasks can use
 | --- | --- |
 | **Desktop** | The complete workspace for macOS, Windows, and Linux, with multiple windows, Mini Chat, remote machines, SSH, and native notifications |
 | **Web / PWA** | Open your workspace in a browser, install it as an app, and stay up to date through background notifications |
-| **VS Code** | Keep sessions beside your code, send selections to the agent, open results in the editor, and compare parallel runs |
 | **iOS / Android** | Review and steer work away from your desk, receive completion alerts, and use the terminal with touch controls |
 | **CLI / Server** | Run Skynex on a workstation or server, schedule work, manage remote access, and keep it available after login |
 
@@ -79,10 +78,6 @@ chmod +x Skynex-*.AppImage
 ```
 
 Linux AppImages require FUSE (`libfuse.so.2`). Without FUSE, run with `APPIMAGE_EXTRACT_AND_RUN=1`.
-
-### VS Code
-
-The [OpenChamber extension](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber) is maintained by upstream. Skynex does not publish to that listing.
 
 ### CLI for Web and PWA
 

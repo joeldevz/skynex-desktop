@@ -42,7 +42,6 @@ const at = (...parts) => join(repoRoot, ...parts);
 
 const ELECTRON_ICONS = at('packages/electron/resources/icons');
 const WEB_PUBLIC = at('packages/web/public');
-const VSCODE_ASSETS = at('packages/vscode/assets');
 const ANDROID_RES = at('packages/mobile/android/app/src/main/res');
 const MOBILE_ASSETS = at('packages/mobile/assets');
 
@@ -63,7 +62,6 @@ const flatLogoInlineMarkup = () => `<style>.skynex-logo-still{display:none}@medi
 const INLINE_LOGO_FILES = [
   'packages/web/index.html',
   'packages/electron/early-startup.mjs',
-  'packages/vscode/src/webviewHtml.ts',
   'packages/web/server/lib/opencode/static-routes-runtime.js',
 ];
 
@@ -144,9 +142,6 @@ const textOutputs = () => {
     [join(WEB_PUBLIC, 'logo-light-512x512.svg'), flatLogoSvg({ color: '#100f0f' })],
     [at('docs/references/badges/openchamber-logo-dark.svg'), flatLogoSvg({ color: '#f5f5f7', size: 100 })],
     [at('docs/references/badges/openchamber-logo-light.svg'), flatLogoSvg({ color: '#100f0f', size: 100 })],
-    [join(VSCODE_ASSETS, 'icon.svg'), glyphSvg({ size: 24, color: 'currentColor' })],
-    [join(VSCODE_ASSETS, 'icon-titlebar.svg'), glyphSvg({ size: 24, color: '#73C991' })],
-    [join(VSCODE_ASSETS, 'icon-scm-titlebar.svg'), glyphSvg({ size: 24, color: '#C5C5C5' })],
     [join(ANDROID_RES, 'drawable/ic_stat_notify.xml'), androidNotificationVector()],
     [join(ANDROID_RES, 'values/ic_launcher_background.xml'), androidBackgroundColor()],
     [at('packages/ui/src/components/ui/openChamberLogoArt.ts'), flatLogoArtModule()],
@@ -210,9 +205,6 @@ const imageOutputs = async () => {
   put(join(WEB_PUBLIC, 'logo-dark-192x192.png'), await svgToPng(flatLogoSvg({ color: '#f5f5f7' }), 192));
   put(join(WEB_PUBLIC, 'logo-light-192x192.png'), await svgToPng(flatLogoSvg({ color: '#100f0f' }), 192));
   put(at('docs/references/badges/openchamber-logo-dark.png'), await svgToPng(flatLogoSvg({ color: '#f5f5f7' }), 512));
-
-  // VS Code Marketplace and chat avatar.
-  put(join(VSCODE_ASSETS, 'app-icon.png'), await svgToPng(noTile, 512));
 
   // Android launcher: the cube on black. The adaptive foreground is inset by
   // the launcher XML; the legacy and round icons are complete pictures.
