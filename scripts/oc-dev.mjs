@@ -24,7 +24,7 @@
  * prompts for safety.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,8 +59,6 @@ Actions:
   start-electron-app               Start Electron app in dev mode
   prepare-opencode-cli             Download/cache bundled OpenCode CLI for Electron
   build-electron-app               Build Electron app artifacts
-  start-vscode-extension           Build + launch VS Code extension host
-  install-vscode-extension-local   Build, package, and install local VSIX
   create-release                   Validate and bump release version
 
 Options:
@@ -72,7 +70,6 @@ Options:
   --mobile-mode <ios-sim-local|ios-sim-lan|android-local|android-lan>
   --mobile-task <task>
   --adb-address <host:port>        Wireless ADB address for android-connect
-  --vsix-cleanup <delete|keep>
   --version <semver>
   --opencode-config-dir <path>     OpenCode config directory for the started Electron app
                                    (OPENCODE_CONFIG_DIR); lets a v2 checkout run beside a v1
@@ -126,9 +123,6 @@ function parseArgs(argv) {
       case '--adb-address':
         options.adbAddress = readValue();
         break;
-      case '--vsix-cleanup':
-        options.vsixCleanup = readValue();
-        break;
       case '--version':
         options.version = readValue();
         break;
@@ -176,13 +170,6 @@ function run(command, args, options = {}) {
   return result.stdout?.trim() || '';
 }
 
-// VS Code's `code` is a .cmd shim on Windows, and Node spawns those only
-// through a shell, which then needs each argument quoted.
-function runCode(args, options = {}) {
-  if (process.platform !== 'win32') return run('code', args, options);
-  return run('code', args.map((arg) => `"${arg}"`), { ...options, shell: true, label: options.label || ['code', ...args].join(' ') });
-}
-
 function step(label, fn) {
   log.step(label);
   const result = fn();
@@ -193,7 +180,7 @@ function step(label, fn) {
 // The release notes source plus the files generated from it; all go into the release commit.
 // CHANGELOG.md is legacy (older installs read it for update notes); it is
 // refreshed only while it exists.
-const RELEASE_CHANGELOG_FILES = ['changelog', 'packages/vscode/CHANGELOG.md', ...(existsSync(path.join(repoRoot, 'CHANGELOG.md')) ? ['CHANGELOG.md'] : [])];
+const RELEASE_CHANGELOG_FILES = ['changelog', ...(existsSync(path.join(repoRoot, 'CHANGELOG.md')) ? ['CHANGELOG.md'] : [])];
 
 function printReleaseNextSteps(version) {
   log.success(`Release v${version} prepared locally`);
@@ -221,8 +208,6 @@ function normalizeAction(action = '') {
     'opencode-cli': 'prepare-opencode-cli',
     'electron-opencode-cli': 'prepare-opencode-cli',
     'electron-build': 'build-electron-app',
-    'vscode-dev': 'start-vscode-extension',
-    'vscode-install-local': 'install-vscode-extension-local',
     release: 'create-release',
   };
   return aliases[normalized] || normalized;
@@ -273,14 +258,6 @@ function detectLanIp() {
     }
   }
   return '';
-}
-
-function removeFilesByPrefixSuffix(directory, prefix, suffix) {
-  if (!existsSync(directory)) return;
-  for (const entry of readdirSync(directory)) {
-    if (!entry.startsWith(prefix) || !entry.endsWith(suffix)) continue;
-    unlinkSync(path.join(directory, entry));
-  }
 }
 
 function latestFileByExtensions(directory, extensions) {
@@ -655,40 +632,6 @@ function buildElectronApp() {
   if (artifact) run('open', [artifact]);
 }
 
-function startVsCodeExtension() {
-  const vscodeDir = path.join(repoRoot, 'packages/vscode');
-  removeFilesByPrefixSuffix(vscodeDir, 'openchamber-', '.vsix');
-  step('Building VS Code extension', () => run('bun', ['run', 'vscode:build']));
-  runCode(['--extensionDevelopmentPath', vscodeDir]);
-}
-
-async function installVsCodeExtensionLocal(options) {
-  let cleanup = options.vsixCleanup;
-  if (!cleanup && isTty) {
-    cleanup = await chooseValue('', [
-      { value: 'delete', label: 'Delete VSIX after install' },
-      { value: 'keep', label: 'Keep VSIX after install' },
-    ], 'Select VSIX cleanup mode');
-  }
-  cleanup ||= 'delete';
-  if (!['delete', 'keep'].includes(cleanup)) throw new Error('Invalid --vsix-cleanup. Use delete or keep.');
-
-  const vscodeDir = path.join(repoRoot, 'packages/vscode');
-  step('Building VS Code extension', () => run('bun', ['run', '--cwd', 'packages/vscode', 'build']));
-  step('Removing found VSIX package(s) before install flow', () => removeFilesByPrefixSuffix(vscodeDir, 'openchamber-', '.vsix'));
-  step('Packaging VSIX', () => run('bun', ['x', 'vsce', 'package', '--no-dependencies'], { cwd: vscodeDir }));
-  step('Installing VSIX locally', () => {
-    runCode(['--uninstall-extension', 'fedaykindev.openchamber'], { label: 'uninstall old extension', allowFail: true });
-    // Found here rather than by a shell glob, which cmd.exe does not expand.
-    const vsix = readdirSync(vscodeDir).find((name) => name.startsWith('openchamber-') && name.endsWith('.vsix'));
-    if (!vsix) throw new Error('vsce package did not produce an openchamber-*.vsix');
-    runCode(['--install-extension', path.join(vscodeDir, vsix)], { label: 'install VSIX' });
-  });
-  if (cleanup === 'delete') {
-    step('Removing local VSIX package(s) after install', () => removeFilesByPrefixSuffix(vscodeDir, 'openchamber-', '.vsix'));
-  }
-}
-
 async function createRelease(options) {
   if (!options.config?.features?.releaseTools) {
     throw new Error(`Release tools are disabled. Set features.releaseTools=true in ${configPath} to enable this maintainer task.`);
@@ -721,8 +664,6 @@ async function chooseAction(config) {
     { value: 'start-electron-app', label: 'Start Electron app' },
     { value: 'prepare-opencode-cli', label: 'Prepare bundled OpenCode CLI' },
     { value: 'build-electron-app', label: 'Build Electron app' },
-    { value: 'start-vscode-extension', label: 'Start VS Code extension' },
-    { value: 'install-vscode-extension-local', label: 'Install VS Code extension locally' },
   ];
 
   if (config.features?.releaseTools) {
@@ -771,12 +712,6 @@ async function main() {
       break;
     case 'build-electron-app':
       buildElectronApp();
-      break;
-    case 'start-vscode-extension':
-      startVsCodeExtension();
-      break;
-    case 'install-vscode-extension-local':
-      await installVsCodeExtensionLocal(options);
       break;
     case 'create-release':
       options.config = config;

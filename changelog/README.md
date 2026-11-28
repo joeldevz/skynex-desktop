@@ -1,6 +1,6 @@
 # Release notes source
 
-One file per release, plus `unreleased.md` for what has not shipped. At release time `oc-dev create-release` turns `unreleased.md` into `<version>.md` with today's date and renders `packages/vscode/CHANGELOG.md` (extension, shown by the Marketplace as is) and `index.json` (website and the app's update dialog) from the released files. Edit the files here; the generated ones are overwritten and hold released versions only, so editing `unreleased.md` never leaves them stale.
+One file per release, plus `unreleased.md` for what has not shipped. At release time `oc-dev create-release` turns `unreleased.md` into `<version>.md` with today's date and renders `index.json` (website and the app's update dialog) from the released files. Edit the files here; the generated ones are overwritten and hold released versions only, so editing `unreleased.md` never leaves them stale.
 
 ```markdown
 ---
@@ -34,7 +34,7 @@ Optional intro paragraph shown above the groups.
 - Only what the extension actually mounts. Written separately, on purpose.
 ```
 
-Groups may appear in any order in a source file; the generator emits them as New, Improvements, Fixes, SDK, Misc and drops empty ones. The JSON index includes `sdk` only when it has entries, preserving the shape of older releases. A release without a `## VS Code` section is absent from the extension changelog. Every release needs a `title`; `unreleased.md` carries only the `title` line in its front matter and gets `version` and `date` at release time.
+Groups may appear in any order in a source file; the generator emits them as New, Improvements, Fixes, SDK, Misc and drops empty ones. The JSON index includes `sdk` only when it has entries, preserving the shape of older releases. A release without a `## VS Code` section carries no VS Code notes; the section is kept for releases that shipped the extension. Every release needs a `title`; `unreleased.md` carries only the `title` line in its front matter and gets `version` and `date` at release time.
 
 `bun run changelog:check` validates every source file and fails when a generated file is behind the released sources; CI runs it. It writes nothing.
 
