@@ -7301,6 +7301,26 @@
     "vscode": null
   },
   {
+    "version": "0.1.13",
+    "date": "2026-11-28",
+    "title": "Faster Skynex builds",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": [
+        "Building Skynex from source is faster. Skynex no longer builds or maintains a VS Code extension."
+      ]
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
+      "misc": []
+    }
+  },
+  {
     "version": "0.1.12",
     "date": "2026-11-28",
     "title": "Desktop analytics controls",

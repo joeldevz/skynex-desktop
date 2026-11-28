@@ -4313,6 +4313,12 @@
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
 - Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
 
+## [0.1.13] - 2026-11-28
+
+### Misc
+
+- Building Skynex from source is faster. Skynex no longer builds or maintains a VS Code extension.
+
 ## [0.1.12] - 2026-11-28
 
 ### New
