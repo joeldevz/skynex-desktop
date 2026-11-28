@@ -2,7 +2,7 @@
 
 ## Purpose
 
-OpenChamber provides shared web, desktop, VS Code, hosted-mobile, and native-mobile UI surfaces for OpenCode.
+OpenChamber provides shared web, desktop, hosted-mobile, and native-mobile UI surfaces for OpenCode.
 
 This file contains only always-on repository rules and routing. Detailed workflows belong to project skills and module documentation.
 
@@ -26,7 +26,6 @@ Do not start editing before every matching skill and required reference is read.
 - `packages/ui`: shared React UI, state, sync, and runtime contracts.
 - `packages/web`: web surfaces, OpenChamber server, managed/external OpenCode lifecycle, and CLI.
 - `packages/electron`: native desktop shell and privileged Electron boundary.
-- `packages/vscode`: extension host, webview, and runtime bridge.
 - `packages/mobile`: Capacitor iOS/Android shell; bundles the mobile web surface and connects to an existing OpenChamber server.
 - `packages/docs`: product documentation; not a Bun workspace.
 - `packages/sdk`: guest contract for third-party panels. Manifest parse, iframe envelope, `connectHost`. Host and guest import from here; do not copy these types into `packages/ui`.
@@ -36,7 +35,7 @@ Shared UI calls official OpenCode APIs through `@opencode/client` (OpenCode 2.x)
 
 Electron starts the OpenChamber backend in-process, never as a sidecar. Development may load loopback/HMR UI; packaged builds load staged assets through `openchamber-ui://` while the loopback server remains the API backend. Keep domain backends in web/runtime modules unless behavior is inherently native.
 
-Shared contracts must define intentional behavior for every applicable runtime: web, desktop, VS Code, hosted mobile, and Capacitor mobile.
+Shared contracts must define intentional behavior for every applicable runtime: web, desktop, hosted mobile, and Capacitor mobile.
 
 ## Always-On Constraints
 

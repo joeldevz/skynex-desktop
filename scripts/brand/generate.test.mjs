@@ -63,7 +63,6 @@ test('ribbon geometry and discrete opacity entrance come from the supplied sourc
   for (const file of [
     'packages/web/index.html',
     'packages/electron/early-startup.mjs',
-    'packages/vscode/src/webviewHtml.ts',
     'packages/web/server/lib/opencode/static-routes-runtime.js',
   ]) {
     const markup = readFileSync(file, 'utf8').split('<!-- brand:flat-logo:start -->')[1]?.split('<!-- brand:flat-logo:end -->')[0];

@@ -23,11 +23,9 @@ test('manifests combine after partial build failures while publication stays str
   );
 });
 
-test('VS Code extension publication runs only in the upstream repository', () => {
+test('the repository does not publish a VS Code extension', () => {
   const extensionWorkflowPath = fileURLToPath(new URL('../.github/workflows/vscode-extension.yml', import.meta.url));
-  const extensionWorkflow = yaml.parse(fs.readFileSync(extensionWorkflowPath, 'utf8'));
-
-  assert.equal(extensionWorkflow.jobs.publish.if, "${{ github.repository == 'openchamber/openchamber' }}");
+  assert.equal(fs.existsSync(extensionWorkflowPath), false);
 });
 
 test('Skynex release uploads have write access while build-only jobs stay read-only', () => {

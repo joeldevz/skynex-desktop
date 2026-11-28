@@ -1,8 +1,7 @@
 // Source of truth for release notes: one Markdown file per release under
 // `changelog/`, plus `changelog/unreleased.md` for what is not shipped yet.
 // This module parses those files, validates their shape, and renders the
-// generated outputs: `packages/vscode/CHANGELOG.md` (extension, read by the
-// Marketplace as is) and `changelog/index.json` (website and update dialog).
+// generated output: `changelog/index.json` (website and update dialog).
 // Only released versions are rendered; `unreleased.md` is read straight from
 // the source by whoever needs it, so editing it never makes an output stale.
 //
@@ -177,10 +176,6 @@ const renderSection = (release, groups, intro) => {
 export const renderAppChangelog = ({ releases }) =>
   `# Changelog\n\n${LEGACY_BANNER}\n\n${releases.map((release) => renderSection(release, release.app, release.intro)).join('\n')}`;
 
-/** `packages/vscode/CHANGELOG.md`: only releases that carry a VS Code section. */
-export const renderVsCodeChangelog = ({ releases }) =>
-  releases.filter((release) => release.vscode).map((release) => renderSection(release, release.vscode, [])).join('\n');
-
 /** GitHub Release body for one release: intro and groups, no version header. */
 export const renderReleaseNotes = (release) => {
   const parts = [];
@@ -218,7 +213,6 @@ export const renderIndex = ({ releases }) => `${JSON.stringify(releases.map((rel
 export const renderOutputs = (loaded, { legacyAppChangelog = false } = {}) => {
   const outputs = {};
   if (legacyAppChangelog) outputs['CHANGELOG.md'] = renderAppChangelog(loaded);
-  outputs['packages/vscode/CHANGELOG.md'] = renderVsCodeChangelog(loaded);
   outputs['changelog/index.json'] = renderIndex(loaded);
   return outputs;
 };

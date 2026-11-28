@@ -96,26 +96,13 @@ Linux builds produce an AppImage, a `.deb` and an `.rpm` for the native x64 or a
 
 For desktop-specific details, see [`packages/electron/README.md`](./packages/electron/README.md).
 
-### VS Code Extension
-
-```bash
-bun run vscode:dev      # Watch mode + Extension Development Host
-bun run vscode:build    # Build extension + webview
-bun run vscode:package  # Create a local .vsix package
-```
-
-`bun run vscode:dev` opens an Extension Development Host automatically. You can override the editor or workspace with `OPENCHAMBER_VSCODE_BIN` and `OPENCHAMBER_VSCODE_DEV_WORKSPACE`.
-
-Example: `OPENCHAMBER_VSCODE_BIN=cursor bun run vscode:dev`.
-
 ### Shared UI (`packages/ui`)
 
-No standalone app server. This is a source-level library used by Web, Desktop, and VS Code.
+No standalone app server. This is a source-level library used by Web and Desktop.
 
 Useful package commands:
 
 ```bash
-bun run build:ui
 bun run type-check:ui
 bun run lint:ui
 ```
@@ -124,13 +111,11 @@ bun run lint:ui
 
 | Command | What it does |
 |---------|--------------|
-| `bun run build` | Build all workspaces |
+| `bun run build` | Build workspace artifacts and prepare mobile web assets. Run `bun run type-check` separately. |
 | `bun run build:web` | Build only `packages/web` |
-| `bun run build:ui` | Build only `packages/ui` |
+| `bun run build:ui` | Alias for `bun run type-check:ui`. Shared UI is bundled from source by the web build. |
 | `bun run build:electron` | Run Electron package build script without full packaging |
 | `bun run electron:build` | Build packaged desktop app for the current OS |
-| `bun run vscode:build` | Build the VS Code extension |
-| `bun run vscode:package` | Package the VS Code extension as `.vsix` |
 | `bun run pack:web` | Create a package archive for `@openchamber/web` |
 
 ## Platform Build Notes
@@ -172,8 +157,8 @@ bun run test         # Must pass
 bun run build        # Must succeed
 ```
 
-`bun run test` runs every suite in the repository: shared UI, VS Code, Electron,
-web/server, and the root scripts. The UI, VS Code, and Electron suites keep
+`bun run test` runs every suite in the repository: shared UI, Electron,
+web/server, and the root scripts. The UI and Electron suites keep
 module-level singletons, so `scripts/run-isolated-tests.mjs` gives each test file
 its own process instead of letting load order decide the result. Run a single
 file directly while iterating (`bun test <file>`).
@@ -231,7 +216,7 @@ Every pull request must explain:
   a line.
 - **Affected surfaces:** packages, persisted/external contracts, and
   user-visible states affected by the change, plus one line per runtime (web,
-  desktop, VS Code, hosted mobile, Capacitor mobile) saying what the change
+  desktop, hosted mobile, Capacitor mobile) saying what the change
   does there. "Not applicable" is an answer; a blank row is not. Write that
   list while deciding what to build, not after: it is the same list the pull
   request template asks for.
@@ -243,7 +228,7 @@ Every pull request must explain:
   This is in addition to any screenshot, recording, or measurement the change
   needs, never instead of one: a screenshot shows what a surface looks like,
   a live run says a person reached it in a running build.
-  Name the runtime you used (web, desktop, VS Code, hosted mobile, or Capacitor
+  Name the runtime you used (web, desktop, hosted mobile, or Capacitor
   mobile), the operating system, and what you saw. Reading the diff, passing
   types, and green CI are not a live run. If you genuinely cannot run it, say
   so and explain why; an honest gap is reviewable, a claim we later find hollow
@@ -358,7 +343,6 @@ packages/
   ui/        Shared React components, hooks, stores, and theme system
   web/       Web server (Express) + frontend (Vite) + CLI
   electron/  Electron desktop shell
-  vscode/    VS Code extension (extension host + webview)
 ```
 
 See [AGENTS.md](./AGENTS.md) for detailed architecture reference.

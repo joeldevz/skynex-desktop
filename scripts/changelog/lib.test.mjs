@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { loadReleases, parseRelease, promoteUnreleased, renderAppChangelog, renderIndex, renderOutputs, renderReleaseNotes, renderVsCodeChangelog } from './lib.mjs';
+import { loadReleases, parseRelease, promoteUnreleased, renderAppChangelog, renderIndex, renderOutputs, renderReleaseNotes } from './lib.mjs';
 
 const release = `---
 version: 1.2.3
@@ -78,13 +78,6 @@ A short intro.
 `);
   assert.equal(app.includes('Unreleased'), false);
 
-  assert.equal(renderVsCodeChangelog(loaded), `## [1.2.3] - 2026-01-31
-
-### New
-
-- Comments on code.
-`);
-
   assert.equal(renderReleaseNotes(loaded.releases[1]), `A short intro.
 
 ### New
@@ -103,8 +96,8 @@ A short intro.
   assert.deepEqual(index[1].vscode, { new: ['Comments on code.'], improvements: [], fixes: [], misc: [] });
   assert.equal(index[0].vscode, null);
 
-  assert.deepEqual(Object.keys(renderOutputs(loaded)), ['packages/vscode/CHANGELOG.md', 'changelog/index.json']);
-  assert.deepEqual(Object.keys(renderOutputs(loaded, { legacyAppChangelog: true })), ['CHANGELOG.md', 'packages/vscode/CHANGELOG.md', 'changelog/index.json']);
+  assert.deepEqual(Object.keys(renderOutputs(loaded)), ['changelog/index.json']);
+  assert.deepEqual(Object.keys(renderOutputs(loaded, { legacyAppChangelog: true })), ['CHANGELOG.md', 'changelog/index.json']);
 });
 
 test('SDK notes survive Markdown and JSON rendering between Fixes and Misc', () => {
@@ -130,7 +123,6 @@ test('SDK notes survive Markdown and JSON rendering between Fixes and Misc', () 
 
   assert.ok(renderReleaseNotes(parsed).includes(expected));
   assert.ok(renderAppChangelog(loaded).includes(expected));
-  assert.ok(!renderVsCodeChangelog(loaded).includes('### SDK'));
   const [entry] = JSON.parse(renderIndex(loaded));
   assert.deepEqual(entry.app.sdk, ['Actions: use `host.onAction` for background work.']);
   assert.deepEqual(Object.keys(entry.app), ['new', 'improvements', 'fixes', 'sdk', 'misc']);

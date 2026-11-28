@@ -6,7 +6,6 @@
   "main": "src/main.tsx",
   "scripts": {
     "dev": "tsc -b --watch",
-    "build": "tsc -b",
     "build:ghostty-wasm": "bash scripts/build-libghostty-wasm.sh",
     "type-check": "tsc -b",
     "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
