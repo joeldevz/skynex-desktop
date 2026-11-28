@@ -36,6 +36,7 @@ const { usePluginsStore } = await import('@/stores/usePluginsStore');
 const { useSkillsStore } = await import('@/stores/useSkillsStore');
 const { useDirectoryStore } = await import('@/stores/useDirectoryStore');
 const { IntegrationsCatalogView } = await import('./IntegrationsCatalogView');
+const { SidebarPageButtons } = await import('@/components/session/sidebar/shell/SidebarHeader');
 const initialUI = useUIStore.getState();
 const initialMcpConfig = useMcpConfigStore.getState();
 const initialMcp = useMcpStore.getState();
@@ -192,6 +193,36 @@ test('the catalog flag follows the mutually exclusive full-page surface contract
   useUIStore.getState().setIntegrationsCatalogOpen(false);
   expect(useUIStore.getState().isIntegrationsCatalogOpen).toBe(false);
   expect(useUIStore.getState().isUsageStatsPageOpen).toBe(false);
+});
+
+test('explicit catalog and whiteboard page openings record once; closing records nothing', async () => {
+  const calls: Array<{ feature: string; action: string }> = [];
+  const globals = {
+    __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+    __OPENCHAMBER_LOCAL_ORIGIN__: 'http://localhost',
+    __OPENCHAMBER_API_BASE_URL__: 'http://localhost',
+    __OPENCHAMBER_DESKTOP__: { invoke: async (command: string, args: typeof calls[number]) => {
+      if (command === 'desktop_record_product_analytics_feature') calls.push(args);
+      return null;
+    } },
+  };
+  Object.assign(browser, globals);
+  useUIStore.setState({ isIntegrationsCatalogOpen: false, whiteboardsEnabled: true });
+  try {
+    await act(async () => root.render(<I18nProvider><SidebarPageButtons showSourceBoard={false} buttonClassName="" iconClassName="" /></I18nProvider>));
+    expect(calls).toEqual([]);
+    for (const [index, feature] of ['integrations', 'whiteboards'].entries()) {
+      const button = document.querySelectorAll('button')[index];
+      if (!button) throw new Error(`Expected ${feature} button`);
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('false');
+    }
+    expect(calls).toEqual([{ feature: 'integrations', action: 'opened' }, { feature: 'whiteboards', action: 'opened' }]);
+  } finally {
+    for (const key of Object.keys(globals)) Reflect.deleteProperty(browser, key);
+  }
 });
 
 test('a needs-auth server shows the sign-in state on its detail page', async () => {

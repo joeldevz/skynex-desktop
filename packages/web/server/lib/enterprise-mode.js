@@ -45,6 +45,8 @@ import { z } from 'zod';
  *   `dictation`).
  * - Push notifications carry no message text or session name (`notifications`).
  * - Update checks still run but never report usage (`package-manager.js`).
+ * - Desktop product analytics sends no events or installation identifier
+ *   (`packages/electron` product analytics runtime).
  * - Environment variables from Settings and `opencode service set env` do
  *   not reach the managed OpenCode: one could carry a provider key
  *   (`environment/runtime.js`). Git, the terminal and exec still get them.

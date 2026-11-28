@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const updaterE2eBuild = process.env.OPENCHAMBER_UPDATER_E2E_BUILD === '1';
+const analyticsProjectToken = process.env.SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN?.trim() || null;
 
 const result = await Bun.build({
   entrypoints: [
@@ -48,6 +49,7 @@ const result = await Bun.build({
   naming: '[name].mjs',
   define: {
     __OPENCHAMBER_UPDATER_E2E_BUILD__: updaterE2eBuild ? 'true' : 'false',
+    __SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN__: JSON.stringify(analyticsProjectToken),
   },
 });
 

@@ -52,6 +52,7 @@ import { normalizeContextPanelDirectoryKey, useUIStore } from '@/stores/useUISto
 import { useGuestSurfaces } from '@/hooks/useGuestSurfaces';
 import { useGuestBadgeStore } from '@/lib/guests/badge-store';
 import { isPluginContextPanelMode, pluginIdFromMode } from '@/lib/surfaces/modes';
+import { recordDesktopFeature } from '@/lib/desktop';
 import { shownContextModes, zoneOfMode } from '@/lib/workspace/zones';
 import { ContextRailSurfacesDialog } from './ContextRailSurfacesDialog';
 import { ContextRailTooltipDetails, ContextUsageRingIcon } from './ContextRailUsage';
@@ -489,6 +490,9 @@ export const ContextPanelRail: React.FC = () => {
                 orderNumber={index + 1}
                 showOrderNumber={revealNumbers}
                 onSelect={(selected) => {
+                  if (!shownModes.has(selected.mode) && (selected.mode === 'terminal' || selected.mode === 'browser' || selected.mode === 'whiteboard')) {
+                    recordDesktopFeature(selected.mode === 'whiteboard' ? 'whiteboards' : selected.mode, 'opened');
+                  }
                   if (isPluginContextPanelMode(selected.mode)) clearGuestBadge(pluginIdFromMode(selected.mode));
                   openContextSurface(directoryKey, selected.mode);
                 }}

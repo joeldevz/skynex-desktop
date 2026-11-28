@@ -3,6 +3,7 @@ import { useSessionTurnActivity } from '@/sync/global-session-status';
 import { getSessionActivityTime } from '@/sync/session-ordering';
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import type { Session } from '@/lib/opencode/model';
+import { recordDesktopFeature } from '@/lib/desktop';
 
 import {
   DropdownMenu,
@@ -255,6 +256,7 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
     }
     const directory = resolveGlobalSessionDirectory(session);
     setCurrentSession(session.id, directory ?? null);
+    if (useSessionUIStore.getState().currentSessionId === session.id) recordDesktopFeature('chat', 'opened');
     closeDropdown();
   }, [closeDropdown, isActive, session, setCurrentSession]);
 

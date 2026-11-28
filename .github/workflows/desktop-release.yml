@@ -79,6 +79,16 @@ jobs:
           title=$(node scripts/changelog/release-notes.mjs "$VERSION" artifacts/release-notes.md)
           echo "name=Skynex v$VERSION: $title" >> "$GITHUB_OUTPUT"
 
+      - name: Validate PostHog project token
+        shell: bash
+        env:
+          SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN: ${{ secrets.SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN }}
+        run: |
+          if [[ ! "$SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN" =~ ^phc_[A-Za-z0-9]{20,128}$ ]]; then
+            echo 'Set SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN to a PostHog Cloud EU project token before releasing.' >&2
+            exit 1
+          fi
+
       - name: Create draft GitHub release
         id: create_release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -138,6 +148,8 @@ jobs:
           bun run prepare:ripgrep
       - name: Bundle main process
         working-directory: packages/electron
+        env:
+          SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN: ${{ secrets.SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN }}
         run: bun run bundle:main
       - name: Rebuild native modules
         working-directory: packages/electron
@@ -214,7 +226,7 @@ jobs:
           path: packages/electron/.cache/opencode-cli
           key: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-${{ steps.opencode_cli_version.outputs.version }}
           restore-keys: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-
-      - name: Build and package Linux AppImage, .deb and .rpm
+      - name: Prepare Linux desktop build
         working-directory: packages/electron
         env:
           OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
@@ -224,7 +236,17 @@ jobs:
           bun run prepare:opencode-cli
           bun run verify:opencode-cli
           bun run prepare:ripgrep
-          bun run bundle:main
+      - name: Bundle main process
+        working-directory: packages/electron
+        env:
+          SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN: ${{ secrets.SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN }}
+        run: bun run bundle:main
+      - name: Package Linux AppImage, .deb and .rpm
+        working-directory: packages/electron
+        env:
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
           bun run rebuild:native
           node ./scripts/package.mjs --linux --${{ matrix.arch }} --publish=never
           bun run verify:opencode-cli:packaged

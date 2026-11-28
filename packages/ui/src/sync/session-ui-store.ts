@@ -337,6 +337,7 @@ export async function routeMessage(params: {
     runtimeKey: params.runtimeKey,
     sessionId: params.sessionId,
     content: promptContent,
+    requestedSkills: (skills?.names.length ?? 0) > 0,
     directory: requestDirectory,
     files: sendFiles,
     context: contextItems,

@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Product analytics",
+  "settings.productAnalytics.label": "Share product analytics",
+  "settings.productAnalytics.disclosure": "When configured, analytics sends app openings, conversation creation, accepted prompts, and feature opening and use to PostHog EU. Each event includes a random installation ID, the Skynex version, and the operating system family. It does not send conversation content or code.",
+  "settings.productAnalytics.inactive": "Inactive because configuration is missing or enterprise policy blocks it. Your preference is saved for future configuration.",
   'settings.sourceControl.ssh.title': 'SSH keys',
   'settings.sourceControl.ssh.load': 'Show keys',
   'settings.sourceControl.ssh.discover': 'Find keys in ~/.ssh',

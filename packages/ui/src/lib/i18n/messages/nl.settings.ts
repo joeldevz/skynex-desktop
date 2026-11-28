@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Productanalyse",
+  "settings.productAnalytics.label": "Productanalyse delen",
+  "settings.productAnalytics.disclosure": "Als gebruiksanalyse is ingesteld, worden het openen van de app, het aanmaken van gesprekken, geaccepteerde prompts en het openen en gebruiken van functies naar PostHog EU gestuurd. Elke gebeurtenis bevat een willekeurige installatie-ID, de Skynex-versie en het type besturingssysteem. Gespreksinhoud en code worden niet verzonden.",
+  "settings.productAnalytics.inactive": "Inactief omdat de configuratie ontbreekt of het bedrijfsbeleid dit blokkeert. Je voorkeur blijft bewaard.",
   'settings.sourceControl.ssh.title': 'SSH-sleutels',
   'settings.sourceControl.ssh.load': 'Sleutels tonen',
   'settings.sourceControl.ssh.discover': 'Sleutels zoeken in ~/.ssh',

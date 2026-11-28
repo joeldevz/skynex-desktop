@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Аналітика продукту",
+  "settings.productAnalytics.label": "Надсилати аналітику продукту",
+  "settings.productAnalytics.disclosure": "Коли аналітику налаштовано, відкриття застосунку, створення розмов, прийняті промпти, відкриття та використання функцій надсилаються до PostHog EU. Кожна подія містить випадковий ідентифікатор встановлення, версію Skynex і сімейство операційної системи. Вміст розмов і код не надсилаються.",
+  "settings.productAnalytics.inactive": "Неактивно через відсутність конфігурації або блокування політикою організації. Ваш вибір зберігається на майбутнє.",
   'settings.sourceControl.ssh.title': 'SSH-ключі',
   'settings.sourceControl.ssh.load': 'Показати ключі',
   'settings.sourceControl.ssh.discover': 'Знайти ключі в ~/.ssh',

@@ -189,6 +189,42 @@ type LaunchAtLoginStatus = {
   enabled: boolean;
 };
 
+const productAnalyticsSettingsSchema = z.object({ enabled: z.boolean(), available: z.boolean() });
+export type ProductAnalyticsSettings = z.infer<typeof productAnalyticsSettingsSchema>;
+
+const invokeProductAnalyticsSettings = async (command: string, args?: { enabled: boolean }): Promise<ProductAnalyticsSettings> => {
+  if (!canUseElectronDesktopIPC() || !isDesktopLocalOriginActive()) {
+    throw new Error('Desktop product analytics settings unavailable');
+  }
+  const result = productAnalyticsSettingsSchema.parse(await invokeDesktop(command, args));
+  if (!isDesktopLocalOriginActive()) throw new Error('Desktop runtime changed');
+  return result;
+};
+
+export const getDesktopProductAnalyticsSettings = (): Promise<ProductAnalyticsSettings> =>
+  invokeProductAnalyticsSettings('desktop_get_product_analytics_settings');
+
+export const setDesktopProductAnalyticsEnabled = (enabled: boolean): Promise<ProductAnalyticsSettings> =>
+  invokeProductAnalyticsSettings('desktop_set_product_analytics_enabled', { enabled });
+
+export const recordDesktopProductInteraction = (event: 'conversation_created' | 'prompt_sent'): void => {
+  try {
+    if (!canUseElectronDesktopIPC() || getRuntimeKey() !== 'local' || !isDesktopLocalOriginActive()) return;
+    void invokeDesktop('desktop_record_product_analytics_interaction', { event }).catch(() => {});
+  } catch {
+    // Analytics cannot change the outcome of the operation.
+  }
+};
+
+export const recordDesktopFeature = (feature: 'chat' | 'terminal' | 'browser' | 'whiteboards' | 'skills' | 'integrations', action: 'opened' | 'used'): void => {
+  try {
+    if (!canUseElectronDesktopIPC() || getRuntimeKey() !== 'local' || !isDesktopLocalOriginActive()) return;
+    void invokeDesktop('desktop_record_product_analytics_feature', { feature, action }).catch(() => {});
+  } catch {
+    // Analytics cannot change the outcome of the operation.
+  }
+};
+
 type KeepAwakeStatus = {
   supported: boolean;
   enabled: boolean;

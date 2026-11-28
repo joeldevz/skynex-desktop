@@ -57,7 +57,7 @@ import {
   SETTINGS_SECTION_TITLE_CLASS,
 } from '@/components/sections/shared/SettingsSection';
 import { useDeviceInfo } from '@/lib/device';
-import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, isWebRuntime, recordDesktopFeature } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from "@/components/icon/Icon";
 import { McpIcon } from '@/components/icons/McpIcon';
@@ -324,6 +324,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     setMobileStage(def.kind === 'split' ? 'page-sidebar' : 'page-content');
   }, [isMobile, setSettingsPage]);
 
+  const openPageFromNavigation = React.useCallback((slug: SettingsPageSlug) => {
+    const previous = useUIStore.getState().settingsPage;
+    openPage(slug);
+    if (previous !== 'skills.installed' && previous !== 'skills.catalog' &&
+        (slug === 'skills.installed' || slug === 'skills.catalog') && useUIStore.getState().settingsPage === slug) {
+      recordDesktopFeature('skills', 'opened');
+    }
+  }, [openPage]);
+
   const activePageMeta = React.useMemo(() => {
     return getSettingsPageMeta(settingsSlug);
   }, [settingsSlug]);
@@ -534,7 +543,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
   const openSearchResult = React.useCallback((result: SettingsSearchResult) => {
     const targetId = prepareSettingsSearchTarget(result);
     setPendingSearchItemId(targetId);
-    openPage(result.page);
+    openPageFromNavigation(result.page);
     if (isMobile) {
       setMobileStage('page-content');
     }
@@ -543,7 +552,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         window.dispatchEvent(new CustomEvent('openchamber:settings-open-plugin-add'));
       }, 50);
     }
-  }, [isMobile, openPage, prepareSettingsSearchTarget]);
+  }, [isMobile, openPageFromNavigation, prepareSettingsSearchTarget]);
 
   const handleSettingsSearchKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!settingsSearchQuery.trim()) {
@@ -999,7 +1008,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            onClick={() => openPage(page.slug)}
+                            onClick={() => openPageFromNavigation(page.slug)}
                             aria-current={selected ? 'page' : undefined}
                             className={cn(
                               'flex h-11 w-full items-center gap-2.5 rounded-md px-3 overflow-hidden sm:h-8 sm:gap-2 sm:px-2',

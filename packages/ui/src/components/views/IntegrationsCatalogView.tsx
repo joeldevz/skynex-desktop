@@ -34,6 +34,8 @@ import { useSkillsStore, type DiscoveredSkill } from '@/stores/useSkillsStore';
 import { useSkillsCatalogStore } from '@/stores/useSkillsCatalogStore';
 import { useGuestsStore } from '@/lib/guests/store';
 import { installGuest, uninstallGuest } from '@/lib/guests/install';
+import { recordDesktopFeature } from '@/lib/desktop';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 import { loadGuestCatalog } from '@/lib/guests/load-catalog';
 import { useUIStore } from '@/stores/useUIStore';
 import { brandIconFor } from '@/lib/integrations-catalog/brand-icons';
@@ -448,9 +450,12 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
    * overwritten silently.
    */
   const installEntry = React.useCallback(async (entry: CatalogEntry, only?: CatalogComponent) => {
+    const runtimeKey = getRuntimeKey();
     setBusyId(entry.id);
     try {
       let failed = false;
+      let attempted = false;
+      let connectFailed = false;
       let errorDetail: string | null = null;
       // Skills of one source install in a single call (one clone), with the
       // repo-root-relative subpath as the selection: the installer
@@ -459,6 +464,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
       for (const component of only ? [only] : entry.components) {
         if (component.kind === 'mcp') {
           if (isMcpInstalled(entry)) continue;
+          attempted = true;
           const token = component.auth === 'token' ? readToken(entry) : '';
           const values: Record<string, string> = {};
           for (const input of entry.inputs ?? []) values[input.id] = readInput(entry, input.id);
@@ -486,6 +492,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
               }
             }
           } catch {
+            connectFailed = true;
             // The reload is best-effort: the sign-in panel's own retry
             // (McpOAuthSignIn) still picks the integration up late.
           }
@@ -508,10 +515,12 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
           }
         } else if (component.kind === 'plugin') {
           if (isPluginInstalled(component)) continue;
+          attempted = true;
           const result = await createPluginEntry({ spec: component.spec, scope: 'user' });
           if (!result.ok) failed = true;
         } else if (component.kind === 'extension') {
           if (isExtensionInstalled(component.guestId)) continue;
+          attempted = true;
           const result = await installGuest(component.gitUrl);
           if (!result.ok) {
             failed = true;
@@ -525,6 +534,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
         }
       }
       for (const [source, batch] of pendingSkills) {
+        attempted = true;
         const response = await installSkills({
           source,
           scope: 'user',
@@ -541,6 +551,7 @@ export function IntegrationsCatalogView({ onOpenSettings }: { onOpenSettings?: (
           description: errorDetail ?? undefined,
         });
       } else {
+        if (attempted && !connectFailed && getRuntimeKey() === runtimeKey) recordDesktopFeature('integrations', 'used');
         toast.success(t('integrationsCatalog.install.success', { name: entry.name }));
       }
     } finally {

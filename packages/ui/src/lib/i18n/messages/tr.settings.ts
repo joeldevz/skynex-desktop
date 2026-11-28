@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Ürün analizi",
+  "settings.productAnalytics.label": "Ürün analizini paylaş",
+  "settings.productAnalytics.disclosure": "Kullanım analizi yapılandırıldığında uygulamayı açma, konuşma oluşturma, kabul edilen istemler ve özellikleri açma ve kullanma olayları PostHog EU hizmetine gönderilir. Her olay rastgele bir kurulum kimliği, Skynex sürümü ve işletim sistemi ailesini içerir. Konuşma içeriği ve kod gönderilmez.",
+  "settings.productAnalytics.inactive": "Yapılandırma eksik veya kuruluş ilkesi engellediği için etkin değil. Tercihiniz ileride kullanılmak üzere kaydedilir.",
   'settings.themeImport.selectAll': 'Tümünü seç',
   'settings.themeImport.deselectAll': 'Tümünün seçimini kaldır',
   'settings.themeImport.complete': 'İçe aktarma tamamlandı',

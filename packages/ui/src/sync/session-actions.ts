@@ -53,6 +53,7 @@ import { requestSessionArchiveBatch, requestSessionLinksUpdate, requestSessionMe
 import { registerBulkArchiveEchoes, releaseBulkArchiveEchoes } from "./bulk-archive-echo"
 import { markSessionUnreadSeen } from "./session-unread"
 import { getRuntimeKey } from "@/lib/runtime-switch"
+import { recordDesktopFeature, recordDesktopProductInteraction } from "@/lib/desktop"
 import { isRelayModeActive } from "@/lib/relay/runtime-tunnel"
 import { getErrorStatus, isAmbiguousSendFailure } from "./send-failure-classification"
 import { getStaleRunningToolMessageID } from "./materialization"
@@ -1017,6 +1018,7 @@ export async function createSession(
 
     if (getRuntimeKey() !== runtimeKey || opencodeClient.getSdkClient() !== runtimeClient
       || (draftTargetGuard && !isDraftTargetGuardCurrent(draftTargetGuard))) return null
+    recordDesktopProductInteraction('conversation_created')
     const sessionDirectory = session.directory || effectiveDirectory || null
     // Pre-populate routing index so SSE events arriving before session.created
     // can be routed to the correct child store
@@ -2034,6 +2036,7 @@ export async function optimisticSend(input: {
   runtimeKey?: string
   sessionId: string
   content: string
+  requestedSkills?: boolean
   directory?: string | null
   files?: Array<{ type: "file"; mime: string; url: string; filename: string }>
   /** Context admitted ahead of the prompt; shown in the optimistic message until the server echoes it. */
@@ -2054,6 +2057,7 @@ export async function optimisticSend(input: {
    */
   send: (messageID: string, context: SyntheticContextInput[]) => Promise<void>
 }): Promise<void> {
+  const runtimeKey = getRuntimeKey()
   if (!_optimisticAdd || !_optimisticRemove) {
     throw new Error("Optimistic refs not set — is useSync() mounted?")
   }
@@ -2183,10 +2187,17 @@ export async function optimisticSend(input: {
   })
 
   const releasePrompt = trackPromptInFlight(input.sessionId)
+  const recordAcceptedPrompt = () => {
+    if (getRuntimeKey() !== runtimeKey) return
+    recordDesktopProductInteraction('prompt_sent')
+    recordDesktopFeature('chat', 'used')
+    if (input.requestedSkills) recordDesktopFeature('skills', 'used')
+  }
   try {
     await input.ready
     assertRuntimeUnchanged()
     await input.send(messageID, context)
+    recordAcceptedPrompt()
   } catch (error) {
     const status = getErrorStatus(error)
     const ambiguousFailure = isAmbiguousSendFailure(error)
@@ -2195,6 +2206,7 @@ export async function optimisticSend(input: {
       : null
 
     if (acceptedRecords) {
+      recordAcceptedPrompt()
       materializeConfirmedSendRecords(store, input.sessionId, optimisticIDs, acceptedRecords)
       for (const optimisticID of optimisticIDs) {
         optimisticConfirm?.({

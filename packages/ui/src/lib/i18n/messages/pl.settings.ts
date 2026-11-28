@@ -5,6 +5,10 @@ import { firstPartyIntegrationsI18n } from './first-party-integrations.i18n';
 import { thirdPartyIntegrationI18n } from './third-party-integrations.i18n';
 import { extensionCatalogI18n } from './extension-catalog.i18n';
 export const settingsDict = {
+  "settings.productAnalytics.section": "Analityka produktu",
+  "settings.productAnalytics.label": "Udostępniaj dane analityczne",
+  "settings.productAnalytics.disclosure": "Po skonfigurowaniu analityki otwarcia aplikacji, tworzenie rozmów, zaakceptowane prompty oraz otwieranie i używanie funkcji są wysyłane do PostHog EU. Każde zdarzenie obejmuje losowy identyfikator instalacji, wersję Skynex i rodzinę systemu operacyjnego. Treść rozmów i kod nie są wysyłane.",
+  "settings.productAnalytics.inactive": "Nieaktywne z powodu braku konfiguracji lub blokady przez politykę organizacji. Preferencja zostanie zachowana.",
   'settings.sourceControl.ssh.title': 'Klucze SSH',
   'settings.sourceControl.ssh.load': 'Pokaż klucze',
   'settings.sourceControl.ssh.discover': 'Znajdź klucze w ~/.ssh',

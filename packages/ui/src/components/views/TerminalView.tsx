@@ -29,6 +29,8 @@ import { Icon } from "@/components/icon/Icon";
 import type { IconName } from '@/components/icon/icons';
 import { useDeviceInfo } from '@/lib/device';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
+import { recordDesktopFeature } from '@/lib/desktop';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 import { terminalSnapshotSize } from '@/lib/terminalApi';
 import { extractProxiedPorts, extractTerminalPreviewUrl, isTerminalPreviewUrlAvailable } from '@/lib/terminalPreview';
 import { reachesDevServersThroughTunnel } from '@/lib/browser/devTunnel';
@@ -225,6 +227,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
     const fittedViewportRef = React.useRef<{ tabId: string; cols: number; rows: number } | null>(null);
     const isTerminalVisibleRef = React.useRef(false);
     const pendingTerminalCreatesRef = React.useRef(new Set<string>());
+    const explicitTerminalCreatesRef = React.useRef(new Map<string, string>());
     const previewScanTailRef = React.useRef('');
     const pendingPreviewProbeUrlsRef = React.useRef<Set<string>>(new Set());
     const previewProbeGenerationRef = React.useRef(0);
@@ -556,6 +559,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
             }
 
             setTabSessionId(directory, tabId, session.sessionId);
+            const explicitRuntime = explicitTerminalCreatesRef.current.get(createKey);
+            explicitTerminalCreatesRef.current.delete(createKey);
+            if (explicitRuntime && explicitRuntime === getRuntimeKey()) recordDesktopFeature('terminal', 'used');
             if (!stillActive) return;
 
             const viewportSize = lastViewportSizeRef.current;
@@ -569,6 +575,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
             // effect own stream startup.
             return;
         } catch (error) {
+            explicitTerminalCreatesRef.current.delete(createKey);
             const owningTab = useTerminalStore.getState().getDirectoryState(directory)?.tabs.find((entry) => entry.id === tabId);
             if (!owningTab || owningTab.terminalSessionId) return;
 
@@ -777,6 +784,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
     const handleCreateTab = React.useCallback(() => {
         if (!terminalDirectory) return;
         const tabId = createTab(terminalDirectory);
+        explicitTerminalCreatesRef.current.set(`${terminalDirectory}\u0000${tabId}`, getRuntimeKey());
         setActiveTab(terminalDirectory, tabId);
         setConnectionError(null);
         setIsFatalError(false);

@@ -48,6 +48,39 @@ test('Skynex release uploads have write access while build-only jobs stay read-o
   }
 });
 
+test('Skynex releases require the analytics project token and pass it only to desktop bundling', () => {
+  const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
+  const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
+  const variable = 'SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN';
+  const reference = '${{ secrets.SKYNEX_DESKTOP_POSTHOG_PROJECT_TOKEN }}';
+  const steps = desktopWorkflow.jobs['create-release'].steps;
+  const validation = steps.find(({ name }) => name === 'Validate PostHog project token');
+  assert.ok(validation);
+  assert.ok(steps.indexOf(validation) < steps.findIndex(({ id }) => id === 'create_release'));
+
+  const tokenSteps = [];
+  for (const [job, definition] of Object.entries(desktopWorkflow.jobs)) {
+    assert.ok(!Object.hasOwn(definition.env ?? {}, variable), job);
+    for (const step of definition.steps) {
+      if (!Object.hasOwn(step.env ?? {}, variable)) continue;
+      assert.equal(step.env[variable], reference);
+      if (step !== validation) assert.equal(step.run, 'bun run bundle:main');
+      tokenSteps.push(`${job}:${step.name}`);
+    }
+  }
+  assert.ok(!Object.hasOwn(desktopWorkflow.env ?? {}, variable));
+  assert.deepEqual(tokenSteps, [
+    'create-release:Validate PostHog project token',
+    'build-windows:Bundle main process',
+    'build-linux:Bundle main process',
+  ]);
+  for (const [value, expectedStatus] of [['', 1], ['phx_fake-private-key', 1], [`phc_${'a'.repeat(24)}`, 0]]) {
+    const result = spawnSync('bash', ['-c', validation.run], { env: { ...process.env, [variable]: value }, encoding: 'utf8' });
+    assert.equal(result.status, expectedStatus, result.stderr);
+    if (value) assert.ok(!`${result.stdout}${result.stderr}`.includes(value));
+  }
+});
+
 test('Skynex release selects and validates x64 by default and both ARM64 platforms on opt-in', (t) => {
   const desktopWorkflowPath = fileURLToPath(new URL('../.github/workflows/desktop-release.yml', import.meta.url));
   const desktopWorkflow = yaml.parse(fs.readFileSync(desktopWorkflowPath, 'utf8'));
